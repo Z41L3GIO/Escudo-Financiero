@@ -1,0 +1,21 @@
+{
+  "name": "Escudo Financiero Pro",
+  "short_name": "EscudoFinanciero",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "description": "Plataforma cívica mexicana para la validación SIPRES, generador de quejas CONDUSEF en PDF y defensa antifraude.",
+  "icons": [
+    {
+      "src": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/svgs/solid/shield-halved.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/svgs/solid/shield-halved.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

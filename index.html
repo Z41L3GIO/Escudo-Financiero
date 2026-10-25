@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Escudo Financiero Pro — Ciberseguridad Cívica, Buscador SIPRES & Quejas CONDUSEF</title>
+  <meta name="description" content="Plataforma cívica mexicana para la validación instantánea de 409 entidades en SIPRES/CNBV, generador de quejas CONDUSEF en PDF con redacción jurídica forense, semáforo de crédito, chatbot asistente con Gemini y radar antifraude.">
+  <meta name="theme-color" content="#0284c7">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+
+  <!-- html2pdf.js Bundle for Legal Document Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+
+  <!-- Estilos Personalizados y Reglas de Impresión -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Base de Datos Nativa SIPRES (409 Entidades Precargadas en Memoria) -->
+  <script src="sipres_db.js"></script>
+  <!-- Consolidado de 399 Aplicaciones de Préstamo Móvil (CONDUSEF / Reportes / Google Play) -->
+  <script src="apps_prestamo_db.js"></script>
+</head>
+<body class="flex flex-col min-h-full text-slate-800 pb-20 md:pb-0 transition-colors">
+
+  <!-- =========================================================================
+       1. BANNER TICKER SUPERIOR: ALERTAS OFICIALES CONDUSEF & POLICÍA CIBERNÉTICA
+       ========================================================================= -->
+  <div id="ticker-banner" class="bg-slate-900 text-amber-300 text-xs py-2 px-4 border-b border-slate-800 flex items-center justify-between z-30 shadow-sm no-print">
+    <div class="flex items-center space-x-2 font-semibold shrink-0 pr-3 border-r border-slate-700">
+      <span class="inline-flex h-2 w-2 rounded-full bg-red-500 animate-ping"></span>
+      <i class="fa-solid fa-bullhorn text-amber-400"></i>
+      <span class="uppercase tracking-wider hidden sm:inline text-[11px]">Radar Oficial:</span>
+    </div>
+    <div class="ticker-wrap flex-1 ml-3 text-slate-300 font-medium">
+      <div class="ticker-content space-x-8">
+        <span><strong class="text-amber-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i>ALERTA CONDUSEF:</strong> Suplantación de identidad de instituciones financieras en WhatsApp. Valida siempre el folio oficial antes de firmar.</span>
+        <span><strong class="text-red-400"><i class="fa-solid fa-hand-holding-dollar mr-1"></i>REGLA DE ORO:</strong> NINGUNA financiera legal solicita depósitos previos para autorizar créditos (Art. 386 CPF).</span>
+        <span><strong class="text-sky-400"><i class="fa-solid fa-shield-halved mr-1"></i>POLICÍA CIBERNÉTICA CDMX:</strong> Más de 650 aplicaciones "Montadeudas" dadas de baja por extorsión digital.</span>
+        <span><strong class="text-emerald-400"><i class="fa-solid fa-check-double mr-1"></i>SIPRES 2026:</strong> 409 entidades financieras oficiales indexadas en memoria volátil en esta plataforma.</span>
+        <!-- Duplicado para loop continuo fluido -->
+        <span><strong class="text-amber-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i>ALERTA CONDUSEF:</strong> Suplantación de identidad de instituciones financieras en WhatsApp. Valida siempre el folio oficial antes de firmar.</span>
+        <span><strong class="text-red-400"><i class="fa-solid fa-hand-holding-dollar mr-1"></i>REGLA DE ORO:</strong> NINGUNA financiera legal solicita depósitos previos para autorizar créditos (Art. 386 CPF).</span>
+      </div>
+    </div>
+    <div class="hidden lg:flex items-center space-x-3 text-slate-400 text-[11px] shrink-0 pl-3 border-l border-slate-700">
+      <span class="flex items-center"><i class="fa-solid fa-phone text-emerald-400 mr-1"></i> CONDUSEF: 55 53 400 999</span>
+      <span class="flex items-center"><i class="fa-solid fa-shield-cat text-sky-400 mr-1"></i> Guardia Nacional: 088</span>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       2. HEADER Y NAVEGACIÓN PRINCIPAL (DESKTOP / TABLET)
+       ========================================================================= -->
+  <header class="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <!-- Branding y Logotipo -->
+        <div class="flex items-center space-x-3 cursor-pointer" onclick="EscudoApp.switchTab('directorio')">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-sky-900/40">
+            <i class="fa-solid fa-shield-halved text-white text-xl"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="font-heading font-extrabold text-lg sm:text-xl tracking-tight text-white">ESCUDO <span class="text-sky-400">FINANCIERO</span></span>
+              <span class="bg-sky-500/20 text-sky-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-sky-500/30 uppercase tracking-widest">PRO</span>
+            </div>
+            <p class="text-[10px] text-slate-400 hidden sm:block">Plataforma Cívica Antifraude • Directorio SIPRES & Quejas CONDUSEF</p>
+          </div>
+        </div>
+
+        <!-- Navegación de Escritorio (5 Módulos Principales) -->
+        <nav class="hidden md:flex space-x-1 lg:space-x-2">
+          <button onclick="EscudoApp.switchTab('directorio')" data-tab-btn="directorio" class="nav-tab-btn px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 bg-sky-600 text-white shadow-sm">
+            <i class="fa-solid fa-building-columns"></i>
+            <span>SIPRES (409)</span>
+          </button>
+          <button onclick="EscudoApp.switchTab('quejas')" data-tab-btn="quejas" class="nav-tab-btn px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-800">
+            <i class="fa-solid fa-file-contract"></i>
+            <span>Quejas Jurídicas</span>
+          </button>
+          <button onclick="EscudoApp.switchTab('credito')" data-tab-btn="credito" class="nav-tab-btn px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-800">
+            <i class="fa-solid fa-traffic-light"></i>
+            <span>Semáforo Crédito</span>
+          </button>
+          <button onclick="EscudoApp.switchTab('analizador')" data-tab-btn="analizador" class="nav-tab-btn px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-800">
+            <i class="fa-solid fa-brain"></i>
+            <span>Forense IA</span>
+          </button>
+          <button onclick="EscudoApp.switchTab('radar')" data-tab-btn="radar" class="nav-tab-btn px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-800">
+            <i class="fa-solid fa-radar"></i>
+            <span>Radar Comunitario</span>
+          </button>
+        </nav>
+
+        <!-- Acciones Rápidas del Header -->
+        <div class="flex items-center space-x-2 sm:space-x-3">
+          
+          <!-- Botón de Comparador de Entidades -->
+          <button onclick="EscudoApp.openComparatorModal()" class="text-slate-300 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors relative" title="Comparador de Entidades Financieras">
+            <i class="fa-solid fa-code-compare text-base"></i>
+            <span id="compare-badge" class="hidden absolute top-1 right-1 w-2 h-2 rounded-full bg-sky-500"></span>
+          </button>
+
+          <!-- Conmutador de Modo Oscuro -->
+          <button id="theme-toggle-btn" onclick="EscudoApp.toggleDarkMode()" class="text-slate-300 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors" title="Alternar Modo Oscuro / Claro">
+            <i id="theme-toggle-icon" class="fa-solid fa-moon text-base"></i>
+          </button>
+
+          <!-- Atajo de Búsqueda Global -->
+          <button onclick="EscudoApp.focusSearch()" title="Buscar institución (Ctrl + K o /)" class="hidden xl:flex items-center text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg space-x-2 transition-colors">
+            <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+            <span>Buscar SIPRES</span>
+            <kbd class="bg-slate-900 border border-slate-700 text-slate-400 px-1.5 py-0.5 rounded font-mono text-[10px]">Ctrl K</kbd>
+          </button>
+          
+          <!-- Botón de Información Legal / Safe Harbor -->
+          <button onclick="EscudoApp.openModal('modal-safe-harbor')" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors" title="Aviso Legal y Privacidad LFPDPPP">
+            <i class="fa-solid fa-scale-balanced text-lg"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       3. CONTENIDO PRINCIPAL: 5 MÓDULOS SINCRONIZADOS
+       ========================================================================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- =======================================================================
+         MÓDULO 1: BUSCADOR SIPRES / CNBV (409 ENTIDADES EN MEMORIA)
+         ======================================================================= -->
+    <section id="tab-directorio" class="tab-content active space-y-6">
+      
+      <!-- Banner de bienvenida y métricas del módulo -->
+      <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-slate-700">
+        <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl">
+          <i class="fa-solid fa-building-columns"></i>
+        </div>
+        <div class="relative z-10 max-w-3xl">
+          <div class="inline-flex items-center space-x-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+            <i class="fa-solid fa-database"></i>
+            <span>Base Oficial Precargada en Memoria (409 Registros)</span>
+          </div>
+          <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight mb-2">Directorio Oficial SIPRES & CNBV</h1>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Verifica al instante si una institución financiera está debidamente autorizada y en operación en México. Protege tu patrimonio antes de contratar un crédito, transferir dinero o firmar un contrato.
+          </p>
+
+          <!-- Tarjetas de métricas rápidas -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+            <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-3 text-center">
+              <span class="block text-xl sm:text-2xl font-bold text-white" id="stat-total">409</span>
+              <span class="text-[11px] text-slate-400 uppercase font-medium">Total Entidades</span>
+            </div>
+            <div class="bg-slate-800/80 border border-emerald-500/30 rounded-xl p-3 text-center">
+              <span class="block text-xl sm:text-2xl font-bold text-emerald-400" id="stat-operacion">383</span>
+              <span class="text-[11px] text-emerald-300 uppercase font-medium">En Operación</span>
+            </div>
+            <div class="bg-slate-800/80 border border-red-500/30 rounded-xl p-3 text-center">
+              <span class="block text-xl sm:text-2xl font-bold text-red-400" id="stat-canceladas">26</span>
+              <span class="text-[11px] text-red-300 uppercase font-medium">En Revisión / Fusión</span>
+            </div>
+            <div class="bg-slate-800/80 border border-amber-500/30 rounded-xl p-3 text-center">
+              <span class="block text-xl sm:text-2xl font-bold text-amber-400" id="stat-suplantables">35+</span>
+              <span class="text-[11px] text-amber-300 uppercase font-medium">Alerta Suplantación</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de Búsqueda Reactiva con Fuzzy Search y Filtros -->
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 space-y-4">
+        
+        <!-- Input Principal de Búsqueda -->
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+            <i class="fa-solid fa-magnifying-glass text-lg"></i>
+          </div>
+          <input 
+            type="text" 
+            id="sipres-search-input" 
+            placeholder="Buscar por Nombre Comercial (ej. BBVA, Nu, Stori), Razón Social o Folio SIPRES..." 
+            class="w-full pl-11 pr-28 py-3.5 bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 rounded-xl text-base transition-all outline-none font-medium text-slate-900"
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <div class="absolute inset-y-0 right-0 pr-3 flex items-center space-x-2">
+            <button id="sipres-search-clear" onclick="EscudoApp.clearSearch()" class="hidden text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Limpiar búsqueda">
+              <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+            <span class="hidden sm:inline text-xs text-sky-700 bg-sky-100 px-2 py-0.5 rounded font-mono font-semibold" title="Búsqueda con tolerancia a errores ortográficos">Fuzzy ON</span>
+          </div>
+        </div>
+
+        <!-- Historial de Búsquedas Recientes -->
+        <div id="recent-searches-box" class="hidden flex items-center space-x-2 text-xs text-slate-500 pt-1 overflow-x-auto pb-1">
+          <span class="font-semibold text-slate-400 shrink-0"><i class="fa-solid fa-clock-rotate-left mr-1"></i>Recientes:</span>
+          <div id="recent-chips" class="flex space-x-1.5"></div>
+        </div>
+
+        <!-- Chips de Filtro por Estatus -->
+        <div class="flex flex-wrap gap-2 pt-1 items-center">
+          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Estatus:</span>
+          <button onclick="EscudoApp.setStatusFilter('todas')" data-status="todas" class="status-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white shadow-sm transition-all">
+            Todas (409)
+          </button>
+          <button onclick="EscudoApp.setStatusFilter('autorizadas')" data-status="autorizadas" class="status-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Autorizadas / Operación</span>
+          </button>
+          <button onclick="EscudoApp.setStatusFilter('alertas')" data-status="alertas" class="status-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span>Alertas de Suplantación</span>
+          </button>
+          <button onclick="EscudoApp.setStatusFilter('revision')" data-status="revision" class="status-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">
+            En Revisión / Fusión
+          </button>
+        </div>
+
+        <!-- Filtros Secundarios: Sector y Estado -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Filtrar por Sector Financiero:</label>
+            <select id="filter-sector" onchange="EscudoApp.applySecondaryFilters()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-sky-500">
+              <option value="">Todos los sectores (Banca, Fintech, SOCAP, SOFIPO...)</option>
+              <option value="banca múltiple">Instituciones de Banca Múltiple</option>
+              <option value="banca de desarrollo">Instituciones de Banca de Desarrollo</option>
+              <option value="cooperativas">Sociedades Cooperativas (SOCAP)</option>
+              <option value="populares">Sociedades Financieras Populares (SOFIPO)</option>
+              <option value="pago electr">Fintechs / Fondos de Pago Electrónico (IFPE)</option>
+              <option value="financiamiento colectivo">Fintechs / Financiamiento Colectivo (IFC)</option>
+              <option value="uniones">Uniones de Crédito</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Filtrar por Entidad Federativa:</label>
+            <select id="filter-estado" onchange="EscudoApp.applySecondaryFilters()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-sky-500">
+              <option value="">Todas las entidades federativas (29 estados)</option>
+              <option value="Ciudad de México">Ciudad de México</option>
+              <option value="Jalisco">Jalisco</option>
+              <option value="Nuevo León">Nuevo León</option>
+              <option value="Guanajuato">Guanajuato</option>
+              <option value="Querétaro">Querétaro</option>
+              <option value="Michoacán de Ocampo">Michoacán de Ocampo</option>
+              <option value="Puebla">Puebla</option>
+              <option value="México">Estado de México</option>
+              <option value="Veracruz de Ignacio de la Llave">Veracruz</option>
+              <option value="Yucatán">Yucatán</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Resumen de Resultados y Contador Activo -->
+      <div class="flex items-center justify-between text-xs text-slate-500 px-1">
+        <div>
+          Mostrando <span id="results-count" class="font-bold text-slate-800">0</span> entidades encontradas.
+        </div>
+        <div class="text-[11px] text-slate-400">
+          Validación en memoria (409 registros oficiales)
+        </div>
+      </div>
+
+      <!-- Ficha de Comprobación y Entidades Relacionadas (Generada al Buscar ej. BBVA) -->
+      <div id="sipres-group-summary"></div>
+
+      <!-- Rejilla de Tarjetas de Entidades (Responsive Grid) -->
+      <div id="sipres-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Renderizado dinámico vía JavaScript -->
+      </div>
+
+      <!-- Paginación / Cargar más -->
+      <div id="pagination-wrapper" class="flex justify-center pt-4 pb-8">
+        <button id="btn-load-more" onclick="EscudoApp.loadMoreResults()" class="hidden bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-semibold px-6 py-2.5 rounded-xl shadow-sm transition-all flex items-center space-x-2 text-sm">
+          <i class="fa-solid fa-angles-down text-slate-400"></i>
+          <span>Cargar más resultados</span>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- =======================================================================
+         MÓDULO 2: GENERADOR DE QUEJAS CONDUSEF / REDECO + EXPORTACIÓN PDF
+         ======================================================================= -->
+    <section id="tab-quejas" class="tab-content space-y-6">
+      
+      <!-- Encabezado del Módulo de Quejas -->
+      <div class="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-700 relative">
+        <div class="max-w-3xl">
+          <div class="inline-flex items-center space-x-2 bg-sky-500/20 text-sky-300 border border-sky-500/30 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+            <i class="fa-solid fa-scale-balanced"></i>
+            <span>Redacción Jurídica Forense • Art. 59 Bis 1 LPDUSF & REDECO</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Generador de Escrito Legal de Reclamación</h2>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Genera un escrito formal con auténtica prosa procesal administrativa mexicana. El documento articula los hechos cronológicos, fundamentación normativa, firma autógrafa digitalizada y anexos documentales en formato PDF imprimible sin sobreposición de texto.
+          </p>
+        </div>
+      </div>
+
+      <!-- Formulario Guiado para Generar el Escrito -->
+      <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
+        
+        <!-- Selector de Tipo de Procedimiento: CONDUSEF vs REDECO -->
+        <div class="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div>
+            <span class="block text-xs font-bold text-slate-800 uppercase tracking-wide">Tipo de Reclamación Formal:</span>
+            <span class="text-xs text-slate-500">Selecciona si reclamas a una institución financiera o denuncias a un despacho de cobranza.</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button type="button" id="btn-proc-condusef" onclick="EscudoApp.setQuejaProcedure('condusef')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-sm transition-all">
+              Queja CONDUSEF (Banco / Fintech / SOCAP / SOFIPO)
+            </button>
+            <button type="button" id="btn-proc-redeco" onclick="EscudoApp.setQuejaProcedure('redeco')" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 transition-all">
+              REDECO (Cobranza Abusiva / Amenazas)
+            </button>
+          </div>
+        </div>
+
+        <form id="form-queja" onsubmit="event.preventDefault(); EscudoApp.generateQuejaPreview();" class="space-y-8">
+          
+          <!-- SECCIÓN 1: DATOS DEL RECLAMANTE -->
+          <div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200 mb-4">
+              <div class="flex items-center space-x-3">
+                <span class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-sm">1</span>
+                <div>
+                  <h3 class="font-heading font-bold text-slate-800 text-base">Generales del Promovente (Usuario Afectado)</h3>
+                  <p class="text-xs text-slate-500">Datos para la personalidad jurídica y domicilio procesal (LFPDPPP protegida en memoria volátil).</p>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span id="queja-draft-status" class="hidden text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                  <i class="fa-solid fa-floppy-disk mr-1"></i> Borrador autoguardado
+                </span>
+                <button type="button" onclick="EscudoApp.clearQuejaDraft()" class="text-[11px] font-semibold text-slate-500 hover:text-red-600 px-2.5 py-1 rounded-lg border border-slate-200 hover:border-red-200 bg-slate-50 transition-colors">
+                  <i class="fa-solid fa-trash-can mr-1"></i> Limpiar borrador
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nombre Completo (como figura en INE) *</label>
+                <input type="text" id="q-nombre" required placeholder="Ej. Juan Carlos Pérez Hernández" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-semibold text-slate-700">CURP (18 caracteres) *</label>
+                  <span id="curp-validation-badge" class="text-[10px] font-mono text-slate-400">Formato RENAPO</span>
+                </div>
+                <input type="text" id="q-curp" required maxlength="18" oninput="EscudoApp.validateCurpLive()" placeholder="PEHJ850412HDFRRN09" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 uppercase font-mono outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Correo Electrónico para Notificaciones *</label>
+                <input type="email" id="q-email" required placeholder="usuario@correo.com" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Teléfono Móvil (10 dígitos) *</label>
+                <input type="tel" id="q-telefono" required maxlength="10" placeholder="5512345678" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 font-mono outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Calle y Número Exterior / Interior *</label>
+                <input type="text" id="q-calle" required placeholder="Av. Insurgentes Sur 123, Depto 4B" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Colonia *</label>
+                <input type="text" id="q-colonia" required placeholder="Col. Del Valle" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Alcaldía / Municipio *</label>
+                <input type="text" id="q-municipio" required placeholder="Benito Juárez" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Código Postal (5 dígitos) *</label>
+                <input type="text" id="q-cp" required maxlength="5" placeholder="03100" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 font-mono outline-none">
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 2: UNIDAD DE ATENCIÓN CONDUSEF (UDECO) -->
+          <div>
+            <div class="flex items-center space-x-3 pb-3 border-b border-slate-200 mb-4">
+              <span class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-sm">2</span>
+              <div>
+                <h3 class="font-heading font-bold text-slate-800 text-base">Unidad de Atención a Usuarios (UDECO) Destinataria</h3>
+                <p class="text-xs text-slate-500">Autoridad regional ante la que se radicará el expediente.</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Seleccionar UDECO Regional *</label>
+                <select id="q-udeco" onchange="EscudoApp.updateUdecoInfo()" class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2.5 text-sm text-slate-900 outline-none font-medium">
+                  <option value="CDMX_CENTRAL">UDECO Metropolitana Central (Insurgentes Sur, CDMX)</option>
+                  <option value="CDMX_ORIENTE">UDECO Metropolitana Oriente (Iztapalapa, CDMX)</option>
+                  <option value="JALISCO">UDECO Jalisco (Guadalajara, Jal.)</option>
+                  <option value="NUEVO_LEON">UDECO Nuevo León (Monterrey, N.L.)</option>
+                  <option value="PUEBLA">UDECO Puebla (Puebla, Pue.)</option>
+                  <option value="VERACRUZ">UDECO Veracruz (Boca del Río / Veracruz)</option>
+                  <option value="GUANAJUATO">UDECO Guanajuato (León, Gto.)</option>
+                  <option value="QUERETARO">UDECO Querétaro (Santiago de Querétaro)</option>
+                  <option value="YUCATAN">UDECO Yucatán (Mérida, Yuc.)</option>
+                  <option value="BAJA_CALIFORNIA">UDECO Baja California (Tijuana, B.C.)</option>
+                  <option value="CHIHUAHUA">UDECO Chihuahua (Chihuahua, Chih.)</option>
+                  <option value="SONORA">UDECO Sonora (Hermosillo, Son.)</option>
+                </select>
+              </div>
+              <div id="udeco-info-box" class="bg-sky-50 border border-sky-200 rounded-xl p-3.5 text-xs text-sky-900 flex items-start space-x-3">
+                <i class="fa-solid fa-location-dot text-sky-600 text-lg mt-0.5"></i>
+                <div id="udeco-info-text">
+                  <strong class="block font-semibold">UDECO Metropolitana Central:</strong>
+                  <span>Av. Insurgentes Sur 762, PB, Col. Del Valle Norte, Alcaldía Benito Juárez, C.P. 03103, Ciudad de México.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 3: DATOS DEL ASUNTO Y LA INSTITUCIÓN RECLAMADA -->
+          <div>
+            <div class="flex items-center space-x-3 pb-3 border-b border-slate-200 mb-4">
+              <span class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-sm">3</span>
+              <div>
+                <h3 class="font-heading font-bold text-slate-800 text-base">Datos de la Entidad Reclamada y del Producto</h3>
+                <p class="text-xs text-slate-500">Identificación formal de la institución, cuenta o contrato en controversia.</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="sm:col-span-2 relative">
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-semibold text-slate-700" id="lbl-institucion">Institución Financiera Reclamada (Autocompletado con las 409 entidades) *</label>
+                  <span id="q-institucion-match-badge" class="hidden text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                    <i class="fa-solid fa-circle-check mr-1"></i> Vinculada con SIPRES
+                  </span>
+                </div>
+                <div class="flex space-x-2">
+                  <input type="text" id="q-institucion" list="sipres-entities-datalist" oninput="EscudoApp.handleInstitucionAutocomplete(this.value)" required placeholder="Escribe p. ej. BBVA, Banorte, Stori, Caja Popular..." class="flex-1 bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+                  <datalist id="sipres-entities-datalist"></datalist>
+                  <button type="button" onclick="EscudoApp.switchTab('directorio')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium border border-slate-300 whitespace-nowrap">
+                    <i class="fa-solid fa-search mr-1"></i> Directorio SIPRES
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Folio SIPRES (Opcional)</label>
+                <input type="text" id="q-folio-sipres" placeholder="Ej. 40012" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 outline-none">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Sector Financiero *</label>
+                <select id="q-sector" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+                  <option value="Banca Múltiple">Banca Múltiple (Bancos Comerciales)</option>
+                  <option value="Banca de Desarrollo">Banca de Desarrollo</option>
+                  <option value="Fintech / IFPE">Fintech / Institución de Fondos de Pago Electrónico</option>
+                  <option value="Fintech / IFC">Fintech / Financiamiento Colectivo</option>
+                  <option value="SOFIPO">Sociedad Financiera Popular (SOFIPO)</option>
+                  <option value="SOCAP">Caja de Ahorro y Préstamo (SOCAP)</option>
+                  <option value="Uniones de Crédito">Uniones de Crédito</option>
+                  <option value="Seguros y Fianzas">Institución de Seguros y Fianzas</option>
+                  <option value="Afore">Administradora de Fondos para el Retiro (Afore)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Producto o Servicio Financiero *</label>
+                <select id="q-producto" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+                  <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                  <option value="Tarjeta de Débito / Cuenta de Nómina">Tarjeta de Débito / Cuenta de Nómina</option>
+                  <option value="Transferencia Electrónica (SPEI)">Transferencia Electrónica (SPEI)</option>
+                  <option value="Crédito Personal o de Nómina">Crédito Personal o de Nómina</option>
+                  <option value="Crédito Automotriz">Crédito Automotriz</option>
+                  <option value="Crédito Hipotecario">Crédito Hipotecario</option>
+                  <option value="Banca Digital / App Móvil">Banca Digital / Aplicación Móvil</option>
+                  <option value="Cajero Automático (ATM)">Cajero Automático (Dispensación incompleta)</option>
+                  <option value="Seguro de Auto o Gastos Médicos">Póliza de Seguro (Rechazo de siniestro)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Causa Formal del Reclamo *</label>
+                <select id="q-causa" onchange="EscudoApp.applyTemplateCausa()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+                  <option value="Cargos no reconocidos en cuenta o tarjeta">Cargos no reconocidos en cuenta o tarjeta</option>
+                  <option value="Transferencia SPEI no autorizada / Fraude cibernético">Transferencia SPEI no autorizada / Fraude cibernético</option>
+                  <option value="Cobranza amenazante, ilícita o acoso a contactos">Cobranza amenazante, ilícita o acoso a contactos (Art. 284 Bis CPF)</option>
+                  <option value="Negativa indebida de indemnización de seguro">Negativa indebida de indemnización de seguro</option>
+                  <option value="Cobro abusivo de comisiones o intereses excesivos">Cobro indebido de comisiones o intereses no pactados</option>
+                  <option value="Retención o bloqueo injustificado de fondos">Retención o bloqueo injustificado de fondos</option>
+                  <option value="Cancelación de producto no atendida">Solicitud de cancelación de producto ignorada</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">No. de Cuenta / Tarjeta / Contrato / Folio *</label>
+                <input type="text" id="q-contrato" required placeholder="Últimos 4 dígitos o número de contrato" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 outline-none">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Monto Reclamado ($ MXN) *</label>
+                <input type="number" id="q-monto" required min="1" step="0.01" placeholder="Ej. 15450.00" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 outline-none">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Fecha de Ocurrencia de los Hechos *</label>
+                <input type="date" id="q-fecha-hechos" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none">
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 4: HECHOS Y PRETENSIONES -->
+          <div>
+            <div class="flex items-center space-x-3 pb-3 border-b border-slate-200 mb-4">
+              <span class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-sm">4</span>
+              <div>
+                <h3 class="font-heading font-bold text-slate-800 text-base">Hechos y Pretensiones</h3>
+                <p class="text-xs text-slate-500">Nuestro motor articulará estos elementos en un escrito procesal continuo formal.</p>
+              </div>
+            </div>
+
+            <!-- Botones de Plantillas Rápidas -->
+            <div class="mb-3 flex flex-wrap gap-2 items-center">
+              <span class="text-xs font-semibold text-slate-600">Modelos de Redacción:</span>
+              <button type="button" onclick="EscudoApp.loadTemplate('cargos')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                <i class="fa-solid fa-credit-card mr-1 text-sky-600"></i> Cargos no reconocidos
+              </button>
+              <button type="button" onclick="EscudoApp.loadTemplate('spei')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                <i class="fa-solid fa-money-bill-transfer mr-1 text-emerald-600"></i> Fraude SPEI / Phishing
+              </button>
+              <button type="button" onclick="EscudoApp.loadTemplate('cobranza')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                <i class="fa-solid fa-handshake-slash mr-1 text-red-600"></i> Cobranza Ilegal / REDECO
+              </button>
+              <button type="button" onclick="EscudoApp.loadTemplate('seguro')" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                <i class="fa-solid fa-car-crash mr-1 text-amber-600"></i> Negativa de Seguro
+              </button>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Capítulo de Hechos (Relato cronológico de los acontecimientos) *</label>
+                <textarea id="q-hechos" required rows="6" placeholder="Describe los hechos cronológicamente..." class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg p-3 text-sm text-slate-900 outline-none leading-relaxed"></textarea>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Capítulo de Pretensiones Concretas *</label>
+                <textarea id="q-pretensiones" required rows="3" placeholder="Solicito la restitución íntegra del monto..." class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-sky-500 rounded-lg p-3 text-sm text-slate-900 outline-none leading-relaxed"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 5: FIRMA AUTÓGRAFA DIGITALIZADA (CANVAS TÁCTIL) -->
+          <div>
+            <div class="flex items-center space-x-3 pb-3 border-b border-slate-200 mb-4">
+              <span class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-sm">5</span>
+              <div>
+                <h3 class="font-heading font-bold text-slate-800 text-base">Firma Autógrafa Digital (Rúbrica en Pantalla)</h3>
+                <p class="text-xs text-slate-500">Firma con tu dedo o mouse para estampar tu firma real en el documento PDF descargable.</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+              <div class="md:col-span-8">
+                <div class="signature-canvas-wrapper shadow-inner">
+                  <canvas id="signature-canvas"></canvas>
+                  <span class="absolute bottom-2 right-3 text-[10px] text-slate-400 font-mono pointer-events-none">Lienzo de firma táctil</span>
+                </div>
+              </div>
+              <div class="md:col-span-4 space-y-2">
+                <button type="button" onclick="EscudoApp.clearSignature()" class="w-full py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-300 flex items-center justify-center space-x-1.5">
+                  <i class="fa-solid fa-eraser"></i>
+                  <span>Borrar y Repetir Firma</span>
+                </button>
+                <div class="p-3 bg-sky-50 rounded-lg border border-sky-200 text-[11px] text-sky-800">
+                  <i class="fa-solid fa-circle-info mr-1 text-sky-600"></i>
+                  <span>Tu firma se procesa exclusivamente en tu navegador. Quedará estampada sobre la leyenda formal de protesta de decir verdad.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 6: ANEXOS Y PRUEBAS DOCUMENTALES (CAPTURA DE PANTALLA / COMPROBANTES) -->
+          <div>
+            <div class="flex items-center space-x-3 pb-3 border-b border-slate-200 mb-4">
+              <span class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-sm">6</span>
+              <div>
+                <h3 class="font-heading font-bold text-slate-800 text-base">Anexos y Pruebas Documentales (Opcional)</h3>
+                <p class="text-xs text-slate-500">Adjunta capturas de pantalla de chats, comprobantes SPEI o estados de cuenta para incluirlos al final del escrito.</p>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <input type="file" id="q-evidencias-input" accept="image/*" multiple onchange="EscudoApp.handleEvidenceUpload(event)" class="hidden">
+              <button type="button" onclick="document.getElementById('q-evidencias-input').click()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-300 flex items-center space-x-2">
+                <i class="fa-solid fa-paperclip text-slate-500"></i>
+                <span>Adjuntar Imágenes de Pruebas (Capturas de WhatsApp / Comprobantes)</span>
+              </button>
+              
+              <!-- Contenedor de miniaturas adjuntas -->
+              <div id="evidence-preview-container" class="flex flex-wrap gap-3 pt-2"></div>
+            </div>
+          </div>
+
+          <!-- Botones de Acción para Generar PDF o Previsualizar -->
+          <div class="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-slate-200">
+            <button type="button" onclick="EscudoApp.generateQuejaPreview()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 transition-colors flex items-center justify-center space-x-2 text-sm">
+              <i class="fa-solid fa-eye text-slate-500"></i>
+              <span>Previsualizar Escrito Jurídico</span>
+            </button>
+            <button type="submit" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold transition-colors shadow-md flex items-center justify-center space-x-2 text-sm">
+              <i class="fa-solid fa-file-pdf"></i>
+              <span>Generar y Descargar Escrito en PDF</span>
+            </button>
+          </div>
+
+        </form>
+      </div>
+
+    </section>
+
+    <!-- =======================================================================
+         MÓDULO 3: EVALUADOR DE CRÉDITO CIUDADANO ("SEMÁFORO DE PRÉSTAMO JUSTO")
+         ======================================================================= -->
+    <section id="tab-credito" class="tab-content space-y-6">
+      
+      <!-- Encabezado del Semáforo -->
+      <div class="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-700">
+        <div class="max-w-3xl">
+          <div class="inline-flex items-center space-x-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+            <i class="fa-solid fa-traffic-light"></i>
+            <span>Diagnóstico Financiero Transparente • Antiusura</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Semáforo de Préstamo Justo & Tabla de Amortización</h2>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Calcula el costo real de un préstamo, evalúa si existe sobrecosto o usura, genera la tabla completa de amortización cuota por cuota y calcula el CAT Real conforme a la metodología oficial de Banxico.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Columna Izquierda: Parámetros del Crédito y Preguntas Antifraude -->
+        <div class="lg:col-span-7 bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-slate-200 space-y-6">
+          
+          <h3 class="font-heading font-bold text-slate-800 text-lg flex items-center space-x-2">
+            <i class="fa-solid fa-sliders text-sky-600"></i>
+            <span>Parámetros de la Oferta de Crédito</span>
+          </h3>
+
+          <!-- Pregunta Antifraude Clave: Anticipos -->
+          <div class="p-4 rounded-xl bg-amber-50 border border-amber-300 space-y-2">
+            <div class="flex items-start space-x-3">
+              <i class="fa-solid fa-triangle-exclamation text-amber-600 text-lg mt-0.5"></i>
+              <div>
+                <label class="block text-xs font-bold text-amber-900 uppercase tracking-wide">
+                  1. ¿Te piden anticipo, fianza, seguro previo o comisión antes de depositarte? *
+                </label>
+                <p class="text-xs text-amber-800 mt-1">
+                  Cualquier depósito previo "para liberar fondos" o "abrir expediente" es la señal inequívoca de estafa en México.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-4 pt-2 pl-7">
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" name="cr-anticipo" value="no" checked onchange="EscudoApp.calcCredito()" class="text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+                <span class="text-xs font-bold text-emerald-800">NO, no me piden dinero antes</span>
+              </label>
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="radio" name="cr-anticipo" value="si" onchange="EscudoApp.calcCredito()" class="text-red-600 focus:ring-red-500 w-4 h-4">
+                <span class="text-xs font-bold text-red-700">SÍ, me piden un depósito previo</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Pregunta 2: ¿Aparece en SIPRES? -->
+          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+            <div>
+              <span class="block text-xs font-bold text-slate-800">2. ¿Verificaste la entidad en el SIPRES?</span>
+              <span class="text-xs text-slate-500">Debe figurar con estatus "En operación".</span>
+            </div>
+            <select id="cr-verificada" onchange="EscudoApp.calcCredito()" class="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-sky-500">
+              <option value="si">Sí, está en operación</option>
+              <option value="no_o_cancelada">No aparece o Aparece cancelada</option>
+            </select>
+          </div>
+
+          <!-- Campos Numéricos Interactivos -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Monto que te prestarán ($ MXN):</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 font-bold">$</span>
+                <input type="number" id="cr-monto" value="10000" min="500" step="500" oninput="EscudoApp.calcCredito()" class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono text-slate-900 font-bold focus:bg-white focus:border-sky-500 outline-none">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Periodicidad de los Pagos:</label>
+              <select id="cr-frecuencia" onchange="EscudoApp.calcCredito()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 font-semibold focus:outline-none focus:border-sky-500">
+                <option value="semanal">Semanal (cada 7 días)</option>
+                <option value="quincenal" selected>Quincenal (cada 15 días)</option>
+                <option value="mensual">Mensual (cada 30 días)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Número Total de Pagos (Plazo):</label>
+              <input type="number" id="cr-plazo" value="12" min="1" max="120" oninput="EscudoApp.calcCredito()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 font-bold focus:bg-white focus:border-sky-500 outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Monto de CADA Pago Periódico ($ MXN):</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 font-bold">$</span>
+                <input type="number" id="cr-cuota" value="1150" min="10" step="10" oninput="EscudoApp.calcCredito()" class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono text-slate-900 font-bold focus:bg-white focus:border-sky-500 outline-none">
+              </div>
+            </div>
+
+            <div class="sm:col-span-2">
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-semibold text-slate-700">CAT Anual Prometido / Declarado por el Prestamista (%) — Opcional:</label>
+                <span class="text-[10px] text-sky-700 font-semibold bg-sky-50 border border-sky-200 px-2 py-0.5 rounded">Detector de CAT Engañoso</span>
+              </div>
+              <div class="relative">
+                <input type="number" id="cr-cat-declarado" placeholder="Ej. 25 (Si te prometieron un CAT bajo, ingrésalo para detectar si mienten)" min="0" max="5000" step="0.5" oninput="EscudoApp.calcCredito()" class="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:bg-white focus:border-sky-500 outline-none">
+                <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 font-bold text-xs">%</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Columna Derecha: Diagnóstico Semafórico y Desglose Financiero -->
+        <div class="lg:col-span-5 space-y-4">
+          
+          <!-- Tarjeta Semafórica Principal -->
+          <div id="semaforo-card" class="rounded-2xl p-6 text-white shadow-lg transition-all border bg-slate-900 border-slate-800">
+            <div class="flex items-center justify-between mb-4">
+              <span id="semaforo-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
+                Condiciones Justas
+              </span>
+              <div id="semaforo-icon" class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+            </div>
+
+            <h4 id="semaforo-title" class="font-heading font-extrabold text-xl mb-1 text-white">Préstamo Dentro del Rango Justo</h4>
+            <p id="semaforo-desc" class="text-xs text-slate-300 leading-relaxed mb-4">
+              La entidad no cobra anticipos ilegales y la tasa de sobrecosto se mantiene en rangos promedio de financiamiento regulado.
+            </p>
+
+            <!-- Alerta Legal Si Piden Anticipo -->
+            <div id="semaforo-alerta-legal" class="hidden p-3 rounded-xl bg-red-900/60 border border-red-500/50 text-xs text-red-200 mb-4">
+              <strong class="block font-bold text-red-100 mb-1"><i class="fa-solid fa-gavel mr-1"></i> Art. 386 del Código Penal Federal (Fraude):</strong>
+              <span>¡NUNCA deposites! Ningún banco legal solicita pagos previos para desbloquear préstamos. Si entregas dinero, es una estafa consumada.</span>
+            </div>
+
+            <!-- Alerta Roja Si No Aparece o Aparece Cancelada en SIPRES -->
+            <div id="semaforo-alerta-no-sipres" class="hidden p-3.5 rounded-xl bg-red-950/90 border-2 border-red-500 text-xs text-red-100 mb-4 shadow-md">
+              <strong class="block font-extrabold text-red-300 text-sm mb-1 uppercase tracking-wide">
+                <i class="fa-solid fa-ban mr-1.5"></i> ¡ALERTA ROJA: NO PEDIR EL PRÉSTAMO!
+              </strong>
+              <span>La institución <strong>no figura en el SIPRES o su registro está cancelado</strong>. Te aconsejamos <strong>NO pedir el préstamo</strong> ni entregar documentos personales (INE, comprobantes o estados de cuenta), ya que opera fuera de la supervisión de la CONDUSEF y existe alto riesgo de fraude o extorsión (Art. 103 LIC).</span>
+            </div>
+
+            <!-- Alerta por CAT Engañoso / Publicidad Engañosa (Art. 43 LTOSF) -->
+            <div id="semaforo-alerta-cat-enganoso" class="hidden p-3 rounded-xl bg-amber-900/70 border border-amber-400/60 text-xs text-amber-100 mb-4">
+              <strong class="block font-bold text-amber-300 mb-1"><i class="fa-solid fa-scale-unbalanced mr-1"></i> Alerta de CAT Engañoso (Art. 43 LTOSF):</strong>
+              <span id="semaforo-alerta-cat-texto">El prestamista declara un CAT menor al que realmente te está cobrando en las cuotas periódicas.</span>
+            </div>
+
+            <!-- Desglose de Números -->
+            <div class="space-y-3 pt-3 border-t border-slate-700/80 text-xs">
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Total que terminarás pagando:</span>
+                <span id="res-total" class="font-mono font-bold text-white text-base">$13,800.00</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Intereses y comisiones totales:</span>
+                <span id="res-interes" class="font-mono font-bold text-amber-400 text-sm">$3,800.00</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Sobrecosto del crédito:</span>
+                <span id="res-sobrecosto" class="font-mono font-bold text-emerald-400 text-sm">+38.0%</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">CAT Real Calculado (Banxico TIR):</span>
+                <span id="res-cat-real" class="font-mono font-bold text-sky-400 text-sm">48.2%</span>
+              </div>
+            </div>
+
+            <!-- Barra Visual Comparativa (Capital vs Intereses) -->
+            <div class="mt-4 pt-3 border-t border-slate-700/80">
+              <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                <span>Capital recibido (<span id="pct-capital">72%</span>)</span>
+                <span>Intereses pagados (<span id="pct-interes">28%</span>)</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden flex">
+                <div id="bar-capital" class="bg-sky-500 h-full transition-all" style="width: 72%;"></div>
+                <div id="bar-interes" class="bg-amber-500 h-full transition-all" style="width: 28%;"></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Comparador Ciudadano frente a Alternativas -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200 text-xs space-y-3 shadow-sm">
+            <h5 class="font-bold text-slate-800 flex items-center space-x-1.5">
+              <i class="fa-solid fa-chart-simple text-sky-600"></i>
+              <span>Simulador Comparativo Frente al Mercado Mexicano:</span>
+            </h5>
+            <div class="space-y-2 text-[11px]" id="market-comparative-box">
+              <!-- Renderizado dinámico -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- SECCIÓN DE TABLA DE AMORTIZACIÓN COMPLETA -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+          <div>
+            <h3 class="font-heading font-bold text-slate-800 text-base flex items-center space-x-2">
+              <i class="fa-solid fa-table-list text-sky-600"></i>
+              <span>Tabla de Amortización Completa Cuota por Cuota</span>
+            </h3>
+            <p class="text-xs text-slate-500">Desglose exacto de amortización de capital, pago de interés y saldo insoluto.</p>
+          </div>
+          <button type="button" onclick="EscudoApp.exportAmortizationCSV()" class="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-300 flex items-center space-x-1.5 self-start">
+            <i class="fa-solid fa-file-csv text-emerald-600"></i>
+            <span>Descargar Tabla CSV</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto max-h-80 overflow-y-auto">
+          <table class="w-full text-xs text-left" id="table-amortization">
+            <thead class="bg-slate-100 text-slate-700 sticky top-0 uppercase font-semibold text-[10px]">
+              <tr>
+                <th class="p-2.5">No.</th>
+                <th class="p-2.5">Cuota Periódica</th>
+                <th class="p-2.5">Abono a Capital</th>
+                <th class="p-2.5">Intereses Ordinarios</th>
+                <th class="p-2.5">IVA (16%)</th>
+                <th class="p-2.5">Saldo Insoluto</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-amortization" class="divide-y divide-slate-100 font-mono">
+              <!-- Filas generadas dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- =======================================================================
+         MÓDULO 4: ANALIZADOR HEURÍSTICO CON IA (GEMINI 2.5 FLASH & VERIFICADOR)
+         ======================================================================= -->
+    <section id="tab-analizador" class="tab-content space-y-6">
+      
+      <!-- Encabezado del Módulo de Inteligencia Artificial -->
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-700">
+        <div class="max-w-3xl">
+          <div class="inline-flex items-center space-x-2 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+            <i class="fa-solid fa-microchip"></i>
+            <span>Doble Motor: Heurística Forense + Google Gemini 2.5 Flash</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Laboratorio Forense de Mensajes y Enlaces</h2>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Evalúa textos de WhatsApp, sube capturas de pantalla de chats, verifica URLs sospechosas y genera denuncias oficiales en formato formal para la Policía Cibernética (088 / Guardia Nacional).
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Columna de Entrada y Controles -->
+        <div class="lg:col-span-7 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+          
+          <!-- Pestañas del Analizador: Texto vs Captura vs Enlace -->
+          <div class="flex border-b border-slate-200 space-x-2 text-xs font-semibold">
+            <button type="button" id="tab-ai-text-btn" onclick="EscudoApp.switchAiInputMode('text')" class="pb-2.5 border-b-2 border-indigo-600 text-indigo-600 flex items-center space-x-1.5">
+              <i class="fa-solid fa-comment-dots"></i>
+              <span>Mensaje de Texto</span>
+            </button>
+            <button type="button" id="tab-ai-img-btn" onclick="EscudoApp.switchAiInputMode('image')" class="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+              <i class="fa-solid fa-image"></i>
+              <span>Captura de Pantalla</span>
+            </button>
+            <button type="button" id="tab-ai-url-btn" onclick="EscudoApp.switchAiInputMode('url')" class="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5">
+              <i class="fa-solid fa-link"></i>
+              <span>Verificador de Enlaces (Phishing)</span>
+            </button>
+          </div>
+
+          <!-- MODO 1: TEXTO -->
+          <div id="ai-mode-text-box" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                Mensaje Sospechoso a Evaluar:
+              </label>
+              <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                <button type="button" id="btn-mode-offline" onclick="EscudoApp.setAiMode('offline')" class="px-2.5 py-1 rounded-md font-semibold bg-white text-slate-800 shadow-sm transition-all">
+                  Heurístico Local (0 ms)
+                </button>
+                <button type="button" id="btn-mode-gemini" onclick="EscudoApp.setAiMode('gemini')" class="px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-800 transition-all flex items-center space-x-1">
+                  <i class="fa-solid fa-bolt text-amber-500"></i>
+                  <span>Gemini API</span>
+                </button>
+              </div>
+            </div>
+
+            <textarea 
+              id="ai-message-input" 
+              rows="5" 
+              placeholder="Pega aquí el mensaje recibido por WhatsApp, SMS o correo electrónico..."
+              class="w-full bg-slate-50 border border-slate-300 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl p-4 text-sm text-slate-900 outline-none leading-relaxed"
+            ></textarea>
+
+            <!-- Botones de Ejemplos -->
+            <div class="space-y-1.5">
+              <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Probar con ejemplos reales:</span>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" onclick="EscudoApp.loadAiExample('fianza_bbva')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                  Falso Banco (Fianza OXXO)
+                </button>
+                <button type="button" onclick="EscudoApp.loadAiExample('montadeudas')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                  Montadeudas (Amenazas)
+                </button>
+                <button type="button" onclick="EscudoApp.loadAiExample('telegram_milagro')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                  Crédito Milagro sin Buró
+                </button>
+                <button type="button" onclick="EscudoApp.loadAiExample('legitimo')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300">
+                  Notificación Legítima
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODO 2: SUBIR CAPTURA DE PANTALLA -->
+          <div id="ai-mode-image-box" class="hidden space-y-3">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+              Subir Captura de Pantalla de WhatsApp / Correo / Recibo:
+            </label>
+            <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer" onclick="document.getElementById('ai-img-file-input').click()">
+              <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-400 mb-2"></i>
+              <span class="block text-xs font-bold text-slate-700">Haz clic para seleccionar una imagen o arrástrala aquí</span>
+              <span class="text-[11px] text-slate-400">JPG, PNG o WEBP (Extracción OCR forense)</span>
+              <input type="file" id="ai-img-file-input" accept="image/*" class="hidden" onchange="EscudoApp.handleAiImageSelect(event)">
+            </div>
+            <div id="ai-img-preview-box" class="hidden p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+              <span id="ai-img-filename" class="text-xs font-mono text-slate-700 truncate max-w-xs">imagen.png</span>
+              <button type="button" onclick="EscudoApp.clearAiImage()" class="text-xs text-red-600 hover:underline">Quitar imagen</button>
+            </div>
+          </div>
+
+          <!-- MODO 3: VERIFICADOR DE ENLACES (PHISHING) -->
+          <div id="ai-mode-url-box" class="hidden space-y-3">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+              Ingresa el Enlace o Página Web Sospechosa:
+            </label>
+            <div class="relative">
+              <input type="url" id="ai-url-input" placeholder="Ej. https://bbva-seguridad-acceso.info o http://bit.ly/credito-mx" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900 outline-none focus:bg-white focus:border-indigo-500">
+            </div>
+            <p class="text-[11px] text-slate-500">
+              Evaluamos si el dominio usa typosquatting (suplantación de marca), extensiones de riesgo (.xyz, .top, .info), o servidores fuera de México.
+            </p>
+          </div>
+
+          <!-- Configuración de API Key para Google Gemini -->
+          <div id="gemini-config-box" class="hidden p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                <i class="fa-solid fa-key text-indigo-600"></i>
+                <span>API Key de Google Gemini (Opcional):</span>
+              </label>
+              <span class="text-[10px] text-indigo-600 font-medium">Modelo: gemini-2.5-flash</span>
+            </div>
+            <input 
+              type="password" 
+              id="gemini-api-key" 
+              placeholder="AIzaSy..." 
+              class="w-full bg-white border border-indigo-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-900 outline-none"
+            >
+            <p class="text-[11px] text-indigo-700">
+              Tu clave solo se guarda en la memoria volátil de tu sesión. Sin API Key, nuestro motor heurístico local funciona al 100% de manera autónoma.
+            </p>
+          </div>
+
+          <!-- Botón de Análisis -->
+          <button 
+            type="button" 
+            id="btn-run-ai" 
+            onclick="EscudoApp.runForensicAnalysis()" 
+            class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all shadow-md flex items-center justify-center space-x-2 text-sm"
+          >
+            <i class="fa-solid fa-magnifying-glass-chart"></i>
+            <span>Ejecutar Análisis Forense</span>
+          </button>
+
+        </div>
+
+        <!-- Columna de Resultados y Dictamen Jurídico -->
+        <div class="lg:col-span-5 space-y-4">
+          
+          <div id="ai-results-card" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+            
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h4 class="font-heading font-bold text-slate-800 text-base">Dictamen de Ciberseguridad</h4>
+              <span id="ai-engine-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                Motor Heurístico
+              </span>
+            </div>
+
+            <!-- Indicador Circular de Riesgo -->
+            <div class="text-center py-2">
+              <div class="inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-4 border-slate-200 relative mb-2" id="ai-score-circle">
+                <span id="ai-score-number" class="text-3xl font-extrabold text-slate-800">--</span>
+                <span class="text-[10px] uppercase font-bold text-slate-400">Riesgo / 100</span>
+              </div>
+              <h5 id="ai-verdict-title" class="font-heading font-extrabold text-lg text-slate-800">Esperando análisis...</h5>
+              <p id="ai-verdict-summary" class="text-xs text-slate-500 mt-1">Ingresa un texto, imagen o enlace para evaluar.</p>
+            </div>
+
+            <!-- Banderas Rojas Detectadas -->
+            <div class="space-y-2">
+              <span class="text-xs font-bold text-slate-700 uppercase tracking-wide block">Banderas Rojas Detectadas:</span>
+              <div id="ai-red-flags-container" class="space-y-1.5 text-xs">
+                <div class="text-slate-400 italic">No hay análisis realizado aún.</div>
+              </div>
+            </div>
+
+            <!-- Fundamentación Jurídica Infringida -->
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+              <span class="font-bold text-slate-800 block"><i class="fa-solid fa-gavel text-sky-600 mr-1"></i> Marco Normativo Aplicable:</span>
+              <p id="ai-legal-basis" class="text-slate-600 leading-relaxed">
+                Art. 103 Ley de Instituciones de Crédito (Captación ilícita); Art. 386 Código Penal Federal (Fraude patrimonial).
+              </p>
+            </div>
+
+            <!-- Acciones Inmediatas y Botón de Denuncia Policía Cibernética -->
+            <div class="space-y-2 pt-2 border-t border-slate-100">
+              <button type="button" onclick="EscudoApp.openPoliceComplaintModal()" class="w-full py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center space-x-1.5">
+                <i class="fa-solid fa-shield-cat"></i>
+                <span>Generar Denuncia para Policía Cibernética (088)</span>
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- =======================================================================
+         MÓDULO 5: RADAR COMUNITARIO, MAPA Y ALERTAS OFICIALES
+         ======================================================================= -->
+    <section id="tab-radar" class="tab-content space-y-6">
+      
+      <!-- Encabezado del Radar -->
+      <div class="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl border border-slate-700">
+        <div class="max-w-3xl">
+          <div class="inline-flex items-center space-x-2 bg-rose-500/20 text-rose-300 border border-rose-500/30 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+            <i class="fa-solid fa-users"></i>
+            <span>Defensa Colectiva • Reportes Ciudadanos Verificados</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Radar Comunitario de Estafas & Mapa de Calor</h2>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Comprueba números de teléfono, cuentas CLABE o tarjetas a las que te pidieron depositar, consulta el mapa interactivo de concentración de estafas en México y colabora denunciando nuevos fraudes para proteger a la comunidad.
+          </p>
+          <div class="mt-4 flex flex-wrap gap-3">
+            <button onclick="EscudoApp.openModal('modal-nuevo-reporte')" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-md flex items-center space-x-2">
+              <i class="fa-solid fa-plus"></i>
+              <span>Registrar Nuevo Reporte Ciudadano</span>
+            </button>
+            <button onclick="EscudoApp.switchRadarSubtab('montadeudas')" id="btn-subtab-montadeudas" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold transition-all shadow-md flex items-center space-x-2">
+              <i class="fa-solid fa-mobile-screen-button"></i>
+              <span>Lista de 399 Apps de Préstamo Móvil (Estatus CONDUSEF y Google Play)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Panel de Inteligencia Estadística del Radar en Tiempo Real -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800/80">
+          <div class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3">
+            <span class="block text-xl font-extrabold text-white font-mono" id="radar-kpi-total">0</span>
+            <span class="text-[11px] text-slate-400">Reportes Ciudadanos Activos</span>
+          </div>
+          <div class="bg-slate-900/70 border border-rose-500/30 rounded-xl p-3">
+            <span class="block text-xl font-extrabold text-rose-400 font-mono" id="radar-kpi-monto">$0</span>
+            <span class="text-[11px] text-slate-400">Monto en Riesgo / Defraudado</span>
+          </div>
+          <div class="bg-slate-900/70 border border-amber-500/30 rounded-xl p-3">
+            <span class="block text-sm sm:text-base font-extrabold text-amber-400 truncate mt-1" id="radar-kpi-top-tipo">Suplantación</span>
+            <span class="text-[11px] text-slate-400">Modalidad #1 Detectada</span>
+          </div>
+          <div class="bg-slate-900/70 border border-sky-500/30 rounded-xl p-3">
+            <span class="block text-xl font-extrabold text-sky-400 font-mono" id="radar-kpi-afectados">0</span>
+            <span class="text-[11px] text-slate-400">Confirmaciones ("A mí también")</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verificador Forense de Teléfonos (10 dígitos), Cuentas CLABE (18 dígitos) y Tarjetas (16 dígitos) -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <label class="block text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center space-x-1.5">
+            <i class="fa-solid fa-magnifying-glass-chart text-rose-600"></i>
+            <span>Verificador de Teléfonos (10 dígitos), Cuentas CLABE (18 dígitos) y Tarjetas de Estafadores:</span>
+          </label>
+          <span class="text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full">
+            Decodificador Oficial ABM / Banxico Integrado
+          </span>
+        </div>
+
+        <!-- Aviso de Seguridad Solicitado por el Usuario -->
+        <div class="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start space-x-2.5">
+          <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm mt-0.5 shrink-0"></i>
+          <p class="font-semibold leading-relaxed">
+            No insertes los dígitos de tus Cuentas CLABE, ni los dígitos de tus tarjetas, solo los dígitos de Cuentas CLABE y de tarjetas a las que te pidieron depositar.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="text" id="radar-phone-search" placeholder="Ingresa Teléfono (10 dígitos), CLABE (18 dígitos) o Tarjeta (16 dígitos) del estafador..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-900 outline-none focus:bg-white focus:border-rose-500">
+          <button onclick="EscudoApp.searchRadarPhone()" class="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-shield-halved text-rose-400"></i>
+            <span>Analizar y Verificar</span>
+          </button>
+        </div>
+        <div id="radar-phone-result" class="hidden mt-3 p-3.5 rounded-xl text-xs"></div>
+      </div>
+
+      <!-- Mapa Geográfico Interactivo de Reportes en México -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="font-heading font-bold text-slate-800 text-base flex items-center space-x-2">
+              <i class="fa-solid fa-map-location-dot text-rose-600"></i>
+              <span>Concentración de Incidentes por Entidad Federativa (Interactivo)</span>
+            </h3>
+            <p class="text-xs text-slate-500">Haz clic en cualquier estado para filtrar los reportes ciudadanos de esa región.</p>
+          </div>
+          <button id="btn-clear-radar-state" onclick="EscudoApp.filterRadarByState('')" class="hidden px-3 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all self-start">
+            <i class="fa-solid fa-filter-circle-xmark mr-1"></i> Quitar filtro de estado (<span id="active-radar-state-label"></span>)
+          </button>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs" id="mexico-states-grid">
+          <!-- Renderizado dinámico de estados con badges de reportes -->
+        </div>
+      </div>
+
+      <!-- Filtros, Buscador Interno y Ordenamiento del Muro de Reportes -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap gap-2">
+            <button onclick="EscudoApp.filterRadar('todos', this)" class="radar-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white">
+              Todos los Reportes
+            </button>
+            <button onclick="EscudoApp.filterRadar('suplantacion', this)" class="radar-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">
+              Suplantación Bancaria
+            </button>
+            <button onclick="EscudoApp.filterRadar('montadeudas', this)" class="radar-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">
+              Montadeudas / Extorsión
+            </button>
+            <button onclick="EscudoApp.filterRadar('anticipos', this)" class="radar-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">
+              Cobro de Anticipos
+            </button>
+            <button onclick="EscudoApp.filterRadar('phishing', this)" class="radar-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">
+              Phishing / Enlaces Falsos
+            </button>
+          </div>
+          <div class="text-xs text-slate-500">
+            Mostrando <span id="radar-total-count" class="font-bold text-slate-800">0</span> reportes ciudadanos
+          </div>
+        </div>
+
+        <!-- Barra de Búsqueda Interna y Ordenamiento -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+          <div class="sm:col-span-2 relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input type="text" id="radar-wall-search" oninput="EscudoApp.renderCitizenReports()" placeholder="Buscar en el muro por nombre, banco suplantado, teléfono, CLABE o palabra clave..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 outline-none focus:bg-white focus:border-rose-500">
+          </div>
+          <div>
+            <select id="radar-sort-select" onchange="EscudoApp.renderCitizenReports()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-rose-500">
+              <option value="recientes">Ordenar por: Más recientes primero</option>
+              <option value="afectados">Ordenar por: Mayor número de afectados (Tendencia)</option>
+              <option value="monto">Ordenar por: Mayor monto reportado ($ MXN)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Muro de Reportes Ciudadanos (Grid) -->
+      <div id="radar-reports-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Renderizado dinámico vía JavaScript -->
+      </div>
+
+      <!-- Sección Especial: Consolidado de 399 Aplicaciones de Préstamo Móvil & Kit de Blindaje -->
+      <div id="montadeudas-catalog-section" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <div class="inline-flex items-center space-x-1.5 bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-full text-[11px] font-bold mb-1.5">
+              <i class="fa-solid fa-mobile-screen-button"></i>
+              <span>Consolidado General • 399 Aplicaciones Monitoreadas</span>
+            </div>
+            <h3 class="font-heading font-bold text-slate-900 text-lg flex items-center space-x-2">
+              <span>Reporte y Estatus de Aplicaciones de Préstamo Móvil (N° 1 al 399)</span>
+            </h3>
+            <p class="text-xs text-slate-500">Haz clic en cualquier aplicación para abrir su <strong>Ficha Informativa Oficial</strong> (N°, Reportada ante CONDUSEF, Número de reportes y Estatus en Google Play) o para generar un reporte ciudadano.</p>
+          </div>
+          <div class="flex items-center space-x-2 shrink-0">
+            <span class="text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">
+              Mostrando <span id="apps-prestamo-count" class="text-rose-600 font-extrabold">399</span> / 399 apps
+            </span>
+          </div>
+        </div>
+
+        <!-- Protocolo Interactivo de Emergencia "Kit Anti-Montadeudas" (4 Pasos) -->
+        <div class="bg-rose-50/70 border border-rose-200 rounded-2xl p-4 sm:p-5 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h4 class="font-heading font-bold text-rose-900 text-sm flex items-center space-x-1.5">
+                <i class="fa-solid fa-kit-medical text-rose-600"></i>
+                <span>Protocolo de Emergencia: ¿Instalaste una App de Préstamo o te están amenazando?</span>
+              </h4>
+              <p class="text-xs text-rose-700 mt-0.5">Marca cada paso para blindar tu teléfono y neutralizar la extorsión a tus contactos:</p>
+            </div>
+            <button type="button" onclick="EscudoApp.copyMontadeudasShieldMessage()" class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all flex items-center space-x-1.5 shrink-0">
+              <i class="fa-brands fa-whatsapp"></i>
+              <span id="btn-shield-msg-text">Copiar Aviso para mis Contactos</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs text-slate-800 pt-1">
+            <label class="flex items-start space-x-2.5 p-2.5 rounded-xl bg-white border border-rose-200 cursor-pointer hover:bg-rose-50/40">
+              <input type="checkbox" class="mt-0.5 rounded text-rose-600 focus:ring-rose-500">
+              <span><strong>1. Revoca permisos ANTES de borrar:</strong> Ve a Ajustes → Aplicaciones → Permisos y quítale acceso a <em>Contactos, Galería, Cámara, SMS y Ubicación</em> antes de desinstalarla.</span>
+            </label>
+            <label class="flex items-start space-x-2.5 p-2.5 rounded-xl bg-white border border-rose-200 cursor-pointer hover:bg-rose-50/40">
+              <input type="checkbox" class="mt-0.5 rounded text-rose-600 focus:ring-rose-500">
+              <span><strong>2. Avisa preventivamente a tus contactos:</strong> Usa el botón superior para enviar un mensaje a tus contactos informando que tu celular sufrió robo de datos y que ignoren mensajes de cobro.</span>
+            </label>
+            <label class="flex items-start space-x-2.5 p-2.5 rounded-xl bg-white border border-rose-200 cursor-pointer hover:bg-rose-50/40">
+              <input type="checkbox" class="mt-0.5 rounded text-rose-600 focus:ring-rose-500">
+              <span><strong>3. Blinda tu WhatsApp y Redes:</strong> Activa la <em>Verificación en dos pasos</em> en WhatsApp y pon tus perfiles de Facebook/Instagram en modo privado temporalmente.</span>
+            </label>
+            <label class="flex items-start space-x-2.5 p-2.5 rounded-xl bg-white border border-rose-200 cursor-pointer hover:bg-rose-50/40">
+              <input type="checkbox" class="mt-0.5 rounded text-rose-600 focus:ring-rose-500">
+              <span><strong>4. ¡Cero pagos bajo extorsión!:</strong> Nunca pagues a cuentas personales o ligas de pago bajo amenaza; los extorsionadores usan el pago para exigir montos aún mayores (Art. 284 Bis CPF).</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Buscador y Filtros de las 399 Aplicaciones de Préstamo Móvil -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div class="sm:col-span-2 relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input 
+              type="text" 
+              id="montadeudas-search" 
+              placeholder="Buscar entre las 399 apps por nombre o N° (ej. Prestamax, Mexicash, José Cash, 1)..." 
+              oninput="EscudoApp.searchMontadeudas()" 
+              class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-rose-500"
+            >
+          </div>
+          <div>
+            <select id="filter-app-condusef" onchange="EscudoApp.searchMontadeudas()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-rose-500">
+              <option value="">Reportada CONDUSEF: Todas</option>
+              <option value="SÍ">Reportada ante CONDUSEF: SÍ</option>
+              <option value="NO">Reportada ante CONDUSEF: NO</option>
+            </select>
+          </div>
+          <div>
+            <select id="filter-app-play" onchange="EscudoApp.searchMontadeudas()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-rose-500">
+              <option value="">Estatus Google Play: Todos</option>
+              <option value="ACTIVA">Google Play: ACTIVA (Sigue activa)</option>
+              <option value="BAJA">Google Play: BAJA (Dada de baja)</option>
+              <option value="NO ENCONTRADA">Google Play: NO ENCONTRADA</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="montadeudas-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-xs max-h-[540px] overflow-y-auto pr-1">
+          <!-- Renderizado dinámico de las 399 aplicaciones -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- =========================================================================
+       4. BARRA DE NAVEGACIÓN INFERIOR (MÓVIL < 768px)
+       ========================================================================= -->
+  <nav id="bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 z-40 px-2 py-1.5 flex justify-around items-center text-slate-400 no-print">
+    <button onclick="EscudoApp.switchTab('directorio')" data-tab-btn="directorio" class="bottom-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-sky-400">
+      <i class="fa-solid fa-building-columns text-base mb-0.5"></i>
+      <span class="text-[10px] font-semibold">SIPRES</span>
+    </button>
+    <button onclick="EscudoApp.switchTab('quejas')" data-tab-btn="quejas" class="bottom-nav-btn flex flex-col items-center py-1 px-2 rounded-lg">
+      <i class="fa-solid fa-file-contract text-base mb-0.5"></i>
+      <span class="text-[10px] font-semibold">Quejas</span>
+    </button>
+    <button onclick="EscudoApp.switchTab('credito')" data-tab-btn="credito" class="bottom-nav-btn flex flex-col items-center py-1 px-2 rounded-lg">
+      <i class="fa-solid fa-traffic-light text-base mb-0.5"></i>
+      <span class="text-[10px] font-semibold">Semáforo</span>
+    </button>
+    <button onclick="EscudoApp.switchTab('analizador')" data-tab-btn="analizador" class="bottom-nav-btn flex flex-col items-center py-1 px-2 rounded-lg">
+      <i class="fa-solid fa-brain text-base mb-0.5"></i>
+      <span class="text-[10px] font-semibold">Forense IA</span>
+    </button>
+    <button onclick="EscudoApp.switchTab('radar')" data-tab-btn="radar" class="bottom-nav-btn flex flex-col items-center py-1 px-2 rounded-lg">
+      <i class="fa-solid fa-radar text-base mb-0.5"></i>
+      <span class="text-[10px] font-semibold">Radar</span>
+    </button>
+  </nav>
+
+  <!-- =========================================================================
+       5. CHATBOT ASISTENTE CÍVICO VIRTUAL ("ESCUDOBOT" CON GEMINI 2.5 FLASH)
+       ========================================================================= -->
+  <div id="escudobot-widget" class="no-print">
+    
+    <!-- Botón Flotante para Abrir Chat -->
+    <button id="escudobot-toggle-btn" onclick="EscudoApp.toggleChatbot()" class="w-14 h-14 rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all relative border-2 border-white/40">
+      <i class="fa-solid fa-robot text-2xl"></i>
+      <span class="absolute top-0 right-0 w-3.5 h-3.5 bg-emerald-400 border-2 border-slate-900 rounded-full animate-pulse"></span>
+    </button>
+
+    <!-- Ventana de Chat Flotante -->
+    <div id="escudobot-window" class="hidden absolute bottom-16 right-0 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+      
+      <!-- Header del Chatbot -->
+      <div class="bg-slate-900 text-white p-3.5 flex items-center justify-between border-b border-slate-800">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+            <i class="fa-solid fa-shield-halved text-base"></i>
+          </div>
+          <div>
+            <h4 class="font-heading font-bold text-xs sm:text-sm leading-tight">EscudoBot • Asistente Cívico</h4>
+            <span class="text-[10px] text-emerald-400 flex items-center">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
+              Navegación & Gemini 2.5 Flash
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center space-x-1">
+          <button onclick="EscudoApp.toggleChatbot()" class="text-slate-400 hover:text-white p-1 rounded">
+            <i class="fa-solid fa-xmark text-base"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Atajos Rápidos de Navegación del Chatbot -->
+      <div class="bg-slate-50 border-b border-slate-200 p-2 flex space-x-1.5 overflow-x-auto text-[11px] whitespace-nowrap">
+        <button onclick="EscudoApp.sendChatbotCommand('Ir a buscar BBVA')" class="px-2 py-0.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-medium">
+          🔍 Buscar BBVA
+        </button>
+        <button onclick="EscudoApp.sendChatbotCommand('Quiero calcular un crédito')" class="px-2 py-0.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-medium">
+          🚦 Semáforo Crédito
+        </button>
+        <button onclick="EscudoApp.sendChatbotCommand('Cómo redactar una queja')" class="px-2 py-0.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-medium">
+          ⚖️ Redactar Queja
+        </button>
+        <button onclick="EscudoApp.sendChatbotCommand('Revisar mensaje sospechoso')" class="px-2 py-0.5 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-medium">
+          🧠 Forense IA
+        </button>
+      </div>
+
+      <!-- Área de Conversación con Scroll -->
+      <div id="escudobot-messages" class="flex-1 p-3.5 overflow-y-auto space-y-3 text-xs leading-relaxed">
+        <div class="flex items-start space-x-2">
+          <div class="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div class="chat-bubble-bot p-2.5 rounded-xl max-w-[85%]">
+            ¡Hola! Soy <strong>EscudoBot</strong>, tu asistente de ciberseguridad financiera y navegación. Puedo llevarte a cualquier módulo, verificar entidades en SIPRES, o responder preguntas jurídicas. ¿En qué puedo ayudarte hoy?
+          </div>
+        </div>
+      </div>
+
+      <!-- Indicador de Tipeo (Animado) -->
+      <div id="escudobot-typing" class="hidden px-4 py-1 text-slate-400 text-xs flex items-center space-x-1.5">
+        <span class="text-[10px]">EscudoBot está respondiendo</span>
+        <div class="flex space-x-1">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+
+      <!-- Input de Mensaje del Chatbot -->
+      <form id="escudobot-form" onsubmit="event.preventDefault(); EscudoApp.handleChatbotSubmit();" class="p-2.5 bg-slate-50 border-t border-slate-200 flex items-center space-x-2">
+        <input 
+          type="text" 
+          id="escudobot-input" 
+          placeholder="Escribe tu duda o indica a dónde ir..." 
+          class="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:border-sky-500"
+          autocomplete="off"
+        >
+        <button type="submit" class="w-8 h-8 rounded-xl bg-sky-600 hover:bg-sky-700 text-white flex items-center justify-center shrink-0 shadow-sm transition-all">
+          <i class="fa-solid fa-paper-plane text-xs"></i>
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       6. MODALES Y VISORES
+       ========================================================================= -->
+
+  <!-- MODAL: EXPEDIENTE TÉCNICO SIPRES -->
+  <div id="modal-expediente" class="fixed inset-0 z-50 hidden bg-slate-950/70 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4">
+    <div class="bottom-sheet md:rounded-2xl bg-white w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+            <i class="fa-solid fa-file-invoice"></i>
+          </div>
+          <div>
+            <h3 class="font-heading font-bold text-base" id="exp-modal-title">Ficha Técnica Oficial SIPRES</h3>
+            <span class="text-[11px] text-slate-400 font-mono" id="exp-modal-folio">Folio: --</span>
+          </div>
+        </div>
+        <button onclick="EscudoApp.closeModal('modal-expediente')" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 sm:p-6 overflow-y-auto space-y-4 text-sm text-slate-700 flex-1" id="exp-modal-content">
+        <!-- Inyectado dinámicamente -->
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <button onclick="EscudoApp.closeModal('modal-expediente')" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800">
+          Cerrar
+        </button>
+        <div class="flex items-center space-x-2">
+          <button id="exp-btn-copy" onclick="EscudoApp.copyExpedienteCedula()" class="px-3.5 py-2 text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl transition-all flex items-center space-x-1.5">
+            <i class="fa-solid fa-copy text-slate-600"></i>
+            <span id="exp-btn-copy-text">Copiar Cédula Oficial</span>
+          </button>
+          <button id="exp-btn-transfer" class="px-4 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-sm transition-all flex items-center space-x-1.5">
+            <i class="fa-solid fa-file-pen"></i>
+            <span>Presentar Queja CONDUSEF</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: COMPARADOR DE ENTIDADES LADO A LADO -->
+  <div id="modal-comparator" class="fixed inset-0 z-50 hidden bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+    <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <i class="fa-solid fa-code-compare text-sky-400 text-lg"></i>
+          <h3 class="font-heading font-bold text-base">Comparador de Entidades Financieras SIPRES</h3>
+        </div>
+        <button onclick="EscudoApp.closeModal('modal-comparator')" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+        <div class="flex items-center justify-between">
+          <p class="text-slate-500">Compara el estatus oficial, sector y niveles de riesgo de hasta 3 entidades financieras registradas.</p>
+          <button onclick="EscudoApp.clearComparator()" class="text-xs text-red-600 hover:underline">Limpiar comparador</button>
+        </div>
+        <div id="comparator-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Renderizado dinámico -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: VISOR DE ESCRITO JURÍDICO MEMBRETADO (SIN SOBREPOSICIÓN DE TEXTO) -->
+  <div id="modal-preview-pdf" class="fixed inset-0 z-50 hidden bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6 overflow-y-auto">
+    <div class="bg-slate-100 rounded-2xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl border border-slate-300 overflow-hidden">
+      
+      <!-- Barra Superior del Visor de Documento -->
+      <div class="bg-slate-900 text-white p-4 flex items-center justify-between no-print">
+        <div class="flex items-center space-x-3">
+          <i class="fa-solid fa-file-pdf text-red-400 text-xl"></i>
+          <div>
+            <h3 class="font-heading font-bold text-sm sm:text-base">Documento Jurídico Membretado Oficial</h3>
+            <span class="text-xs text-slate-400">Escrito legal formal con firma autógrafa digitalizada y anexos</span>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="window.print()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium border border-slate-700">
+            <i class="fa-solid fa-print mr-1"></i> Imprimir
+          </button>
+          <button onclick="EscudoApp.downloadQuejaPDF()" class="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm">
+            <i class="fa-solid fa-download mr-1"></i> Descargar PDF Oficial
+          </button>
+          <button onclick="EscudoApp.closeModal('modal-preview-pdf')" class="text-slate-400 hover:text-white p-1 ml-2">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Contenedor del Documento Legal Imprimible con Páginas Delimitadas -->
+      <div class="p-4 sm:p-8 overflow-y-auto flex-1 bg-slate-300 flex justify-center">
+        <div id="legal-sheet-container" class="pdf-container">
+          <!-- Renderizado dinámico de páginas .pdf-page sin sobreposición de texto -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: DENUNCIA OFICIAL POLICÍA CIBERNÉTICA -->
+  <div id="modal-police-complaint" class="fixed inset-0 z-50 hidden bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl border border-slate-200">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-shield-cat text-red-400"></i>
+          <h3 class="font-heading font-bold text-base">Denuncia Formal ante Policía Cibernética (088)</h3>
+        </div>
+        <button onclick="EscudoApp.closeModal('modal-police-complaint')" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <p class="text-slate-600 leading-relaxed">
+          Hemos redactado el formato oficial para remitir a la <strong>Guardia Nacional (ccert.orientacion@gn.gob.mx)</strong> o reportar por teléfono al <strong>088</strong>:
+        </p>
+        <textarea id="police-complaint-text" rows="8" readonly class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 font-mono text-[11px] text-slate-800 leading-relaxed"></textarea>
+        <div class="flex justify-between items-center pt-2">
+          <a href="mailto:ccert.orientacion@gn.gob.mx?subject=Denuncia%20de%20Fraude%20Financiero%20y%20Ciberdelito" target="_blank" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5">
+            <i class="fa-solid fa-envelope"></i>
+            <span>Abrir en Correo</span>
+          </a>
+          <button onclick="EscudoApp.copyPoliceComplaint()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-sm">
+            <i class="fa-solid fa-copy"></i>
+            <span>Copiar al Portapapeles</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FICHA INFORMATIVA DE APLICACIÓN DE PRÉSTAMO MÓVIL (N° 1 AL 399) -->
+  <div id="modal-app-ficha" class="fixed inset-0 z-50 hidden bg-slate-950/75 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4">
+    <div class="bottom-sheet md:rounded-2xl bg-white w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-mono font-extrabold text-xs" id="app-ficha-num">
+            #1
+          </div>
+          <div>
+            <h3 class="font-heading font-bold text-base" id="app-ficha-title">Ficha Informativa de Aplicación</h3>
+            <span class="text-[11px] text-slate-400">Consolidado General de Reportes y Disponibilidad</span>
+          </div>
+        </div>
+        <button onclick="EscudoApp.closeModal('modal-app-ficha')" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs text-slate-700" id="app-ficha-body">
+        <!-- Inyectado dinámicamente al hacer clic en cualquiera de las 399 apps -->
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <button onclick="EscudoApp.closeModal('modal-app-ficha')" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800">
+          Cerrar
+        </button>
+        <div class="flex items-center space-x-2">
+          <button id="app-ficha-btn-088" type="button" class="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-all flex items-center space-x-1.5">
+            <i class="fa-solid fa-shield-cat text-rose-600"></i>
+            <span>Denunciar al 088</span>
+          </button>
+          <button id="app-ficha-btn-reportar" type="button" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md transition-all flex items-center space-x-1.5">
+            <i class="fa-solid fa-bullhorn"></i>
+            <span>Generar Reporte con esta App</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: REGISTRAR NUEVO REPORTE CIUDADANO EN RADAR -->
+  <div id="modal-nuevo-reporte" class="fixed inset-0 z-50 hidden bg-slate-950/70 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4">
+    <div class="bottom-sheet md:rounded-2xl bg-white w-full max-w-xl overflow-hidden shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-bullhorn text-rose-400"></i>
+          <h3 class="font-heading font-bold text-base">Registrar Nuevo Reporte Ciudadano</h3>
+        </div>
+        <button onclick="EscudoApp.closeModal('modal-nuevo-reporte')" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="form-nuevo-reporte" onsubmit="event.preventDefault(); EscudoApp.submitCitizenReport();" class="p-5 overflow-y-auto space-y-4 text-xs text-slate-700 flex-1">
+        <!-- Selector directo de las 399 Aplicaciones de Préstamo Móvil -->
+        <div class="p-3.5 rounded-xl bg-rose-50/70 border border-rose-200 space-y-2">
+          <label class="block font-bold text-rose-900 flex items-center justify-between">
+            <span><i class="fa-solid fa-mobile-screen-button text-rose-600 mr-1.5"></i> Seleccionar App de la Lista de 399 Aplicaciones de Préstamo Móvil:</span>
+            <span class="text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-rose-200 text-rose-700">Catálogo Oficial (1-399)</span>
+          </label>
+          <select id="rep-app-select" onchange="EscudoApp.handleReportAppSelect(this.value)" class="w-full bg-white border border-rose-300 rounded-lg p-2 font-semibold text-slate-800 outline-none focus:border-rose-600">
+            <option value="">-- Selecciona una de las 399 aplicaciones (o escribe otro defraudador abajo) --</option>
+          </select>
+          <div id="rep-app-selected-info" class="hidden p-2.5 rounded-lg bg-white border border-rose-200 text-[11px] space-y-1"></div>
+        </div>
+
+        <div>
+          <label class="block font-semibold mb-1">Tipo de Estafa o Incidente *</label>
+          <select id="rep-tipo" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-medium">
+            <option value="suplantacion">Suplantación de Banco / Entidad Regulada</option>
+            <option value="montadeudas">App de Préstamo Móvil / Montadeudas / Extorsión Digital</option>
+            <option value="anticipos">Cobro de Anticipo / Crédito Fantasma</option>
+            <option value="phishing">Phishing / Portal Web Clonado</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold mb-1">Nombre de la App o Razón Social Usada por el Defraudador *</label>
+          <input type="text" id="rep-nombre" list="apps-prestamo-datalist" oninput="EscudoApp.handleReportNameInput(this.value)" required placeholder="Selecciona una app arriba o escribe ej. PRESTAMAX, MEXICASH..." class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-semibold">
+          <datalist id="apps-prestamo-datalist"></datalist>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1">Teléfono o WhatsApp *</label>
+            <input type="text" id="rep-telefono" placeholder="55 1234 5678" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono">
+          </div>
+          <div>
+            <label class="block font-semibold mb-1">Entidad Federativa *</label>
+            <select id="rep-estado" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2">
+              <option value="Nacional">Nacional / Todo México</option>
+              <option value="Ciudad de México">Ciudad de México</option>
+              <option value="Jalisco">Jalisco</option>
+              <option value="Nuevo León">Nuevo León</option>
+              <option value="Estado de México">Estado de México</option>
+              <option value="Puebla">Puebla</option>
+              <option value="Veracruz">Veracruz</option>
+              <option value="Guanajuato">Guanajuato</option>
+              <option value="Querétaro">Querétaro</option>
+              <option value="Yucatán">Yucatán</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1">Monto Solicitado o Defraudado ($ MXN)</label>
+            <input type="number" id="rep-monto" placeholder="Ej. 2500" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono">
+          </div>
+          <div>
+            <label class="block font-semibold mb-1">CLABE o Tarjeta del Estafador (Opcional)</label>
+            <input type="text" id="rep-clabe" maxlength="18" placeholder="Solo cuenta donde te pidieron depositar" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono">
+          </div>
+        </div>
+        <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-600 mr-1"></i>
+          <strong>Importante:</strong> No insertes los dígitos de tus Cuentas CLABE, ni los dígitos de tus tarjetas, solo los dígitos de Cuentas CLABE y de tarjetas a las que te pidieron depositar.
+        </p>
+
+        <div>
+          <label class="block font-semibold mb-1">Descripción del Modus Operandi *</label>
+          <textarea id="rep-relato" required rows="4" placeholder="Explica cómo te contactaron, qué te prometieron y qué método de depósito pidieron..." class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 leading-relaxed"></textarea>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all">
+            Publicar Reporte en el Radar Ciudadano
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AVISO LEGAL & SAFE HARBOR / PRIVACIDAD LFPDPPP -->
+  <div id="modal-safe-harbor" class="fixed inset-0 z-50 hidden bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-200">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-scale-balanced text-amber-400"></i>
+          <h3 class="font-heading font-bold text-base">Aviso Legal, Safe Harbor & Privacidad</h3>
+        </div>
+        <button onclick="EscudoApp.closeModal('modal-safe-harbor')" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-6 text-xs text-slate-700 space-y-4 max-h-[75vh] overflow-y-auto leading-relaxed">
+        <div class="p-3 bg-amber-50 border-l-4 border-amber-500 rounded text-amber-900">
+          <strong>Naturaleza Cívica e Independiente:</strong> Escudo Financiero Pro es una herramienta web de ciberseguridad ciudadana y código abierto desarrollada para empoderar y proteger a las y los usuarios de servicios financieros en México.
+        </div>
+
+        <div>
+          <h4 class="font-bold text-slate-900 text-sm mb-1">1. Fuente de los Datos (SIPRES / CONDUSEF)</h4>
+          <p>
+            Los registros del directorio de entidades financieras provienen de la información pública oficial emitida por la Comisión Nacional para la Protección y Defensa de los Usuarios de Servicios Financieros (CONDUSEF) y la Comisión Nacional Bancaria y de Valores (CNBV). La plataforma no altera la condición jurídica de los registros.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-slate-900 text-sm mb-1">2. Privacidad de Datos (LFPDPPP - Client-Side Zero-Knowledge)</h4>
+          <p>
+            Esta aplicación opera bajo una estricta política de <strong>Zero-Knowledge en memoria volátil</strong>. Toda la redacción de quejas, cálculo de montos, nombres personales y claves CURP se procesan exclusivamente en el navegador local del usuario. Ningún dato confidencial es transmitido, almacenado o vendido a servidores remotos.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-slate-900 text-sm mb-1">3. Deslinde Jurídico (Safe Harbor)</h4>
+          <p>
+            Los escritos de queja generados en formato PDF constituyen modelos orientativos fundamentados en el Art. 59 Bis 1 de la LPDUSF y Art. 15 de la LFPA. Esta plataforma no actúa como autoridad judicial o administrativa. Para la radicación formal de un procedimiento de conciliación, el usuario debe presentar su escrito firmado ante la UDECO competente o a través del portal oficial de la CONDUSEF (<a href="https://www.condusef.gob.mx" target="_blank" rel="noopener" class="text-sky-600 underline">condusef.gob.mx</a>).
+          </p>
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-200 text-right">
+        <button onclick="EscudoApp.closeModal('modal-safe-harbor')" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800">
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       7. PIE DE PÁGINA (FOOTER)
+       ========================================================================= -->
+  <footer class="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-8 no-print mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pb-6 border-b border-slate-800">
+        <div>
+          <div class="flex items-center space-x-2 text-white font-heading font-bold text-sm mb-2">
+            <i class="fa-solid fa-shield-halved text-sky-400"></i>
+            <span>Escudo Financiero Pro</span>
+          </div>
+          <p class="text-slate-400 text-[11px] leading-relaxed">
+            Plataforma cívica de ciberseguridad, buscador de entidades autorizadas SIPRES a gran escala, generador procesal de quejas CONDUSEF y defensa ciudadana antifraude.
+          </p>
+        </div>
+        <div>
+          <span class="block text-white font-semibold mb-2 text-xs uppercase tracking-wider">Enlaces Oficiales de Interés:</span>
+          <ul class="space-y-1 text-[11px]">
+            <li><a href="https://webapps.condusef.gob.mx/SIPRES/jsp/pub/index.jsp" target="_blank" rel="noopener" class="hover:text-sky-400 transition-colors">Portal Oficial SIPRES CONDUSEF</a></li>
+            <li><a href="https://phpapps.condusef.gob.mx/reco/consultasrec.php" target="_blank" rel="noopener" class="hover:text-sky-400 transition-colors">Buró de Entidades Financieras</a></li>
+            <li><a href="https://www.gob.mx/cnbv" target="_blank" rel="noopener" class="hover:text-sky-400 transition-colors">Comisión Nacional Bancaria y de Valores (CNBV)</a></li>
+          </ul>
+        </div>
+        <div>
+          <span class="block text-white font-semibold mb-2 text-xs uppercase tracking-wider">Líneas de Atención Ciudadana:</span>
+          <ul class="space-y-1 text-[11px]">
+            <li><strong class="text-slate-300">CONDUSEF:</strong> 55 53 400 999 (Asesoría a usuarios)</li>
+            <li><strong class="text-slate-300">Policía Cibernética:</strong> 088 (Denuncia de fraudes)</li>
+            <li><strong class="text-slate-300">Guardia Nacional:</strong> ccert.orientacion@gn.gob.mx</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pt-6 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
+        <div>
+          &copy; 2026 Escudo Financiero Pro. Licencia Cívica Abierta.
+        </div>
+        <div class="flex items-center space-x-4">
+          <button onclick="EscudoApp.openModal('modal-safe-harbor')" class="hover:text-slate-300 transition-colors">Aviso Legal & Safe Harbor</button>
+          <span>•</span>
+          <span>100% Client-Side Memory (LFPDPPP)</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Lógica Principal de la Aplicación -->
+  <script src="app.js"></script>
+</body>
+</html>
