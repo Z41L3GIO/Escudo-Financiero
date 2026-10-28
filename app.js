@@ -256,7 +256,8 @@ const EscudoApp = (function () {
     radarStateFilter: '',
     radarSubtab: 'muro',
     chatbotOpen: false,
-    chatbotHistory: []
+    chatbotHistory: [],
+    lastVerdict: null
   };
 
   /**
@@ -279,6 +280,8 @@ const EscudoApp = (function () {
     calcCredito();
     renderMontadeudasList();
     renderMexicoHeatmap();
+    renderForensicHistory();
+    initChatbotUi();
     initPWA();
 
     console.log('[Escudo Financiero Pro] Sistema 100% operativo con 409 entidades.');
@@ -1249,6 +1252,11 @@ const EscudoApp = (function () {
 
     form.addEventListener('input', () => {
       saveQuejaDraft();
+      scheduleLivePreviewRefresh();
+    });
+    form.addEventListener('change', () => {
+      saveQuejaDraft();
+      scheduleLivePreviewRefresh();
     });
   }
 
@@ -1471,12 +1479,14 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
     if (!isSigning) return;
     isSigning = false;
     state.signatureDataUrl = sigCanvas.toDataURL('image/png');
+    scheduleLivePreviewRefresh();
   }
 
   function clearSignature() {
     if (!sigCanvas || !sigCtx) return;
     sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
     state.signatureDataUrl = null;
+    scheduleLivePreviewRefresh();
   }
 
   /* =========================================================================
@@ -1495,6 +1505,7 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
           data: e.target.result
         });
         renderEvidencePreviews();
+        scheduleLivePreviewRefresh();
       };
       reader.readAsDataURL(file);
     }
@@ -1517,11 +1528,52 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
   function removeEvidence(idx) {
     state.evidenceImages.splice(idx, 1);
     renderEvidencePreviews();
+    scheduleLivePreviewRefresh();
   }
 
   /* =========================================================================
-     MOTOR DE REDACCIÓN JURÍDICA FORENSE & GENERACIÓN PDF (CERO SOBREPOSICIÓN)
+     MOTOR VECTORIAL DE REDACCIÓN JURÍDICA FORENSE, VISTA PREVIA E IMPRESIÓN
      ========================================================================= */
+  const pdfPreviewState = {
+    docType: 'queja', // 'queja' | 'forense'
+    forensicId: null,
+    mode: 'dom',      // 'dom' (SVG vectorial) | 'blob' (Visor PDF nativo en iframe)
+    layout: null,
+    meta: null,
+    filename: 'Documento-Escudo-Financiero.pdf',
+    blobUrl: null,
+    folio: null,
+    folioIsRedeco: null
+  };
+  let livePreviewTimer = null;
+
+  function revokePreviewBlobUrl() {
+    if (pdfPreviewState.blobUrl) {
+      try { URL.revokeObjectURL(pdfPreviewState.blobUrl); } catch (e) {}
+      pdfPreviewState.blobUrl = null;
+    }
+  }
+
+  function scheduleLivePreviewRefresh() {
+    const modal = document.getElementById('modal-preview-pdf');
+    if (!modal || modal.classList.contains('hidden')) return;
+    if (pdfPreviewState.docType !== 'queja') return;
+    if (livePreviewTimer) clearTimeout(livePreviewTimer);
+    livePreviewTimer = setTimeout(() => {
+      refreshQuejaPreviewInBackground();
+    }, 180);
+  }
+
+  async function refreshQuejaPreviewInBackground() {
+    try {
+      const data = collectQuejaFormData();
+      const built = await buildQuejaLayout(data);
+      await renderPreviewIntoModal(built, { keepMode: true });
+    } catch (err) {
+      console.warn('[EscudoPDF] Error actualizando vista previa en tiempo real:', err);
+    }
+  }
+
   function collectQuejaFormData() {
     return {
       nombre: (document.getElementById('q-nombre')?.value || '').trim(),
@@ -1548,131 +1600,473 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
   }
 
   /**
-   * Genera el escrito procesal formal en páginas limpias sin sobreposición
+   * Construye el documento jurídico vectorial de Queja CONDUSEF / REDECO con EscudoPDF
    */
-  function generateLegalDocumentHTML(data) {
-    const folioExp = `${data.isRedeco ? 'REDECO-CONDUSEF' : 'CONDUSEF-UDECO'}-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+  async function buildQuejaLayout(data) {
+    await EscudoPDF.ready();
+    const { B } = EscudoPDF;
+
+    if (!pdfPreviewState.folio || pdfPreviewState.folioIsRedeco !== data.isRedeco) {
+      pdfPreviewState.folio = `${data.isRedeco ? 'REDECO-CONDUSEF' : 'CONDUSEF-UDECO'}-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+      pdfPreviewState.folioIsRedeco = data.isRedeco;
+    }
+    const folioExp = pdfPreviewState.folio;
     const fechaHoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
     const udecoObj = UDECO_CATALOG[data.udecoKey] || UDECO_CATALOG.CDMX_CENTRAL;
 
-    // Firma autógrafa o línea
-    const firmaHtml = state.signatureDataUrl ? `
-      <div style="margin: 0 auto 5px auto; width: 220px; height: 60px;">
-        <img src="${state.signatureDataUrl}" style="max-height: 60px; max-width: 100%; margin: 0 auto; display: block;">
-      </div>
-    ` : '';
+    const sigImg = state.signatureDataUrl
+      ? await EscudoPDF.prepareImage(state.signatureDataUrl, { keepAlpha: true, trim: true, maxDim: 900 })
+      : null;
 
-    // Anexos de Evidencia
-    let evidenciasHtml = '';
-    if (state.evidenceImages.length > 0) {
-      evidenciasHtml = `
-        <div class="pdf-page">
-          <div class="legal-header flex items-center justify-between">
-            <span style="font-weight: bold; text-transform: uppercase;">ANEXO DE PRUEBAS DOCUMENTALES</span>
-            <span style="font-family: monospace;">EXP: ${folioExp}</span>
-          </div>
-          <p class="legal-p-plain" style="font-style: italic; font-size: 10pt; margin-bottom: 20px;">
-            Constancias gráficas aportadas por el promovente bajo protesta de decir verdad:
-          </p>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            ${state.evidenceImages.map((img, i) => `
-              <div class="legal-evidence-box">
-                <span style="font-weight: bold; font-size: 9pt; display: block; margin-bottom: 6px;">PRUEBA DOCUMENTAL ${i + 1}</span>
-                <img src="${img.data}">
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
+    const evImgs = [];
+    for (let i = 0; i < state.evidenceImages.length; i++) {
+      const ev = state.evidenceImages[i];
+      const prep = await EscudoPDF.prepareImage(ev.data, { keepAlpha: false, maxDim: 1400 });
+      if (prep) evImgs.push({ name: ev.name || `Anexo ${i + 1}`, img: prep });
     }
 
-    return `
-      <!-- PÁGINA 1: ESCRITO INICIAL FORENSE -->
-      <div class="pdf-page">
-        <!-- Encabezado Membretado Oficial -->
-        <div class="legal-header flex items-center justify-between">
-          <div>
-            <div style="font-size: 13pt; font-weight: bold; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">
-              ${data.isRedeco ? 'REGISTRO DE DESPACHOS DE COBRANZA (REDECO) — CONDUSEF' : 'COMISIÓN NACIONAL PARA LA PROTECCIÓN Y DEFENSA DE LOS USUARIOS DE SERVICIOS FINANCIEROS'}
-            </div>
-            <div style="font-size: 10pt; font-weight: bold; color: #334155; text-transform: uppercase;">
-              ${escapeHtml(udecoObj.nombre)}
-            </div>
-            <div style="font-size: 8.5pt; color: #64748b;">
-              ${escapeHtml(udecoObj.direccion)}
-            </div>
-          </div>
-          <div style="text-align: right; border: 1px solid #0f172a; padding: 4px 8px; border-radius: 4px;">
-            <div style="font-family: monospace; font-size: 10pt; font-weight: bold;">
-              ${folioExp}
-            </div>
-            <div style="font-size: 8pt; color: #64748b;">
-              RADICACIÓN: ${fechaHoy.toUpperCase()}
-            </div>
-          </div>
-        </div>
+    const doc = EscudoPDF.createDocument({
+      family: 'times',
+      size: 10.8,
+      lineHeight: 1.48,
+      color: '#0f172a',
+      margins: { top: 48, right: 54, bottom: 56, left: 54 },
+      onPageStart: (d, idx) => {
+        if (idx > 0) {
+          d.textAt(d.left, d.y + 8, data.isRedeco ? 'DENUNCIA FORMAL REDECO — CONDUSEF' : 'ESCRITO INICIAL DE RECLAMACIÓN — CONDUSEF', {
+            size: 8.5,
+            style: 'bold',
+            color: '#475569'
+          });
+          d.textAt(d.right, d.y + 8, `EXP: ${folioExp}`, {
+            size: 8.5,
+            style: 'monoBold',
+            color: '#0f172a',
+            align: 'right'
+          });
+          d.y += 14;
+          d.rule({ width: 0.75, color: '#cbd5e1', spaceAfter: 10 });
+        }
+      }
+    });
 
-        <!-- Rubro Jurídico Procesal -->
-        <div class="legal-rubro">
-          <div>PROMOVENTE: <strong>${escapeHtml(data.nombre.toUpperCase())}</strong> (CURP: ${escapeHtml(data.curp)})</div>
-          <div>VS.</div>
-          <div>ENTIDAD DENUNCIADA: <strong>${escapeHtml(data.institucion.toUpperCase())}</strong> ${data.folioSipres ? `(FOLIO SIPRES: ${escapeHtml(data.folioSipres)})` : ''}</div>
-          <div>SECTOR FINANCIERO: ${escapeHtml(data.sector.toUpperCase())}</div>
-          <div>ASUNTO: <strong>${data.isRedeco ? 'DENUNCIA FORMAL POR COBRANZA EXTRAJUDICIAL ILEGAL (REDECO)' : 'ESCRITO INICIAL DE QUEJA Y PROCEDIMIENTO DE CONCILIACIÓN'}</strong></div>
-        </div>
+    // 1. Encabezado Membretado Oficial (Página 1)
+    const headerTop = doc.y;
+    const boxW = 154;
+    const boxH = 34;
+    const leftW = doc.contentWidth - boxW - 12;
 
-        <!-- Proemio Legal Forense -->
-        <p class="legal-p">
-          <strong>C. TITULAR DE LA UNIDAD DE ATENCIÓN A USUARIOS DE LA CONDUSEF, PRESENTE:</strong>
-        </p>
+    doc.rectAt(doc.right - boxW, headerTop, boxW, boxH, {
+      fill: '#f8fafc',
+      stroke: '#0f172a',
+      lineWidth: 0.9
+    });
+    doc.textAt(doc.right - 7, headerTop + 13, folioExp, {
+      size: 8.5,
+      style: 'monoBold',
+      align: 'right',
+      color: '#0f172a',
+      maxWidth: boxW - 14
+    });
+    doc.textAt(doc.right - 7, headerTop + 25, `RADICACIÓN: ${fechaHoy.toUpperCase()}`, {
+      size: 6.8,
+      style: 'regular',
+      align: 'right',
+      color: '#475569',
+      maxWidth: boxW - 14
+    });
 
-        <p class="legal-p">
-          El que suscribe, <strong>${escapeHtml(data.nombre)}</strong>, por mi propio derecho, señalando como domicilio legal para oír y recibir toda clase de notificaciones el ubicado en <strong>${escapeHtml(data.calle)}, Col. ${escapeHtml(data.colonia)}, Alcaldía/Municipio ${escapeHtml(data.municipio)}, C.P. ${escapeHtml(data.cp)}</strong>, con correo de notificación <strong>${escapeHtml(data.email)}</strong> y teléfono <strong>${escapeHtml(data.telefono)}</strong>; comparezco ante esta H. Autoridad con el debido respeto a exponer:
-        </p>
+    doc.paragraph(
+      [B(data.isRedeco
+        ? 'REGISTRO DE DESPACHOS DE COBRANZA (REDECO) — CONDUSEF'
+        : 'COMISIÓN NACIONAL PARA LA PROTECCIÓN Y DEFENSA DE LOS USUARIOS DE SERVICIOS FINANCIEROS')],
+      { x: doc.left, width: leftW, size: 10.5, lineHeight: 1.24, spaceAfter: 2 }
+    );
+    doc.paragraph([B(udecoObj.nombre.toUpperCase())], {
+      x: doc.left,
+      width: leftW,
+      size: 9.2,
+      color: '#1e293b',
+      lineHeight: 1.24,
+      spaceAfter: 2
+    });
+    doc.paragraph(udecoObj.direccion, {
+      x: doc.left,
+      width: leftW,
+      size: 8.2,
+      color: '#475569',
+      lineHeight: 1.24
+    });
 
-        <p class="legal-p">
-          Que por medio del presente ocurso, con fundamento en los <strong>Artículos 1, 4, 11, 50 y 59 Bis 1 de la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF)</strong>, así como en los <strong>Artículos 15, 35 y 36 de la Ley Federal de Procedimiento Administrativo (LFPA)</strong> ${data.isRedeco ? 'y el Artículo 284 Bis del Código Penal Federal' : ''}, vengo a formular formal escrito de reclamación en contra de <strong>${escapeHtml(data.institucion)}</strong>, respecto del producto financiero <strong>${escapeHtml(data.producto)}</strong> con identificador de contrato o cuenta <strong>${escapeHtml(data.contrato)}</strong>, reclamando el resarcimiento patrimonial de <strong>$${parseFloat(data.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</strong> motivado por los siguientes hechos y consideraciones de derecho:
-        </p>
+    doc.y = Math.max(doc.y, headerTop + boxH) + 6;
+    doc.rule({ width: 1.6, color: '#0f172a', spaceAfter: 10 });
 
-        <!-- Capítulo de Hechos -->
-        <div class="legal-section-title">I. CAPÍTULO DE HECHOS Y ANTECEDENTES</div>
-        <div style="font-size: 11pt; text-align: justify; line-height: 1.6; white-space: pre-line; margin-bottom: 14px;">
-          ${escapeHtml(data.hechos)}
-        </div>
+    // 2. Rubro Procesal
+    doc.box(({ x, width }) => {
+      doc.paragraph([
+        B('PROMOVENTE: '),
+        B((data.nombre || 'CIUDADANO PROMOVENTE').toUpperCase()),
+        ` (CURP: ${(data.curp || 'N/A').toUpperCase()})`
+      ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+      doc.paragraph([B('VS.')], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+      doc.paragraph([
+        B('ENTIDAD DENUNCIADA: '),
+        B((data.institucion || 'INSTITUCIÓN FINANCIERA').toUpperCase()),
+        data.folioSipres ? ` (FOLIO SIPRES: ${data.folioSipres})` : ''
+      ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+      doc.paragraph([
+        B('SECTOR FINANCIERO: '),
+        (data.sector || 'Banca Múltiple').toUpperCase()
+      ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+      doc.paragraph([
+        B('ASUNTO: '),
+        B(data.isRedeco
+          ? 'DENUNCIA FORMAL POR COBRANZA EXTRAJUDICIAL ILEGAL (REDECO)'
+          : 'ESCRITO INICIAL DE QUEJA Y PROCEDIMIENTO DE CONCILIACIÓN')
+      ], { x, width, size: 9.5, lineHeight: 1.35 });
+    }, {
+      padding: 7,
+      inset: 11,
+      fill: '#f8fafc',
+      stroke: '#e2e8f0',
+      leftBar: { width: 2.8, color: '#0f172a' }
+    });
+    doc.space(10);
 
-        <!-- Capítulo de Pretensiones -->
-        <div class="legal-section-title">II. PRETENSIONES Y MOTIVOS DE INCONFORMIDAD</div>
-        <div style="font-size: 11pt; text-align: justify; line-height: 1.6; white-space: pre-line; margin-bottom: 14px;">
-          ${escapeHtml(data.pretensiones)}
-        </div>
+    // 3. Proemio Legal Forense
+    doc.paragraph([B('C. TITULAR DE LA UNIDAD DE ATENCIÓN A USUARIOS DE LA CONDUSEF, PRESENTE:')], {
+      size: 10.4,
+      keepWithNext: 32,
+      spaceAfter: 7
+    });
 
-        <!-- Petitorios Formales -->
-        <div class="legal-section-title">III. PETITORIOS FORMALES ANTE LA CONDUSEF</div>
-        <div style="font-size: 10.5pt; text-align: justify; line-height: 1.5; margin-bottom: 25px;">
-          <p><strong>PRIMERO.</strong> Tenerme por presentado formulando en tiempo y forma formal reclamación en contra de la institución señalada.</p>
-          <p><strong>SEGUNDO.</strong> Admitir la queja, dar inicio al procedimiento de conciliación previsto en el Art. 68 de la Ley y emplazar a la contraparte a rendir su informe circunstanciado de ley.</p>
-          <p><strong>TERCERO.</strong> En su oportunidad, ordenar la restitución de los fondos y velar por la integridad crediticia del promovente.</p>
-        </div>
+    const domParts = [
+      data.calle,
+      data.colonia ? `Col. ${data.colonia}` : '',
+      data.municipio ? `Alcaldía/Municipio ${data.municipio}` : '',
+      data.cp ? `C.P. ${data.cp}` : ''
+    ].filter(Boolean).join(', ') || 'domicilio señalado en autos';
 
-        <!-- Protesta Solemne y Firma Autógrafa -->
-        <div class="legal-firma">
-          <p style="font-size: 10pt; font-style: italic; margin-bottom: 15px;">
-            "Protesto lo necesario por la verdad y la defensa del usuario financiero"
-          </p>
-          ${firmaHtml}
-          <div class="legal-firma-line"></div>
-          <div style="font-weight: bold; font-size: 11pt;">${escapeHtml(data.nombre.toUpperCase())}</div>
-          <div style="font-size: 9.5pt; color: #475569;">Firma del Promovente • CURP: ${escapeHtml(data.curp)}</div>
-          <div style="font-size: 8pt; color: #94a3b8; margin-top: 4px;">Sello Digital Cívico: ${folioExp} • Verificado con Escudo Financiero Pro</div>
-        </div>
-      </div>
+    doc.paragraph([
+      'El que suscribe, ',
+      B(data.nombre || 'Ciudadano Promovente'),
+      ', por mi propio derecho, señalando como domicilio legal para oír y recibir toda clase de notificaciones el ubicado en ',
+      B(domParts),
+      ', con correo electrónico de notificación ',
+      B(data.email || 'no especificado'),
+      ' y teléfono de contacto ',
+      B(data.telefono || 'no especificado'),
+      '; comparezco ante esta H. Autoridad con el debido respeto a exponer:'
+    ], { align: 'justify', indent: 20, size: 10.6, lineHeight: 1.48, spaceAfter: 8 });
 
-      <!-- PÁGINA 2: ANEXOS (SI SE ADJUNTARON FOTOS) -->
-      ${evidenciasHtml}
-    `;
+    const montoNum = parseFloat(data.monto);
+    const montoFmt = '$' + (Number.isFinite(montoNum) ? montoNum : 0).toLocaleString('es-MX', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }) + ' MXN';
+
+    doc.paragraph([
+      'Que por medio del presente ocurso, con fundamento en los ',
+      B('Artículos 1, 4, 11, 50, 59 Bis 1, 60 y 68 de la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF)'),
+      ', así como en los ',
+      B('Artículos 15, 35 y 36 de la Ley Federal de Procedimiento Administrativo (LFPA)'),
+      data.isRedeco ? ' y el Artículo 284 Bis del Código Penal Federal' : '',
+      ', vengo a formular formal escrito de reclamación en contra de ',
+      B(data.institucion || 'la institución señalada'),
+      ', respecto del producto financiero ',
+      B(data.producto || 'N/A'),
+      ' con identificador de contrato o cuenta ',
+      B(data.contrato || 'En trámite / Sin número'),
+      ', por concepto de ',
+      B(data.causa || 'Reclamación financiera'),
+      ', reclamando el resarcimiento patrimonial de ',
+      B(montoFmt),
+      ' motivado por los siguientes hechos y consideraciones de derecho:'
+    ], { align: 'justify', indent: 20, size: 10.6, lineHeight: 1.48, spaceAfter: 10 });
+
+    const addSectionHeading = (title) => {
+      doc.ensureSpace(44);
+      doc.space(4);
+      doc.paragraph([B(title)], { size: 10.4, color: '#0f172a', spaceAfter: 2 });
+      doc.rule({ width: 0.75, color: '#94a3b8', spaceAfter: 6 });
+    };
+
+    // 4. Capítulo I: Hechos
+    addSectionHeading('I. CAPÍTULO DE HECHOS Y ANTECEDENTES');
+    const hechosBlocks = String(data.hechos || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+    if (hechosBlocks.length === 0) hechosBlocks.push('Sin hechos especificados.');
+    hechosBlocks.forEach((pText) => {
+      doc.paragraph(pText, { align: 'justify', size: 10.5, lineHeight: 1.48, spaceAfter: 6 });
+    });
+
+    // 5. Capítulo II: Pretensiones
+    addSectionHeading('II. PRETENSIONES Y MOTIVOS DE INCONFORMIDAD');
+    const pretBlocks = String(data.pretensiones || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+    if (pretBlocks.length === 0) pretBlocks.push('Sin pretensiones especificadas.');
+    pretBlocks.forEach((pText) => {
+      doc.paragraph(pText, { align: 'justify', size: 10.5, lineHeight: 1.48, spaceAfter: 6 });
+    });
+
+    // 6. Capítulo III: Petitorios Formales
+    addSectionHeading('III. PETITORIOS FORMALES ANTE LA CONDUSEF');
+    doc.paragraph([
+      B('PRIMERO. '),
+      'Tenerme por presentado formulando en tiempo y forma formal reclamación en contra de la institución señalada.'
+    ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 4 });
+    doc.paragraph([
+      B('SEGUNDO. '),
+      'Admitir la queja, dar inicio al procedimiento de conciliación previsto en el Art. 68 de la LPDUSF y emplazar a la contraparte a rendir su informe circunstanciado de ley.'
+    ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 4 });
+    doc.paragraph([
+      B('TERCERO. '),
+      'En su oportunidad, ordenar la restitución de los fondos reclamados y velar por la integridad crediticia del promovente.'
+    ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 12 });
+
+    // 7. Protesta Solemne y Firma Autógrafa (indivisible)
+    const sigBlockHeight = sigImg ? 132 : 84;
+    doc.ensureSpace(sigBlockHeight);
+    doc.space(6);
+    doc.paragraph('"Protesto lo necesario por la verdad y la defensa del usuario financiero"', {
+      style: 'italic',
+      size: 9.8,
+      align: 'center',
+      color: '#334155',
+      spaceAfter: sigImg ? 6 : 24
+    });
+
+    const centerX = (doc.left + doc.right) / 2;
+    if (sigImg) {
+      const maxW = 180;
+      const maxH = 48;
+      const scale = Math.min(maxW / sigImg.w, maxH / sigImg.h, 1);
+      const drawW = sigImg.w * scale;
+      const drawH = sigImg.h * scale;
+      doc.imageAt(sigImg, centerX - drawW / 2, doc.y, drawW, drawH);
+      doc.y += drawH + 4;
+    }
+
+    doc.lineAt(centerX - 120, doc.y, centerX + 120, doc.y, { width: 0.9, color: '#0f172a' });
+    doc.y += 5;
+    doc.paragraph([B((data.nombre || 'CIUDADANO PROMOVENTE').toUpperCase())], {
+      size: 10.2,
+      align: 'center',
+      spaceAfter: 1
+    });
+    doc.paragraph(`Firma del Promovente • CURP: ${(data.curp || 'N/A').toUpperCase()}`, {
+      size: 8.8,
+      align: 'center',
+      color: '#475569',
+      spaceAfter: 1
+    });
+    doc.paragraph(`Sello Digital Cívico: ${folioExp} • Verificado con Escudo Financiero Pro`, {
+      size: 7.8,
+      align: 'center',
+      color: '#64748b'
+    });
+
+    // 8. Anexo de Pruebas Documentales (si se adjuntaron imágenes)
+    if (evImgs.length > 0) {
+      doc.newPage();
+      doc.paragraph([B('ANEXO DE PRUEBAS DOCUMENTALES Y CONSTANCIAS GRÁFICAS')], {
+        size: 11,
+        color: '#0f172a',
+        spaceAfter: 3
+      });
+      doc.paragraph('Constancias gráficas aportadas por el promovente bajo protesta de decir verdad:', {
+        style: 'italic',
+        size: 9.5,
+        color: '#475569',
+        spaceAfter: 12
+      });
+
+      const colGap = 14;
+      const colW = (doc.contentWidth - colGap) / 2;
+      const cardH = 220;
+
+      for (let i = 0; i < evImgs.length; i += 2) {
+        doc.ensureSpace(cardH + 12);
+        const rowY = doc.y;
+        for (let c = 0; c < 2 && (i + c) < evImgs.length; c++) {
+          const item = evImgs[i + c];
+          const x0 = doc.left + c * (colW + colGap);
+          doc.rectAt(x0, rowY, colW, cardH, {
+            fill: '#f8fafc',
+            stroke: '#94a3b8',
+            lineWidth: 0.75,
+            dash: [3, 2]
+          });
+          doc.textAt(x0 + colW / 2, rowY + 14, `PRUEBA DOCUMENTAL ${i + c + 1}`, {
+            size: 8.5,
+            style: 'bold',
+            align: 'center',
+            color: '#0f172a'
+          });
+          doc.textAt(x0 + colW / 2, rowY + 25, item.name, {
+            size: 7.5,
+            align: 'center',
+            color: '#64748b',
+            maxWidth: colW - 16
+          });
+          const availW = colW - 18;
+          const availH = cardH - 38;
+          const sc = Math.min(availW / item.img.w, availH / item.img.h, 1);
+          const iw = item.img.w * sc;
+          const ih = item.img.h * sc;
+          doc.imageAt(item.img, x0 + (colW - iw) / 2, rowY + 31 + (availH - ih) / 2, iw, ih);
+        }
+        doc.y = rowY + cardH + 12;
+      }
+    }
+
+    const layout = doc.finish({
+      footer: (d, pageIdx, totalPages) => {
+        const fy = EscudoPDF.PAGE_H - 38;
+        d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
+        d.textAt(d.left, fy, 'Escudo Financiero Pro • Escrito Procesal Administrativo (Art. 59 Bis 1 y 68 LPDUSF)', {
+          size: 7.5,
+          color: '#64748b'
+        });
+        d.textAt(d.right, fy, `Página ${pageIdx + 1} de ${totalPages}`, {
+          size: 7.8,
+          style: 'bold',
+          color: '#334155',
+          align: 'right'
+        });
+      }
+    });
+
+    const cleanName = (data.nombre || 'Promovente').replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `Escrito-CONDUSEF-${cleanName}-${new Date().toISOString().split('T')[0]}.pdf`;
+    const meta = {
+      title: `${data.isRedeco ? 'Denuncia REDECO' : 'Queja CONDUSEF'} — ${folioExp}`,
+      subject: `Escrito formal de reclamación ante CONDUSEF (${udecoObj.nombre})`,
+      keywords: ['CONDUSEF', 'REDECO', 'Escudo Financiero Pro', 'Reclamación']
+    };
+
+    return {
+      layout,
+      meta,
+      filename,
+      docType: 'queja',
+      modalTitle: data.isRedeco
+        ? 'Denuncia Formal REDECO — Vista Previa Vectorial'
+        : 'Escrito Jurídico CONDUSEF — Vista Previa Vectorial',
+      modalSubtitle: `${folioExp} • ${udecoObj.nombre} • Texto 100% seleccionable sin cortes de línea`
+    };
   }
 
-  function generateQuejaPreview() {
+  /**
+   * Renderiza cualquier documento maquetado (Queja o Informe Forense) en el visor interactivo
+   */
+  async function renderPreviewIntoModal(built, opts = {}) {
+    pdfPreviewState.docType = built.docType || 'queja';
+    pdfPreviewState.forensicId = built.forensicId || null;
+    pdfPreviewState.layout = built.layout;
+    pdfPreviewState.meta = built.meta;
+    pdfPreviewState.filename = built.filename;
+
+    const titleEl = document.getElementById('preview-pdf-modal-title');
+    if (titleEl && built.modalTitle) titleEl.textContent = built.modalTitle;
+
+    const subEl = document.getElementById('preview-pdf-modal-subtitle');
+    if (subEl && built.modalSubtitle) subEl.textContent = built.modalSubtitle;
+
+    const badgeEl = document.getElementById('preview-pdf-meta-badge');
+    if (badgeEl && built.layout) {
+      const n = built.layout.pages.length;
+      badgeEl.textContent = `Vectorial 100% • ${n} ${n === 1 ? 'página' : 'páginas'}`;
+    }
+
+    const container = document.getElementById('legal-sheet-container');
+    if (container && built.layout) {
+      const svgPages = EscudoPDF.toSvgPages(built.layout);
+      container.innerHTML = svgPages.join('');
+    }
+
+    const targetMode = opts.keepMode ? pdfPreviewState.mode : 'dom';
+    await switchPdfPreviewMode(targetMode);
+  }
+
+  /**
+   * Alterna entre Vista Documento (SVG de alta precisión) y Vista PDF Real (Blob URL en iframe)
+   */
+  async function switchPdfPreviewMode(mode) {
+    const target = mode === 'blob' ? 'blob' : 'dom';
+    pdfPreviewState.mode = target;
+
+    const domPane = document.getElementById('preview-dom-pane');
+    const blobPane = document.getElementById('preview-blob-pane');
+    const btnDom = document.getElementById('btn-preview-mode-dom');
+    const btnBlob = document.getElementById('btn-preview-mode-blob');
+    const iframe = document.getElementById('pdf-blob-iframe');
+
+    if (btnDom && btnBlob) {
+      if (target === 'dom') {
+        btnDom.className = 'px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-600 text-white transition-all';
+        btnBlob.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-300 hover:text-white transition-all';
+      } else {
+        btnBlob.className = 'px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-600 text-white transition-all';
+        btnDom.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-300 hover:text-white transition-all';
+      }
+    }
+
+    if (target === 'dom') {
+      if (domPane) domPane.classList.remove('hidden');
+      if (blobPane) blobPane.classList.add('hidden');
+      return;
+    }
+
+    if (domPane) domPane.classList.add('hidden');
+    if (blobPane) blobPane.classList.remove('hidden');
+
+    if (pdfPreviewState.layout && iframe) {
+      const blob = await EscudoPDF.toPdfBlob(pdfPreviewState.layout, pdfPreviewState.meta || {});
+      revokePreviewBlobUrl();
+      pdfPreviewState.blobUrl = URL.createObjectURL(blob);
+      iframe.src = pdfPreviewState.blobUrl;
+    }
+  }
+
+  /**
+   * Imprime únicamente el documento actual dentro de un iframe aislado (Solución B)
+   */
+  async function printCurrentDocument() {
+    try {
+      if (!pdfPreviewState.layout) {
+        const data = collectQuejaFormData();
+        const built = await buildQuejaLayout(data);
+        pdfPreviewState.layout = built.layout;
+        pdfPreviewState.meta = built.meta;
+        pdfPreviewState.filename = built.filename;
+      }
+      EscudoPDF.printLayout(pdfPreviewState.layout, pdfPreviewState.meta?.title || 'Documento Escudo Financiero Pro');
+    } catch (err) {
+      console.error('[EscudoPDF] Error al preparar la impresión aislada:', err);
+      window.print();
+    }
+  }
+
+  /**
+   * Descarga el PDF vectorial que se encuentra actualmente en la vista previa
+   */
+  async function downloadCurrentPreviewPDF() {
+    if (pdfPreviewState.docType === 'forense') {
+      return downloadForensicReportPDF(pdfPreviewState.forensicId);
+    }
+    return downloadQuejaPDF();
+  }
+
+  /**
+   * Conservado por compatibilidad con llamadas externas a HTML estático
+   */
+  function generateLegalDocumentHTML(data) {
+    const folioExp = pdfPreviewState.folio || `${data.isRedeco ? 'REDECO-CONDUSEF' : 'CONDUSEF-UDECO'}-2026-10001`;
+    const fechaHoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+    const udecoObj = UDECO_CATALOG[data.udecoKey] || UDECO_CATALOG.CDMX_CENTRAL;
+    return `<div class="pdf-page"><div class="legal-header"><strong>${escapeHtml(udecoObj.nombre)}</strong> — ${folioExp} (${fechaHoy})</div></div>`;
+  }
+
+  async function generateQuejaPreview() {
     const data = collectQuejaFormData();
 
     if (!data.nombre || !data.curp || !data.institucion || !data.hechos || !data.pretensiones) {
@@ -1680,40 +2074,35 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
       return;
     }
 
-    const container = document.getElementById('legal-sheet-container');
-    if (container) {
-      container.innerHTML = generateLegalDocumentHTML(data);
+    try {
+      const built = await buildQuejaLayout(data);
+      await renderPreviewIntoModal(built, { keepMode: false });
+      openModal('modal-preview-pdf');
+    } catch (err) {
+      console.error('[EscudoPDF] Error generando vista previa:', err);
+      alert('No se pudo construir la vista previa del documento.');
     }
-
-    openModal('modal-preview-pdf');
   }
 
-  function downloadQuejaPDF() {
-    const element = document.getElementById('legal-sheet-container');
-    if (!element) return;
-
+  async function downloadQuejaPDF() {
     const data = collectQuejaFormData();
-    const cleanName = data.nombre.replace(/[^a-zA-Z0-9]/g, '_');
-    const filename = `Escrito-CONDUSEF-${cleanName}-${new Date().toISOString().split('T')[0]}.pdf`;
 
-    if (window.html2pdf) {
-      const opt = {
-        margin: [12, 12, 12, 12],
-        filename: filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-      };
+    if (!data.nombre || !data.curp || !data.institucion || !data.hechos || !data.pretensiones) {
+      alert('Por favor completa todos los campos requeridos marcados con asterisco (*).');
+      return null;
+    }
 
-      html2pdf().set(opt).from(element).save().then(() => {
-        console.log('[Escudo] PDF descargado exitosamente sin sobreposición.');
-      }).catch(err => {
-        console.error('[Escudo] Error con html2pdf, recurriendo a impresión:', err);
-        window.print();
-      });
-    } else {
-      window.print();
+    try {
+      const built = await buildQuejaLayout(data);
+      await renderPreviewIntoModal(built, { keepMode: true });
+      const blob = await EscudoPDF.toPdfBlob(built.layout, built.meta);
+      EscudoPDF.downloadBlob(blob, built.filename);
+      console.log('[EscudoPDF] PDF vectorial descargado exitosamente:', built.filename, blob.size, 'bytes');
+      return blob;
+    } catch (err) {
+      console.error('[EscudoPDF] Error con motor vectorial, recurriendo a impresión aislada:', err);
+      await printCurrentDocument();
+      return null;
     }
   }
 
@@ -1989,6 +2378,9 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
     document.getElementById('ai-img-preview-box').classList.add('hidden');
   }
 
+  // Etiqueta del motor que produjo el último dictamen (se registra en el historial y en el PDF)
+  let forensicEngineLabel = 'Motor Heurístico Local';
+
   function runForensicAnalysis() {
     if (state.aiInputMode === 'url') {
       analyzeSuspiciousUrl();
@@ -2006,6 +2398,7 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
       return;
     }
 
+    forensicEngineLabel = 'Motor Heurístico Local';
     const lower = urlInput.toLowerCase();
     const redFlags = [];
     let score = 0;
@@ -2054,6 +2447,7 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
 
   function analyzeUploadedImage() {
     // Simulación de OCR forense local
+    forensicEngineLabel = 'Motor Heurístico Local';
     setTimeout(() => {
       renderAiVerdict({
         score: 85,
@@ -2120,18 +2514,19 @@ SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la asegurado
     }
 
     const apiKey = (document.getElementById('gemini-api-key')?.value || '').trim();
+    forensicEngineLabel = 'Motor Heurístico Local';
 
     if (state.aiMode === 'gemini' && apiKey) {
       try {
         await runGeminiAnalysis(text, apiKey);
       } catch (err) {
         console.warn('[Escudo] Respaldo heurístico offline activado:', err);
+        forensicEngineLabel = 'Motor Heurístico Local';
         runOfflineHeuristicAnalysis(text);
       }
     } else {
-      setTimeout(() => {
-        runOfflineHeuristicAnalysis(text);
-      }, 100);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      runOfflineHeuristicAnalysis(text);
     }
   }
 
@@ -2240,11 +2635,12 @@ Responde estrictamente en formato JSON:
     if (!response.ok) throw new Error('Gemini API Error');
     const data = await response.json();
     const result = JSON.parse(data.candidates[0].content.parts[0].text);
+    forensicEngineLabel = 'Google Gemini 2.5 Flash';
     renderAiVerdict(result);
   }
 
-  function renderAiVerdict(result) {
-    const score = result.score || 0;
+  function renderAiVerdict(result, meta = {}) {
+    const score = Math.max(0, Math.min(100, parseInt(result.score, 10) || 0));
     const scoreCircle = document.getElementById('ai-score-circle');
     const scoreNum = document.getElementById('ai-score-number');
     const titleEl = document.getElementById('ai-verdict-title');
@@ -2279,6 +2675,457 @@ Responde estrictamente en formato JSON:
     }
 
     if (legalBasisEl) legalBasisEl.textContent = result.legalBasis;
+
+    // Pasos recomendados + registro del dictamen (informe PDF e historial)
+    const actions = Array.isArray(result.actions) ? result.actions.filter(Boolean) : [];
+    const actionsBox = document.getElementById('ai-actions-box');
+    const actionsList = document.getElementById('ai-actions-list');
+    if (actionsBox && actionsList) {
+      if (actions.length > 0) {
+        actionsList.innerHTML = actions.map(a => `<li class="flex items-start space-x-1.5"><i class="fa-solid fa-circle-check text-emerald-600 mt-0.5 text-[10px]"></i><span>${escapeHtml(a)}</span></li>`).join('');
+        actionsBox.classList.remove('hidden');
+      } else {
+        actionsBox.classList.add('hidden');
+      }
+    }
+
+    const record = meta.record || {
+      id: 'fx-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      ts: Date.now(),
+      type: state.aiInputMode,
+      input: getForensicInputExcerpt(),
+      engine: forensicEngineLabel,
+      score: score,
+      verdictTitle: result.verdictTitle || '',
+      verdictSummary: result.verdictSummary || '',
+      redFlags: Array.isArray(result.redFlags) ? result.redFlags : [],
+      legalBasis: result.legalBasis || '',
+      actions: actions
+    };
+    state.lastVerdict = record;
+
+    const pdfBtn = document.getElementById('ai-btn-pdf');
+    if (pdfBtn) pdfBtn.classList.remove('hidden');
+    const previewPdfBtn = document.getElementById('ai-btn-preview-pdf');
+    if (previewPdfBtn) previewPdfBtn.classList.remove('hidden');
+
+    if (!meta.skipHistory) saveForensicHistory(record);
+  }
+
+  /* -------------------------------------------------------------------------
+     LABORATORIO FORENSE: INFORME PDF E HISTORIAL LOCAL (solo en este dispositivo)
+     ------------------------------------------------------------------------- */
+  const FORENSIC_HISTORY_KEY = 'escudo_forense_historial';
+  const FORENSIC_HISTORY_MAX = 30;
+
+  function getForensicInputExcerpt() {
+    let raw = '';
+    if (state.aiInputMode === 'url') {
+      raw = document.getElementById('ai-url-input')?.value || '';
+    } else if (state.aiInputMode === 'image') {
+      raw = 'Captura de pantalla: ' + (document.getElementById('ai-img-filename')?.textContent || 'imagen');
+    } else {
+      raw = document.getElementById('ai-message-input')?.value || '';
+    }
+    raw = raw.trim();
+    return raw.length > 400 ? raw.slice(0, 400) + '…' : raw;
+  }
+
+  function loadForensicHistory() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(FORENSIC_HISTORY_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function persistForensicHistory(list) {
+    try {
+      localStorage.setItem(FORENSIC_HISTORY_KEY, JSON.stringify(list.slice(0, FORENSIC_HISTORY_MAX)));
+    } catch (e) {
+      console.warn('[Escudo] No se pudo guardar el historial forense:', e);
+    }
+  }
+
+  function saveForensicHistory(record) {
+    const list = loadForensicHistory().filter(r => r.id !== record.id);
+    list.unshift(record);
+    persistForensicHistory(list);
+    renderForensicHistory();
+  }
+
+  function renderForensicHistory() {
+    const listEl = document.getElementById('ai-history-list');
+    const countEl = document.getElementById('ai-history-count');
+    const clearBtn = document.getElementById('ai-history-clear-btn');
+    if (!listEl) return;
+
+    const list = loadForensicHistory();
+    if (countEl) countEl.textContent = list.length;
+    if (clearBtn) clearBtn.classList.toggle('hidden', list.length === 0);
+
+    if (list.length === 0) {
+      listEl.innerHTML = '<div class="text-slate-400 italic text-xs">Aún no hay análisis guardados. Tus dictámenes aparecerán aquí.</div>';
+      return;
+    }
+
+    const typeIcon = { text: 'fa-message', url: 'fa-link', image: 'fa-image' };
+    listEl.innerHTML = list.map(r => {
+      const badge = r.score >= 70 ? 'bg-red-100 text-red-700 border-red-200'
+        : (r.score >= 40 ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200');
+      const date = new Date(r.ts).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+      const snippet = (r.input || '').replace(/\s+/g, ' ').slice(0, 70);
+      return `
+        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="flex items-center space-x-1.5 min-w-0">
+              <i class="fa-solid ${typeIcon[r.type] || 'fa-message'} text-slate-400 shrink-0"></i>
+              <span class="font-semibold text-slate-800 truncate">${escapeHtml(r.verdictTitle || 'Análisis')}</span>
+            </span>
+            <span class="px-1.5 py-0.5 rounded border font-extrabold text-[10px] shrink-0 ${badge}">${r.score}/100</span>
+          </div>
+          <p class="text-[11px] text-slate-500 truncate">${escapeHtml(snippet) || 'Sin texto'}</p>
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] text-slate-400">${escapeHtml(date)}</span>
+            <span class="flex items-center space-x-2 text-[11px] font-semibold">
+              <button type="button" onclick="EscudoApp.restoreForensicHistory('${escapeHtml(r.id)}')" class="text-sky-700 hover:underline">Ver</button>
+              <button type="button" onclick="EscudoApp.previewForensicReportPDF('${escapeHtml(r.id)}')" class="text-slate-600 hover:underline">Vista previa</button>
+              <button type="button" onclick="EscudoApp.downloadForensicReportPDF('${escapeHtml(r.id)}')" class="text-indigo-700 hover:underline">PDF</button>
+              <button type="button" onclick="EscudoApp.deleteForensicHistory('${escapeHtml(r.id)}')" class="text-red-600 hover:underline">Borrar</button>
+            </span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function restoreForensicHistory(id) {
+    const rec = loadForensicHistory().find(r => r.id === id);
+    if (!rec) return;
+    forensicEngineLabel = rec.engine || forensicEngineLabel;
+    renderAiVerdict(rec, { record: rec, skipHistory: true });
+    document.getElementById('ai-results-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function deleteForensicHistory(id) {
+    persistForensicHistory(loadForensicHistory().filter(r => r.id !== id));
+    renderForensicHistory();
+  }
+
+  function clearForensicHistory() {
+    if (!confirm('¿Borrar todo el historial de análisis guardado en este dispositivo?')) return;
+    persistForensicHistory([]);
+    renderForensicHistory();
+  }
+
+  async function buildForensicLayout(rec) {
+    await EscudoPDF.ready();
+    const { B, M } = EscudoPDF;
+
+    const score = Math.max(0, Math.min(100, parseInt(rec.score, 10) || 0));
+    const level = score >= 70
+      ? { t: 'RIESGO ALTO', c: '#dc2626', bg: '#fef2f2', border: '#fecaca' }
+      : (score >= 40
+        ? { t: 'RIESGO MODERADO', c: '#d97706', bg: '#fffbeb', border: '#fde68a' }
+        : { t: 'RIESGO BAJO', c: '#059669', bg: '#ecfdf5', border: '#a7f3d0' });
+    const typeLabel = { text: 'Mensaje de texto', url: 'Enlace / URL', image: 'Captura de pantalla' }[rec.type] || 'Mensaje';
+    const when = new Date(rec.ts || Date.now()).toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' });
+    const folio = String(rec.id || 'FX-0000').toUpperCase();
+
+    const doc = EscudoPDF.createDocument({
+      family: 'helvetica',
+      size: 10,
+      lineHeight: 1.45,
+      color: '#0f172a',
+      margins: { top: 48, right: 52, bottom: 54, left: 52 },
+      onPageStart: (d, idx) => {
+        if (idx > 0) {
+          d.textAt(d.left, d.y + 8, 'ESCUDO FINANCIERO PRO — INFORME FORENSE DE CIBERSEGURIDAD', {
+            size: 8.2,
+            style: 'bold',
+            color: '#0c4a6e'
+          });
+          d.textAt(d.right, d.y + 8, `FOLIO: ${folio}`, {
+            size: 8.2,
+            style: 'monoBold',
+            color: '#475569',
+            align: 'right'
+          });
+          d.y += 14;
+          d.rule({ width: 0.75, color: '#cbd5e1', spaceAfter: 10 });
+        }
+      }
+    });
+
+    // Encabezado del Informe Forense
+    doc.paragraph([B('ESCUDO FINANCIERO PRO — DICTAMEN FORENSE DE CIBERSEGURIDAD')], {
+      size: 13,
+      color: '#0c4a6e',
+      spaceAfter: 2
+    });
+    doc.paragraph(`Laboratorio Forense IA • Folio ${folio} • Emitido: ${when}`, {
+      size: 8.8,
+      color: '#475569',
+      spaceAfter: 6
+    });
+    doc.rule({ width: 2.2, color: '#0284c7', spaceAfter: 12 });
+
+    // Tarjeta de Puntaje y Veredicto
+    const scoreBoxW = 104;
+    const rightX = doc.left + scoreBoxW + 14;
+    const rightW = doc.contentWidth - scoreBoxW - 14;
+    const cardStartY = doc.y;
+
+    doc.paragraph([B(rec.verdictTitle || 'Dictamen Forense')], {
+      x: rightX,
+      width: rightW,
+      size: 12,
+      color: '#0f172a',
+      lineHeight: 1.3,
+      spaceAfter: 4
+    });
+    doc.paragraph(rec.verdictSummary || 'Sin resumen disponible.', {
+      x: rightX,
+      width: rightW,
+      size: 9.8,
+      color: '#334155',
+      lineHeight: 1.42,
+      spaceAfter: 5
+    });
+    doc.paragraph(`Tipo de evidencia: ${typeLabel} • Motor: ${rec.engine || 'Motor Heurístico Local'}`, {
+      x: rightX,
+      width: rightW,
+      size: 8.4,
+      color: '#64748b'
+    });
+
+    const cardH = Math.max(66, doc.y - cardStartY);
+    doc.rectAt(doc.left, cardStartY, scoreBoxW, cardH, {
+      fill: level.bg,
+      stroke: level.c,
+      lineWidth: 1.8
+    });
+    doc.textAt(doc.left + scoreBoxW / 2, cardStartY + cardH / 2 - 2, `${score}/100`, {
+      size: 19,
+      style: 'bold',
+      color: level.c,
+      align: 'center'
+    });
+    doc.textAt(doc.left + scoreBoxW / 2, cardStartY + cardH / 2 + 13, level.t, {
+      size: 8,
+      style: 'bold',
+      color: level.c,
+      align: 'center'
+    });
+
+    doc.y = cardStartY + cardH + 14;
+
+    const sectionTitle = (txt) => {
+      doc.ensureSpace(40);
+      doc.paragraph([B(txt)], { size: 10.5, color: '#0f172a', spaceAfter: 4 });
+    };
+
+    // 1. Evidencia Analizada
+    sectionTitle('1. EVIDENCIA ANALIZADA');
+    doc.box(({ x, width }) => {
+      doc.paragraph([M(rec.input || '(sin texto)')], {
+        x,
+        width,
+        size: 9,
+        color: '#1e293b',
+        lineHeight: 1.4
+      });
+    }, {
+      padding: 8,
+      fill: '#f1f5f9',
+      stroke: '#cbd5e1'
+    });
+    doc.space(12);
+
+    // 2. Banderas Rojas Detectadas
+    sectionTitle('2. BANDERAS ROJAS Y PATRONES DE RIESGO DETECTADOS');
+    const flags = Array.isArray(rec.redFlags) ? rec.redFlags : [];
+    if (flags.length === 0) {
+      doc.box(({ x, width }) => {
+        doc.paragraph('Sin banderas rojas críticas detectadas en la evidencia proporcionada.', {
+          x,
+          width,
+          size: 9.5,
+          color: '#065f46'
+        });
+      }, {
+        padding: 8,
+        fill: '#ecfdf5',
+        stroke: '#a7f3d0',
+        leftBar: { width: 3, color: '#059669' }
+      });
+      doc.space(8);
+    } else {
+      flags.forEach((f) => {
+        doc.box(({ x, width }) => {
+          doc.paragraph([B(`[!] ${f.badge || 'Señal de alerta'}`)], {
+            x,
+            width,
+            size: 9.6,
+            color: '#991b1b',
+            spaceAfter: 2
+          });
+          doc.paragraph(f.desc || '', {
+            x,
+            width,
+            size: 9.2,
+            color: '#7f1d1d',
+            lineHeight: 1.38
+          });
+        }, {
+          padding: 7,
+          inset: 10,
+          fill: '#fef2f2',
+          stroke: '#fecaca',
+          leftBar: { width: 3, color: '#dc2626' },
+          estimate: 38
+        });
+        doc.space(6);
+      });
+      doc.space(6);
+    }
+
+    // 3. Marco Normativo Aplicable
+    sectionTitle('3. MARCO NORMATIVO Y TIPIFICACIÓN APLICABLE');
+    doc.box(({ x, width }) => {
+      doc.paragraph(rec.legalBasis || 'Marco de Transparencia Financiera CONDUSEF y Código Penal Federal.', {
+        x,
+        width,
+        size: 9.5,
+        color: '#334155',
+        lineHeight: 1.42
+      });
+    }, {
+      padding: 8,
+      inset: 11,
+      fill: '#f8fafc',
+      stroke: '#e2e8f0',
+      leftBar: { width: 3, color: '#0284c7' }
+    });
+    doc.space(12);
+
+    // 4. Acciones Recomendadas
+    sectionTitle('4. PLAN DE ACCIÓN Y RECOMENDACIONES INMEDIATAS');
+    const acts = Array.isArray(rec.actions) ? rec.actions : [];
+    if (acts.length === 0) {
+      doc.paragraph('• No realizar transferencias anticipadas ni compartir códigos OTP o contraseñas.', {
+        size: 9.6,
+        color: '#1e293b',
+        spaceAfter: 4
+      });
+    } else {
+      acts.forEach((act, idx) => {
+        doc.paragraph([B(`${idx + 1}. `), String(act)], {
+          size: 9.6,
+          color: '#1e293b',
+          lineHeight: 1.42,
+          spaceAfter: 4
+        });
+      });
+    }
+    doc.space(10);
+
+    // 5. Canales Oficiales de Denuncia
+    doc.box(({ x, width }) => {
+      doc.paragraph([B('CANALES OFICIALES DE DENUNCIA Y ATENCIÓN EN MÉXICO:')], {
+        x,
+        width,
+        size: 8.8,
+        color: '#0f172a',
+        spaceAfter: 2
+      });
+      doc.paragraph(
+        '• Policía Cibernética (Guardia Nacional): Tel. 088 (24 hrs) / ccert.orientacion@gn.gob.mx\n' +
+        '• CONDUSEF (Atención a Usuarios y REDECO): Tel. 55 53 400 999 / www.condusef.gob.mx\n' +
+        '• Fiscalía General / Ministerio Público: Presentar este informe impreso junto con capturas de pantalla e identificadores bancarios.',
+        { x, width, size: 8.4, color: '#475569', lineHeight: 1.38 }
+      );
+    }, {
+      padding: 8,
+      fill: '#f8fafc',
+      stroke: '#cbd5e1',
+      estimate: 56
+    });
+
+    const layout = doc.finish({
+      footer: (d, pageIdx, totalPages) => {
+        const fy = EscudoPDF.PAGE_H - 36;
+        d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
+        d.textAt(
+          d.left,
+          fy,
+          'Informe orientativo generado localmente en el dispositivo del usuario (LFPDPPP). No constituye dictamen pericial oficial.',
+          { size: 7.2, color: '#64748b' }
+        );
+        d.textAt(d.right, fy, `Página ${pageIdx + 1} de ${totalPages}`, {
+          size: 7.8,
+          style: 'bold',
+          color: '#334155',
+          align: 'right'
+        });
+      }
+    });
+
+    const dateStr = new Date(rec.ts || Date.now()).toISOString().split('T')[0];
+    const filename = `Informe-Forense-${dateStr}-${folio.slice(-4)}.pdf`;
+    const meta = {
+      title: `Informe Forense ${folio} — Escudo Financiero Pro`,
+      subject: `Dictamen de análisis forense digital (${level.t} - ${score}/100)`,
+      keywords: ['Informe Forense', 'Ciberseguridad', 'CONDUSEF', 'Escudo Financiero Pro']
+    };
+
+    return {
+      layout,
+      meta,
+      filename,
+      docType: 'forense',
+      forensicId: rec.id,
+      modalTitle: 'Informe Forense de Ciberseguridad — Vista Previa Vectorial',
+      modalSubtitle: `Folio ${folio} • ${level.t} (${score}/100) • Texto 100% seleccionable`
+    };
+  }
+
+  async function previewForensicReportPDF(id) {
+    const rec = id ? loadForensicHistory().find(r => r.id === id) : state.lastVerdict;
+    if (!rec) {
+      alert('Primero realiza un análisis para previsualizar el informe.');
+      return;
+    }
+
+    try {
+      const built = await buildForensicLayout(rec);
+      await renderPreviewIntoModal(built, { keepMode: false });
+      openModal('modal-preview-pdf');
+    } catch (err) {
+      console.error('[EscudoPDF] Error previsualizando informe forense:', err);
+      alert('No se pudo generar la vista previa del informe.');
+    }
+  }
+
+  async function downloadForensicReportPDF(id) {
+    const rec = id ? loadForensicHistory().find(r => r.id === id) : state.lastVerdict;
+    if (!rec) {
+      alert('Primero realiza un análisis para generar el informe.');
+      return null;
+    }
+
+    try {
+      const built = await buildForensicLayout(rec);
+      await renderPreviewIntoModal(built, { keepMode: true });
+      const blob = await EscudoPDF.toPdfBlob(built.layout, built.meta);
+      EscudoPDF.downloadBlob(blob, built.filename);
+      console.log('[EscudoPDF] Informe Forense PDF descargado:', built.filename, blob.size, 'bytes');
+      return blob;
+    } catch (err) {
+      console.error('[EscudoPDF] Error generando informe PDF:', err);
+      alert('No se pudo generar el PDF. Intenta de nuevo.');
+      return null;
+    }
   }
 
   function openPoliceComplaintModal() {
@@ -3160,6 +4007,18 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
   /* =========================================================================
      CHATBOT ASISTENTE CÍVICO CON GEMINI 2.5 FLASH ("ESCUDOBOT")
      ========================================================================= */
+  const CHAT_STORAGE_KEY = 'escudo_chat_hist';
+  const CHAT_HISTORY_MAX = 40;
+  let chatbotBusy = false;
+  // Memoria corta de contexto (idea: entender "¿y esa app?" sin repetir el nombre)
+  const chatContext = { app: null, entity: null };
+
+  const CHAT_DEFAULT_CHIPS = [
+    { label: '🚨 Me amenazan por un préstamo', cmd: 'say', arg: 'Me están amenazando por un préstamo' },
+    { label: '📱 ¿Es segura PRESTAMAX?', cmd: 'say', arg: '¿Es segura la app PRESTAMAX?' },
+    { label: '🧠 Analizar un mensaje', cmd: 'say', arg: 'Quiero revisar un mensaje sospechoso' }
+  ];
+
   function toggleChatbot() {
     state.chatbotOpen = !state.chatbotOpen;
     const win = document.getElementById('escudobot-window');
@@ -3181,67 +4040,439 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
     }
   }
 
+  /* -------------------------------------------------------------------------
+     Interfaz, memoria de conversación (sessionStorage) y botones de acción
+     ------------------------------------------------------------------------- */
+  function initChatbotUi() {
+    const container = document.getElementById('escudobot-messages');
+    if (container && !container.dataset.bound) {
+      container.dataset.bound = '1';
+      container.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-chat-cmd]');
+        if (!btn) return;
+        runChatAction(btn.getAttribute('data-chat-cmd'), btn.getAttribute('data-chat-arg') || '');
+      });
+    }
+    restoreChatHistory();
+  }
+
+  function saveChatHistory() {
+    try {
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(state.chatbotHistory.slice(-CHAT_HISTORY_MAX)));
+    } catch (e) { /* almacenamiento no disponible */ }
+  }
+
+  function restoreChatHistory() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(CHAT_STORAGE_KEY) || '[]');
+      if (!Array.isArray(saved) || saved.length === 0) return;
+      state.chatbotHistory = saved;
+      saved.forEach(m => renderChatBubble(m.role === 'user' ? 'user' : 'bot', m.text, m.actions));
+    } catch (e) { /* historial corrupto: se ignora */ }
+  }
+
+  function runChatAction(cmd, arg) {
+    switch (cmd) {
+      case 'goto':
+        switchTab(arg);
+        break;
+      case 'ficha':
+        openAppFicha(arg);
+        break;
+      case 'report':
+        openReportModalForApp(parseInt(arg, 10));
+        break;
+      case 'say':
+        sendChatbotCommand(arg);
+        break;
+      case 'forensicPdf':
+        downloadForensicReportPDF();
+        break;
+      case 'police': {
+        if (arg) {
+          const el = document.getElementById('ai-message-input');
+          if (el) el.value = arg;
+        }
+        openPoliceComplaintModal();
+        break;
+      }
+      case 'shield':
+        copyMontadeudasShieldMessage();
+        respondChatbot('✅ Copié el aviso para tus contactos. Pégalo en WhatsApp o donde lo necesites.');
+        break;
+      case 'queja':
+        switchTab('quejas');
+        break;
+      default:
+        break;
+    }
+  }
+
+  function renderChatBubble(sender, text, actions) {
+    const container = document.getElementById('escudobot-messages');
+    if (!container) return;
+
+    const div = document.createElement('div');
+    div.className = sender === 'user' ? 'flex justify-end' : 'flex items-start space-x-2';
+
+    if (sender === 'user') {
+      div.innerHTML = `<div class="chat-bubble-user p-2.5 rounded-xl max-w-[85%] text-xs">${escapeHtml(text)}</div>`;
+    } else {
+      const html = escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+      const actionsHtml = Array.isArray(actions) && actions.length > 0
+        ? `<div class="mt-2 flex flex-wrap gap-1.5">${actions.map(a =>
+            `<button type="button" data-chat-cmd="${escapeHtml(a.cmd)}" data-chat-arg="${escapeHtml(a.arg || '')}" class="px-2 py-1 rounded-full bg-white border border-sky-300 text-sky-800 hover:bg-sky-50 font-semibold text-[11px] text-left">${escapeHtml(a.label)}</button>`
+          ).join('')}</div>`
+        : '';
+      div.innerHTML = `
+        <div class="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+          <i class="fa-solid fa-robot"></i>
+        </div>
+        <div class="chat-bubble-bot p-2.5 rounded-xl max-w-[85%] text-xs leading-relaxed">${html}${actionsHtml}</div>
+      `;
+    }
+
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function appendChatMessage(sender, text, actions) {
+    renderChatBubble(sender, text, actions);
+    const entry = { role: sender === 'user' ? 'user' : 'model', text: text };
+    if (Array.isArray(actions) && actions.length > 0) entry.actions = actions;
+    state.chatbotHistory.push(entry);
+    if (state.chatbotHistory.length > CHAT_HISTORY_MAX) {
+      state.chatbotHistory = state.chatbotHistory.slice(-CHAT_HISTORY_MAX);
+    }
+    saveChatHistory();
+  }
+
+  function respondChatbot(text, actions) {
+    appendChatMessage('bot', text, actions);
+  }
+
+  /* -------------------------------------------------------------------------
+     Detección de intención: emergencia, mensajes sospechosos y apps de préstamo
+     ------------------------------------------------------------------------- */
+  // Texto ya normalizado (sin acentos, en minúsculas)
+  const CHAT_EMERGENCY_RE = new RegExp([
+    '\\bme\\s+(estan\\s+|han\\s+|van\\s+a\\s+|siguen\\s+|andan\\s+)?(amenaz|extors|hostig|acos|chantaje)\\w*',
+    '\\bextorsion\\b',
+    '\\bchantaje\\b',
+    '\\bamenaz\\w*\\s+con\\b',
+    '(enviar|mandar|difundir|avisar|publicar|llamar|mensajes?)\\W+(\\w+\\W+){0,6}(mis\\s+)?contactos',
+    '\\bme\\s+llaman\\s+(a\\s+cada\\s+rato|todo\\s+el\\s+dia|a\\s+mi\\s+trabajo)',
+    '\\bdifam\\w*'
+  ].join('|'));
+
+  const CHAT_FRAUD_KW_RE = /(fianza|anticipo|deposit|oxxo|spin|\bstp\b|pre-?aprobad|felicidades|liberar|gastos de gestion|sin buro|garantizad|deudor|embargo|urgente|\bclic\b|enlace|\blink\b|\bapk\b|codigo|\botp\b|\bnip\b|cuenta (suspendida|bloqueada)|verifica tu|tarjeta terminacion|transferencia|\bclabe\b|\baval\b|contactos|agenda|ultimo aviso|demanda|ganaste|premio)/;
+
+  /**
+   * Decide si el mensaje del usuario es un texto/enlace pegado para evaluar.
+   * Devuelve { type: 'text'|'url', text } o null.
+   */
+  function detectSuspiciousInput(msg) {
+    const trimmed = msg.trim();
+    const norm = normalizeText(trimmed);
+
+    // Enlace solo (o precedido de "analiza/revisa/es seguro ...")
+    const urlOnly = trimmed.match(/^(?:(?:analiza|analizame|revisa|revisame|checa|verifica|es\s+seguro|es\s+confiable)\s*:?\s*)?((?:https?:\/\/|www\.)\S+)$/i);
+    if (urlOnly) return { type: 'url', text: urlOnly[1] };
+
+    // Prefijo explícito: "analiza: ...", "me llegó este mensaje: ..."
+    const explicit = trimmed.match(/^(?:analiza|analizame|revisa|revisame|checa|me\s+lleg[oó]\s+(?:este|el)\s+(?:mensaje|sms|texto)|me\s+mandaron|me\s+enviaron)[^:]{0,40}:\s*([\s\S]{25,})$/i);
+    if (explicit) return { type: 'text', text: explicit[1].trim() };
+
+    // Texto largo con patrones de fraude
+    if (trimmed.length >= 70 && CHAT_FRAUD_KW_RE.test(norm)) {
+      return { type: 'text', text: trimmed };
+    }
+    return null;
+  }
+
+  const CHAT_WEAK_APP_NAMES = new Set([
+    'nu', 'ala', 'alas', 'luz', 'money', 'easy', 'claro', 'quincena', 'confiar', 'conveniente', 'relampago',
+    'mi credito', 'mi prestamo', 'credito hoy', 'dinero rapido', 'prestamos express', 'credito express',
+    'facil credito', 'prestamo efectivo', 'app credito', 'credito prestamo', 'rapido credito', 'rapido prestamo',
+    'prestamo rapido', 'prestamos faciles', 'facil prestamos', 'buen prestamo', 'buen credito', 'todo credito',
+    'dinero listo', 'dinero hoy', 'efectivo hoy', 'efectivo ya', 'credito ya', 'simple credito', 'credito plus',
+    'credito max', 'credito mas', 'prestamo pro', 'efectivo plus', 'efectivo pro', 'efectivo cash', 'cash efectivo',
+    'facil efectivo', 'facil cash', 'mi peso', 'mi caja', 'dinero credito', 'prestamo oportuno', 'prestamos mas',
+    'apoyo economico', 'cartera grande', 'credito loan', 'cash cash', 'mi mejor prestamo', 'tu mejor prestamo'
+  ]);
+
+  let chatAppIndex = null;
+
+  function cleanForMatch(str) {
+    return normalizeText(str).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function buildChatAppIndex() {
+    chatAppIndex = appsPrestamoCatalog.map(a => {
+      const full = cleanForMatch(a.app);
+      const alias = cleanForMatch(String(a.app).split(/\s+-\s+|\s*[:(]/)[0]);
+      const names = Array.from(new Set([full, alias].filter(n => n.length >= 2)));
+      const weak = names.some(n => CHAT_WEAK_APP_NAMES.has(n)) || (alias.indexOf(' ') === -1 && alias.length <= 4);
+      return { app: a, names, weak };
+    });
+  }
+
+  function findMentionedApps(text) {
+    if (!Array.isArray(appsPrestamoCatalog) || appsPrestamoCatalog.length === 0) return [];
+    if (!chatAppIndex || chatAppIndex.length !== appsPrestamoCatalog.length) buildChatAppIndex();
+
+    const clean = cleanForMatch(text);
+    if (!clean) return [];
+    const wordCount = clean.split(' ').length;
+    const intentStrong = /\b(app|apps|aplicacion|aplicaciones)\b/.test(clean);
+    const intentSoft = intentStrong ||
+      /(es (segura|seguro|confiable|legal|real|estafa|fraude|buena)|esta reportad|reportad|reportes|condusef|google play|play store|descargu|\bbaje\b|me prestaron|me presto|pedi un prestamo|me cobra|me amenaz|me llaman)/.test(clean);
+    const isShort = wordCount <= 4;
+
+    const hits = [];
+    for (const entry of chatAppIndex) {
+      if (entry.weak ? !intentSoft : !(intentSoft || isShort)) continue;
+      for (const name of entry.names) {
+        const re = new RegExp('(^| )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '( |$)');
+        if (re.test(clean)) {
+          hits.push({ app: entry.app, len: name.length, name });
+          break;
+        }
+      }
+    }
+    if (hits.length === 0) return [];
+
+    hits.sort((x, y) => y.len - x.len);
+    const kept = [];
+    for (const h of hits) {
+      if (!kept.some(k => k.name.includes(h.name))) kept.push(h);
+    }
+    return kept.slice(0, 3).map(h => h.app);
+  }
+
+  function describeAppForChat(a) {
+    const condusef = a.condusef === 'SÍ'
+      ? 'SÍ, tiene reportes ante CONDUSEF'
+      : 'NO, sin registro ante CONDUSEF (opera en la informalidad)';
+    const play = a.googlePlay === 'ACTIVA' ? 'ACTIVA (sigue disponible en la tienda)'
+      : (a.googlePlay === 'BAJA' ? 'BAJA (fue dada de baja de Google Play)' : 'NO ENCONTRADA en Google Play');
+    const apk = a.apk === 'ACTIVA' ? 'ACTIVA (circula como APK externo, riesgo alto)'
+      : (a.apk === 'BAJA' ? 'BAJA' : 'NO ENCONTRADA');
+    const high = a.reportes >= 100 || a.apk === 'ACTIVA';
+    const reading = high
+      ? '🚨 **Mi lectura:** acumula muchos reportes o circula como APK externo. Te recomiendo **no pedir préstamos ni dar permisos** (contactos, galería) a esta app.'
+      : '⚠️ **Mi lectura:** tiene reportes ciudadanos. Estar en este listado no es una sentencia legal, pero pide precaución.';
+    return `📱 **${a.app}** (N° ${a.num} de 399 en el Radar)\n` +
+      `• ¿Reportada ante CONDUSEF? **${condusef}**\n` +
+      `• Reportes ciudadanos: **${Number(a.reportes).toLocaleString('es-MX')}**\n` +
+      `• Google Play: **${play}**\n` +
+      `• APK externo: **${apk}**\n` +
+      `${reading}`;
+  }
+
+  function buildAppReply(apps) {
+    const body = apps.map(describeAppForChat).join('\n\n');
+    const footer = '\n\nAntes de pedir dinero, verifica en el Directorio SIPRES que la entidad esté **En operación** y nunca pagues anticipos.';
+    const actions = [];
+    apps.slice(0, 2).forEach(a => {
+      actions.push({ label: `Ver ficha de ${a.app}`, cmd: 'ficha', arg: String(a.num) });
+    });
+    actions.push({ label: 'Reportar esta app', cmd: 'report', arg: String(apps[0].num) });
+    actions.push({ label: 'Semáforo de préstamo', cmd: 'goto', arg: 'credito' });
+    return { text: body + footer, actions };
+  }
+
+  function explainVerdictForChat(v) {
+    const level = v.score >= 70
+      ? { icon: '🚨', text: 'RIESGO ALTO: es muy probable que sea un intento de fraude' }
+      : (v.score >= 40
+        ? { icon: '⚠️', text: 'RIESGO MEDIO: tiene señales sospechosas, no confíes todavía' }
+        : { icon: '✅', text: 'RIESGO BAJO: no vi alertas críticas, pero mantén tus claves en privado' });
+
+    const lines = [`${level.icon} **${level.text}** (puntaje ${v.score}/100).`];
+    if (v.verdictSummary) lines.push(v.verdictSummary);
+
+    const flags = (v.redFlags || []).slice(0, 3);
+    if (flags.length > 0) {
+      lines.push('**Por qué:**\n' + flags.map(f => `• **${f.badge}**: ${f.desc}`).join('\n'));
+    }
+
+    const steps = (v.actions && v.actions.length > 0 ? v.actions : ['Mantén tus contraseñas y claves OTP en privado.']).slice(0, 3);
+    lines.push('**Qué hacer ahora:**\n' + steps.map((s, i) => `${i + 1}. ${s}`).join('\n'));
+    lines.push('El análisis completo, el informe en PDF y tu historial están en el **Laboratorio Forense IA**.');
+    return lines.join('\n\n');
+  }
+
+  function buildVerdictActions(v) {
+    const actions = [
+      { label: '🧠 Ver informe completo', cmd: 'goto', arg: 'analizador' },
+      { label: '📄 Descargar PDF', cmd: 'forensicPdf' }
+    ];
+    if (v.score >= 40) {
+      actions.push({ label: '🚓 Denuncia 088', cmd: 'police' });
+      actions.push({ label: '⚖️ Redactar queja CONDUSEF', cmd: 'queja' });
+    }
+    if ((v.redFlags || []).some(f => /montadeudas|contactos|agenda/i.test(`${f.badge} ${f.desc}`))) {
+      actions.push({ label: '📋 Copiar aviso para mis contactos', cmd: 'shield' });
+    }
+    return actions;
+  }
+
+  async function deriveToForensicLab(det) {
+    const isUrl = det.type === 'url';
+    respondChatbot(`🔎 Eso parece un ${isUrl ? 'enlace' : 'mensaje'} sospechoso. Yo no lo analizo: lo envío al **Laboratorio Forense IA**, nuestro único motor de análisis, y enseguida te explico el resultado en palabras sencillas.`);
+
+    state.lastVerdict = null;
+    if (isUrl) {
+      switchAiInputMode('url');
+      const urlEl = document.getElementById('ai-url-input');
+      if (urlEl) urlEl.value = det.text;
+      analyzeSuspiciousUrl();
+    } else {
+      switchAiInputMode('text');
+      const msgEl = document.getElementById('ai-message-input');
+      if (msgEl) msgEl.value = det.text;
+      await runMessageAnalysis();
+    }
+
+    const verdict = state.lastVerdict;
+    if (!verdict) {
+      respondChatbot('No pude completar el análisis desde aquí. Ábrelo directamente en el Laboratorio Forense IA.',
+        [{ label: '🧠 Abrir Laboratorio Forense IA', cmd: 'goto', arg: 'analizador' }]);
+      return;
+    }
+    respondChatbot(explainVerdictForChat(verdict), buildVerdictActions(verdict));
+  }
+
+  function handleEmergencyMessage(msg, apps) {
+    const lines = [
+      '🚨 **Lo que describes es hostigamiento o extorsión, y puede constituir un delito. Respira: tú tienes el control.**',
+      '1. **No pagues bajo presión** ni envíes más dinero o datos.',
+      '2. **Guarda evidencia:** capturas de mensajes, números, fechas y comprobantes.',
+      '3. **Bloquea** esos números y **quita los permisos** (contactos, galería) a la app; desinstálala.',
+      '4. **Avisa a tus contactos** que no atiendan mensajes sobre ti (te dejo un texto listo para copiar).',
+      '5. **Denuncia:** Policía Cibernética **088** y asesoría CONDUSEF **55 53 400 999**.'
+    ];
+    if (apps.length > 0) {
+      lines.push('Sobre la app que mencionas:\n' + apps.map(a => `• **${a.app}** (N° ${a.num}): ${Number(a.reportes).toLocaleString('es-MX')} reportes, Google Play ${a.googlePlay}.`).join('\n'));
+    }
+    const actions = [
+      { label: '🚓 Redactar denuncia 088', cmd: 'police', arg: msg.slice(0, 400) },
+      { label: '📋 Copiar aviso para mis contactos', cmd: 'shield' },
+      { label: '⚖️ Redactar queja CONDUSEF', cmd: 'queja' },
+      { label: '📡 Ver Radar Comunitario', cmd: 'goto', arg: 'radar' }
+    ];
+    if (apps.length > 0) actions.unshift({ label: `Ver ficha de ${apps[0].app}`, cmd: 'ficha', arg: String(apps[0].num) });
+    respondChatbot(lines.join('\n'), actions);
+  }
+
+  /* -------------------------------------------------------------------------
+     Flujo principal de mensajes
+     ------------------------------------------------------------------------- */
   async function handleChatbotSubmit() {
     const input = document.getElementById('escudobot-input');
     const msg = (input?.value || '').trim();
-    if (!msg) return;
+    if (!msg || chatbotBusy) return;
 
+    chatbotBusy = true;
     input.value = '';
     appendChatMessage('user', msg);
 
     const typing = document.getElementById('escudobot-typing');
     if (typing) typing.classList.remove('hidden');
 
-    const apiKey = (document.getElementById('gemini-api-key')?.value || '').trim();
+    try {
+      await processChatMessage(msg);
+    } catch (err) {
+      console.error('[EscudoBot] Error procesando el mensaje:', err);
+      respondChatbot('Tuve un problema para procesar tu mensaje. Inténtalo de nuevo o usa el menú para ir a la sección que necesitas.');
+    } finally {
+      chatbotBusy = false;
+      if (typing) typing.classList.add('hidden');
+    }
+  }
 
-    // 1. Detección de Comandos Directos de Navegación
+  async function processChatMessage(msg) {
+    const apiKey = (document.getElementById('gemini-api-key')?.value || '').trim();
     const lower = msg.toLowerCase();
+    const norm = normalizeText(msg);
+    const wordCount = norm.split(/\s+/).length;
+
+    // 0. Apps de préstamo mencionadas (con memoria del tema anterior)
+    let apps = findMentionedApps(msg);
+    if (apps.length === 0 && chatContext.app && wordCount <= 8 &&
+        /\b(esa|esta|ella|eso|la misma)\b|reportes|google play|condusef|segur[ao]|confiable/.test(norm)) {
+      apps = [chatContext.app];
+    }
+
+    // 1. Emergencia: amenazas, extorsión u hostigamiento (primera persona)
+    if (CHAT_EMERGENCY_RE.test(norm) && !detectSuspiciousInput(msg)) {
+      if (apps.length > 0) chatContext.app = apps[0];
+      handleEmergencyMessage(msg, apps);
+      return;
+    }
+
+    // 2. Mensajes o enlaces sospechosos: se derivan al Laboratorio Forense IA
+    const suspicious = detectSuspiciousInput(msg);
+    if (suspicious) {
+      await deriveToForensicLab(suspicious);
+      return;
+    }
+
+    // 3. Consulta sobre apps de préstamo móvil (datos del Radar Comunitario)
+    if (apps.length > 0) {
+      chatContext.app = apps[0];
+      const reply = buildAppReply(apps);
+      respondChatbot(reply.text, reply.actions);
+      return;
+    }
+
+    // 4. Comandos directos de navegación
     if (lower.includes('buscar bbva') || (lower.includes('buscar') && lower.includes('bbva'))) {
       switchTab('directorio');
       executeDirectSearch('BBVA');
       document.getElementById('sipres-search-input').value = 'BBVA';
       respondChatbot('¡Hecho! Te he llevado al directorio SIPRES y he buscado las entidades relacionadas a **BBVA**.');
-      if (typing) typing.classList.add('hidden');
       return;
     }
 
     if (lower.includes('calcular') || lower.includes('crédito') || lower.includes('semáforo') || lower.includes('interés')) {
       switchTab('credito');
       respondChatbot('¡Listo! Te he llevado al **Semáforo de Préstamo Justo**. Aquí puedes calcular el sobrecosto de tu préstamo y consultar la tabla de amortización cuota por cuota.');
-      if (typing) typing.classList.add('hidden');
       return;
     }
 
     if (lower.includes('queja') || lower.includes('condusef') || lower.includes('denuncia') || lower.includes('reclamar')) {
       switchTab('quejas');
       respondChatbot('Te he trasladado al **Generador de Quejas Oficiales CONDUSEF**. Puedes redactar tu escrito jurídico y firmarlo digitalmente.');
-      if (typing) typing.classList.add('hidden');
       return;
     }
 
-    if (lower.includes('mensaje') || lower.includes('forense') || lower.includes('ia') || lower.includes('sospechoso')) {
-      switchTab('analizador');
-      respondChatbot('Estamos en el **Laboratorio Forense IA**. Pega cualquier mensaje sospechoso o sube una captura de pantalla para evaluarlo.');
-      if (typing) typing.classList.add('hidden');
+    if (lower.includes('mensaje') || lower.includes('forense') || /\bia\b/.test(lower) || lower.includes('sospechoso')) {
+      respondChatbot('🧠 Puedes **pegar aquí mismo** el mensaje, SMS o enlace sospechoso y yo lo envío al **Laboratorio Forense IA** para analizarlo; después te explico el resultado. También puedes ir directo al laboratorio.',
+        [{ label: 'Ir al Laboratorio Forense IA', cmd: 'goto', arg: 'analizador' }]);
       return;
     }
 
     if (lower.includes('radar') || lower.includes('montadeudas') || lower.includes('estafa') || lower.includes('mapa')) {
       switchTab('radar');
-      respondChatbot('Te he llevado al **Radar Comunitario**. Puedes comprobar teléfonos o consultar el mapa de estafas en México.');
-      if (typing) typing.classList.add('hidden');
+      respondChatbot('Te he llevado al **Radar Comunitario**. Puedes comprobar teléfonos, consultar el mapa de estafas y revisar el listado de 399 apps de préstamo móvil.');
       return;
     }
 
     if (lower.includes('modo oscuro') || lower.includes('dark')) {
       toggleDarkMode();
       respondChatbot('¡Modo de visualización alternado con éxito!');
-      if (typing) typing.classList.add('hidden');
       return;
     }
 
-    // 2. Consulta directa de cualquiera de las 409 entidades en EscudoBot
-    const matchedEntities = findMentionedEntities(msg);
+    // 5. Consulta directa de cualquiera de las 409 entidades
+    let matchedEntities = findMentionedEntities(msg);
+    if (matchedEntities.length === 0 && chatContext.entity && wordCount <= 8 && /\b(esa|esta|ella|eso|la misma)\b/.test(norm)) {
+      matchedEntities = [chatContext.entity];
+    }
+    if (matchedEntities.length > 0) chatContext.entity = matchedEntities[0];
+
     if (matchedEntities.length > 0 && lower.startsWith('buscar ')) {
       const target = matchedEntities[0];
       switchTab('directorio');
@@ -3249,26 +4480,23 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
       const searchInput = document.getElementById('sipres-search-input');
       if (searchInput) searchInput.value = target.n;
       respondChatbot(`¡Listo! He buscado **${target.n}** en el directorio SIPRES: **${target.s}** (Folio SIPRES: **${target.f}**, Sector: **${target.t}**, Estatus: **${target.e}**).`);
-      if (typing) typing.classList.add('hidden');
       return;
     }
 
-    // 3. Consulta con Gemini 2.5 Flash o Respuesta Local Conectada a las 409 Entidades
+    // 6. Gemini (con memoria, instrucciones de sistema y datos oficiales) o motor local
+    let reply;
     if (apiKey) {
       try {
-        const reply = await queryGeminiChat(msg, apiKey, matchedEntities);
-        respondChatbot(reply);
+        reply = await queryGeminiChat(apiKey, matchedEntities);
       } catch (err) {
         console.warn('[EscudoBot] Error con Gemini API, respondiendo con motor local:', err);
-        respondChatbot(getLocalChatbotReply(lower, matchedEntities));
+        reply = getLocalChatbotReply(lower, matchedEntities);
       }
     } else {
-      setTimeout(() => {
-        respondChatbot(getLocalChatbotReply(lower, matchedEntities));
-      }, 300);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      reply = getLocalChatbotReply(lower, matchedEntities);
     }
-
-    if (typing) typing.classList.add('hidden');
+    respondChatbot(reply, CHAT_DEFAULT_CHIPS);
   }
 
   function getLocalChatbotReply(text, matchedEntities = []) {
@@ -3283,58 +4511,65 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
     if (text.includes('montadeudas') || text.includes('amenaza') || text.includes('contactos')) {
       return 'Las apps montadeudas cometen cobranza extrajudicial ilegal (Art. 284 Bis CPF). No pagues bajo amenaza, retira los permisos a la app, avisa a tus contactos que te hackearon y denuncia de inmediato al 088 de la Policía Cibernética.';
     }
+    if (/\bapps?\b|aplicacion/.test(text) && /prestamo|credito|segur|confiable|reportad/.test(text)) {
+      return 'Tengo el listado de **399 apps de préstamo móvil** con sus reportes ciudadanos, estatus en CONDUSEF y en Google Play. Dime el nombre de la app (por ejemplo: "¿Es segura la app PRESTAMAX?") y te muestro su ficha.';
+    }
     if (text.includes('sipres') || text.includes('qué es') || text.includes('que es')) {
       return 'El SIPRES (Sistema de Registro de Prestadores de Servicios Financieros) es el catálogo oficial de la CONDUSEF con las 409 entidades financieras legalmente autorizadas en nuestro padrón (Banca Múltiple, Banca de Desarrollo, SOFIPO, SOCAP, Uniones de Crédito y Fintech). Puedes preguntarme el nombre de cualquier banco, caja o fintech para verificar su Folio SIPRES.';
     }
-    return 'Entendido. Como asistente de ciberseguridad financiera en México, puedo verificar cualquiera de las **409 entidades del SIPRES** (solo dime su nombre o folio), ayudarte a redactar quejas legales en PDF, detectar si un CAT es engañoso o analizar mensajes de estafas. ¿Qué deseas realizar?';
+    return 'Entendido. Como asistente de ciberseguridad financiera en México, puedo verificar cualquiera de las **409 entidades del SIPRES**, consultar las **399 apps de préstamo móvil**, ayudarte con quejas legales en PDF, detectar si un CAT es engañoso o enviar al Laboratorio Forense cualquier mensaje sospechoso que pegues aquí. ¿Qué deseas realizar?';
   }
 
-  async function queryGeminiChat(userMsg, apiKey, matchedEntities = []) {
+  const ESCUDOBOT_SYSTEM_PROMPT = `Eres EscudoBot, el asesor cívico-financiero de la plataforma mexicana "Escudo Financiero Pro". Ayudas a personas en México a protegerse de fraudes y a ejercer sus derechos como usuarias de servicios financieros.
+
+REGLAS:
+1. Responde en español mexicano, claro, empático y sin jerga. Máximo 3 párrafos cortos o una lista de hasta 5 puntos.
+2. Eres orientación, no asesoría legal. Si hay una decisión legal importante, recomienda a CONDUSEF (55 53 400 999) o a un abogado.
+3. NO inventes datos: leyes, artículos, folios, cifras, tasas ni nombres de apps o entidades. Si no lo sabes o no está en el contexto de datos oficiales, dilo y sugiere verificarlo en el SIPRES o con CONDUSEF.
+4. Nunca pidas ni aceptes CLABE propia, números de tarjeta, contraseñas, NIP, CURP, INE ni códigos OTP.
+5. No analices tú mensajes, enlaces o capturas sospechosas: pide al usuario que los pegue en este chat y se enviarán al Laboratorio Forense IA, que es el único motor de análisis del sitio.
+6. Si el usuario describe amenazas, extorsión u hostigamiento: prioriza la calma, no pagar, guardar evidencia, bloquear, Policía Cibernética 088 y CONDUSEF.
+7. Cuando ayude, sugiere la sección del sitio: Directorio SIPRES (409 entidades), Generador de Quejas CONDUSEF, Semáforo de Préstamo Justo, Laboratorio Forense IA o Radar Comunitario (399 apps de préstamo).
+8. Dato verificable: ninguna financiera legal cobra anticipos, fianzas o depósitos para liberar un préstamo.`;
+
+  async function queryGeminiChat(apiKey, matchedEntities = []) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const entityContext = matchedEntities && matchedEntities.length > 0
-      ? `\nDatos oficiales en nuestro padrón SIPRES de 409 entidades sobre la institución mencionada: ${matchedEntities.slice(0, 3).map(e => `${e.s} (Nombre corto: ${e.n}, Folio SIPRES: ${e.f}, Sector: ${e.t}, Estatus: ${e.e}, Estado: ${e.d})`).join('; ')}.`
+      ? `\n\nDATOS OFICIALES (padrón SIPRES de 409 entidades) sobre la institución mencionada: ${matchedEntities.slice(0, 3).map(e => `${e.s} (Nombre corto: ${e.n}, Folio SIPRES: ${e.f}, Sector: ${e.t}, Estatus: ${e.e}, Estado: ${e.d})`).join('; ')}.`
       : '';
-    const systemPrompt = `Eres EscudoBot, el Asistente Cívico Virtual de la plataforma mexicana "Escudo Financiero Pro" (que opera con un padrón depurado de 409 entidades financieras sin SOFOMs). Tu función es orientar a los usuarios sobre derechos financieros, CONDUSEF, SIPRES, prevención de fraudes (anticipos, montadeudas, phishing) y ayudarles a navegar por la página web.${entityContext} Responde con un tono empático, firme, profesional y conciso en español mexicano. Máximo 2 o 3 párrafos cortos.`;
+
+    // Memoria: últimos turnos, alternando roles y comenzando por el usuario
+    const recent = state.chatbotHistory.slice(-10);
+    const contents = [];
+    for (const m of recent) {
+      const role = m.role === 'user' ? 'user' : 'model';
+      if (contents.length === 0 && role !== 'user') continue;
+      const last = contents[contents.length - 1];
+      if (last && last.role === role) {
+        last.parts[0].text += '\n' + m.text;
+      } else {
+        contents.push({ role, parts: [{ text: m.text }] });
+      }
+    }
+    if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
+      throw new Error('Sin mensaje de usuario para enviar');
+    }
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          { role: 'user', parts: [{ text: `${systemPrompt}\n\nPregunta del usuario: ${userMsg}` }] }
-        ]
+        systemInstruction: { parts: [{ text: ESCUDOBOT_SYSTEM_PROMPT + entityContext }] },
+        contents: contents,
+        generationConfig: { temperature: 0.4, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } }
       })
     });
 
     if (!response.ok) throw new Error('Gemini API call failed');
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
-  }
-
-  function appendChatMessage(sender, text) {
-    const container = document.getElementById('escudobot-messages');
-    if (!container) return;
-
-    const div = document.createElement('div');
-    div.className = sender === 'user' ? 'flex justify-end' : 'flex items-start space-x-2';
-
-    if (sender === 'user') {
-      div.innerHTML = `<div class="chat-bubble-user p-2.5 rounded-xl max-w-[85%] text-xs">${escapeHtml(text)}</div>`;
-    } else {
-      div.innerHTML = `
-        <div class="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 text-[10px]">
-          <i class="fa-solid fa-robot"></i>
-        </div>
-        <div class="chat-bubble-bot p-2.5 rounded-xl max-w-[85%] text-xs leading-relaxed">${escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
-      `;
-    }
-
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-  }
-
-  function respondChatbot(text) {
-    appendChatMessage('bot', text);
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Respuesta vacía de Gemini');
+    return text;
   }
 
   /* =========================================================================
@@ -3410,6 +4645,9 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
       modal.classList.add('hidden');
       document.body.style.overflow = '';
     }
+    if (modalId === 'modal-preview-pdf') {
+      revokePreviewBlobUrl();
+    }
   }
 
   function closeAllModals() {
@@ -3417,6 +4655,7 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
       modal.classList.add('hidden');
     });
     document.body.style.overflow = '';
+    revokePreviewBlobUrl();
   }
 
   function escapeHtml(str) {
@@ -3475,6 +4714,9 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
     removeEvidence,
     generateQuejaPreview,
     downloadQuejaPDF,
+    switchPdfPreviewMode,
+    printCurrentDocument,
+    downloadCurrentPreviewPDF,
     calcCredito,
     exportAmortizationCSV,
     switchAiInputMode,
@@ -3485,6 +4727,11 @@ Solicito se integre el presente reporte para la baja definitiva de sus servidore
     runForensicAnalysis,
     openPoliceComplaintModal,
     copyPoliceComplaint,
+    previewForensicReportPDF,
+    downloadForensicReportPDF,
+    restoreForensicHistory,
+    deleteForensicHistory,
+    clearForensicHistory,
     searchRadarPhone,
     filterRadar,
     filterRadarByState,

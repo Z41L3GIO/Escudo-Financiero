@@ -1,10 +1,12 @@
 // Service Worker - Escudo Financiero Pro (PWA Offline Support)
-const CACHE_NAME = 'escudo-pro-v2';
+const CACHE_NAME = 'escudo-pro-v4';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './pdf-lib.min.js',
+  './pdf_engine.js',
   './sipres_db.js',
   './apps_prestamo_db.js',
   './manifest.json'
