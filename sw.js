@@ -1,5 +1,5 @@
-// Service Worker - Escudo Financiero Pro (PWA Offline Support)
-const CACHE_NAME = 'escudo-pro-v4';
+﻿// Service Worker - Escudo Financiero Pro (PWA Offline Support)
+const CACHE_NAME = 'escudo-pro-v5';
 const ASSETS = [
   './',
   './index.html',

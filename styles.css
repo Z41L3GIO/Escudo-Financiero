@@ -1,177 +1,55 @@
 /* ==========================================================================
-   ESCUDO FINANCIERO PRO — ESTILOS GLOBALES, MODO OSCURO Y MAQUETACIÓN LEGAL
+   ESCUDO FINANCIERO PRO — ESTILOS GLOBALES, SISTEMA OBSIDIAN & LEGALTECH
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Escala de accesibilidad tipográfica (A- / A / A+) */
+html.text-scale-sm { font-size: 14.5px; }
+html.text-scale-md { font-size: 16px; }
+html.text-scale-lg { font-size: 18.5px; }
 
-:root {
-  --primary-navy: #0f172a;
-  --secondary-slate: #1e293b;
-  --accent-gold: #d97706;
-  --mex-green: #059669;
-  --mex-red: #dc2626;
-  --mex-amber: #f59e0b;
+/* Transiciones suaves de tema y elevación */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: #f8fafc;
-  color: #1e293b;
-  -webkit-font-smoothing: antialiased;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Modo Oscuro Global */
-html.dark body {
-  background-color: #0b1120;
-  color: #f1f5f9;
-}
-
-html.dark .bg-white {
-  background-color: #1e293b !important;
-  color: #f1f5f9;
-}
-
-html.dark .bg-slate-50 {
-  background-color: #0f172a !important;
-}
-
-html.dark .border-slate-200,
-html.dark .border-slate-300 {
-  border-color: #334155 !important;
-}
-
-html.dark .text-slate-800,
-html.dark .text-slate-900 {
-  color: #f8fafc !important;
-}
-
-html.dark .text-slate-700,
-html.dark .text-slate-600 {
-  color: #cbd5e1 !important;
-}
-
-html.dark .text-slate-500 {
-  color: #94a3b8 !important;
-}
-
-h1, h2, h3, h4, .font-heading {
-  font-family: 'Outfit', sans-serif;
-}
-
-.font-mono-code {
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/* Custom Scrollbars */
+/* Scrollbars refinados tipo fintech */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-html.dark ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
-html.dark ::-webkit-scrollbar-thumb {
+.dark ::-webkit-scrollbar-thumb {
   background: #334155;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Ticker Marquee Animation */
-@keyframes ticker {
-  0% { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(-50%, 0, 0); }
+/* Estilo formal del folio de previsualización jurídica */
+.legal-document-paper {
+  background: #ffffff;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+}
+.dark .legal-document-paper {
+  background: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 4px 25px -2px rgba(0, 0, 0, 0.5);
 }
 
-.ticker-wrap {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.ticker-content {
-  display: inline-block;
-  white-space: nowrap;
-  animation: ticker 38s linear infinite;
-}
-
-.ticker-content:hover {
-  animation-play-state: paused;
-}
-
-/* Mobile Bottom Sheet Modal */
-@media (max-width: 767px) {
-  .bottom-sheet {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    border-top-left-radius: 1.5rem;
-    border-top-right-radius: 1.5rem;
-    max-height: 88vh;
-    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-}
-
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-/* Smooth Tab Transitions */
-.tab-content {
-  display: none;
-  opacity: 0;
-  transition: opacity 0.25s ease-in-out;
-}
-
-.tab-content.active {
-  display: block;
-  opacity: 1;
-}
-
-/* ==========================================================================
-   MAQUETACIÓN DE HOJA MEMBRETADA LEGAL Y CONTROL DE SOBREPOSICIÓN DE TEXTO
-   ========================================================================== */
+/* Estilos del Motor Vectorial EscudoPDF (pdf_engine.js + pdf-lib) */
 .pdf-container {
   width: 100%;
   max-width: 820px;
   margin: 0 auto;
   box-sizing: border-box;
 }
-
-.pdf-page {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  width: 100%;
-  min-height: 1050px;
-  padding: 40px 50px;
-  margin: 0 auto 30px auto;
-  font-family: 'Times New Roman', Times, serif !important;
-  font-size: 11.5pt !important;
-  line-height: 1.6 !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  border: 1px solid #d1d5db;
-  box-sizing: border-box;
-  position: relative;
-  page-break-after: always;
-  break-after: page;
-}
-
-.pdf-page:last-child {
-  margin-bottom: 0;
-  page-break-after: auto;
-  break-after: auto;
-}
-
-/* Hojas Vectoriales SVG de Alta Precisión (EscudoPDF) */
 svg.escudo-pdf-page {
   display: block;
   width: 100%;
@@ -179,104 +57,37 @@ svg.escudo-pdf-page {
   height: auto;
   margin: 0 auto 24px auto;
   background-color: #ffffff;
-  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.25);
   border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border-radius: 6px;
   user-select: text;
 }
-
 svg.escudo-pdf-page:last-child {
   margin-bottom: 0;
 }
-
-.legal-header {
-  border-bottom: 2px solid #0f172a;
-  padding-bottom: 12px;
-  margin-bottom: 20px;
-}
-
-.legal-rubro {
-  border-left: 3px solid #0f172a;
-  padding-left: 12px;
-  margin-bottom: 18px;
-  font-size: 10.5pt;
-  font-weight: bold;
-  line-height: 1.45;
-}
-
-.legal-section-title {
-  font-size: 11pt;
-  font-weight: bold;
-  text-transform: uppercase;
-  margin-top: 20px;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #cbd5e1;
-  padding-bottom: 4px;
-  page-break-after: avoid;
-  break-after: avoid;
-}
-
-.legal-p {
-  text-align: justify;
-  margin-bottom: 14px;
-  text-indent: 25px;
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
-
-.legal-p-plain {
-  text-align: justify;
-  margin-bottom: 12px;
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
-
-.legal-firma {
-  margin-top: 45px;
-  text-align: center;
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
-
-.legal-firma-line {
-  width: 260px;
-  margin: 0 auto 8px auto;
-  border-top: 1px solid #111827;
-}
-
-.legal-evidence-box {
-  border: 1px dashed #94a3b8;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 15px;
-  text-align: center;
-  background-color: #f8fafc;
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
-
-.legal-evidence-box img {
-  max-height: 280px;
-  max-width: 100%;
-  margin: 0 auto;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-/* Lienzo de Firma Digital */
-.signature-canvas-wrapper {
-  border: 2px dashed #cbd5e1;
-  border-radius: 12px;
-  background-color: #ffffff;
-  touch-action: none;
-  cursor: crosshair;
-  position: relative;
-}
-
-.signature-canvas-wrapper canvas {
-  width: 100%;
-  height: 160px;
-  display: block;
+@media print {
+  .pdf-container {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  svg.escudo-pdf-page {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    height: auto !important;
+    page-break-after: always;
+    break-after: page;
+  }
+  svg.escudo-pdf-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  @page {
+    size: letter portrait;
+    margin: 0;
+  }
 }
 
 /* ==========================================================================
@@ -288,109 +99,52 @@ svg.escudo-pdf-page:last-child {
   right: 24px;
   z-index: 60;
 }
-
 @media (max-width: 767px) {
   #escudobot-widget {
-    bottom: 74px; /* Arriba de la barra táctil inferior */
+    bottom: 20px;
     right: 16px;
   }
 }
-
 #escudobot-window {
-  width: 380px;
+  width: 390px;
   max-width: calc(100vw - 32px);
-  height: 520px;
-  max-height: calc(100vh - 120px);
+  height: 530px;
+  max-height: calc(100vh - 100px);
   animation: slideInChat 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-
 @keyframes slideInChat {
-  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-
 .chat-bubble-bot {
   background-color: #f1f5f9;
-  color: #1e293b;
+  color: #0f172a;
   border-bottom-left-radius: 4px;
 }
-html.dark .chat-bubble-bot {
-  background-color: #334155;
+.dark .chat-bubble-bot {
+  background-color: #1a2234;
   color: #f8fafc;
+  border: 1px solid #1f293d;
 }
-
 .chat-bubble-user {
-  background-color: #0284c7;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
   color: #ffffff;
   border-bottom-right-radius: 4px;
 }
-
-/* Indicador de escritura animado */
+.dark .chat-bubble-user {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  color: #ffffff;
+}
 .typing-dot {
-  width: 6px;
-  height: 6px;
-  background-color: #94a3b8;
+  width: 5px;
+  height: 5px;
+  background-color: #d97706;
   border-radius: 50%;
   animation: typingBlink 1.4s infinite both;
 }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
 @keyframes typingBlink {
   0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
   40% { opacity: 1; transform: scale(1.1); }
-}
-
-/* Estilos de Impresión Nativos */
-@media print {
-  body {
-    background-color: #ffffff !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-  
-  header, nav, footer, #bottom-nav, #ticker-banner, #escudobot-widget, .no-print {
-    display: none !important;
-  }
-
-  #module-quejas, #modal-preview-pdf {
-    display: block !important;
-    position: static !important;
-    width: 100% !important;
-  }
-
-  .pdf-container {
-    width: 100% !important;
-    max-width: none !important;
-  }
-
-  .pdf-page {
-    border: none !important;
-    box-shadow: none !important;
-    padding: 15mm 15mm !important;
-    margin: 0 !important;
-    width: 100% !important;
-    min-height: auto !important;
-  }
-
-  svg.escudo-pdf-page {
-    border: none !important;
-    box-shadow: none !important;
-    margin: 0 !important;
-    max-width: none !important;
-    width: 100% !important;
-    height: auto !important;
-    page-break-after: always;
-    break-after: page;
-  }
-
-  svg.escudo-pdf-page:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-
-  @page {
-    size: letter portrait;
-    margin: 0;
-  }
 }

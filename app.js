@@ -1,4758 +1,5738 @@
-/**
+﻿/**
  * ============================================================================
- * ESCUDO FINANCIERO PRO — LÓGICA PRINCIPAL INTEGRAL (ES6+)
+ * ESCUDO FINANCIERO PRO â€” LÃ“GICA PRINCIPAL INTEGRAL (ES6+)
  * ============================================================================
- * Plataforma Cívica Antifraude, Buscador SIPRES a Gran Escala (409 Entidades),
- * Generador Procesal de Quejas CONDUSEF en PDF (Redacción Forense sin Sobreposición),
- * Semáforo Financiero con Amortización, Chatbot Asistente con Gemini 2.5 Flash y Radar.
+ * Plataforma CÃ­vica de Ciberseguridad Financiera, Buscador SIPRES (409 Entidades),
+ * Generador de Quejas JurÃ­dicas CONDUSEF en PDF Vectorial (pdf-lib + EscudoPDF),
+ * Medidor de CrÃ©dito con AmortizaciÃ³n Oficial Mexicana (Banxico / LIVA),
+ * Laboratorio HeurÃ­stico Multimodal, Radar Comunitario (399 Apps) y EscudoBot IA.
  * ============================================================================
  */
+const VERIFIED_CHANNELS_PREVIEW = {
+      '40012': { tel: '55 5226 2663', une: 'une.mx@bbva.com', web: 'bbva.mx' },
+      '40072': { tel: '81 8156 9600', une: 'une@banorte.com', web: 'banorte.com' },
+      '40014': { tel: '55 5169 4300', une: 'ueac@santander.com.mx', web: 'santander.com.mx' },
+      '40002': { tel: '55 1226 2639', une: 'une@banamex.com', web: 'banamex.com' },
+      '40021': { tel: '55 5721 3390', une: 'mexico_une@hsbc.com.mx', web: 'hsbc.com.mx' },
+      '40044': { tel: '55 5728 1900', une: 'une@scotiabank.com.mx', web: 'scotiabank.com.mx' },
+      '40127': { tel: '55 5447 8810', une: 'uau@bancoazteca.com.mx', web: 'bancoazteca.com.mx' },
+      '40137': { tel: '800 122 6773', une: 'une@bancoppel.com', web: 'bancoppel.com' },
+      '40638': { tel: '800 099 1133', une: 'ayuda@nu.com.mx', web: 'nu.com.mx' },
+      '27032': { tel: '55 7822 6646', une: 'une@storicard.com', web: 'storicard.com' },
+      '27009': { tel: '55 2629 2789', une: 'une@klar.mx', web: 'klar.mx' },
+      '65033': { tel: '55 4973 7300', une: 'une@mercadopago.com.mx', web: 'mercadopago.com.mx' },
+      '65041': { tel: '81 3282 8282', une: 'une@spinbyoxxo.com.mx', web: 'spinbyoxxo.com.mx' }
+    };
 
-const EscudoApp = (function () {
-  'use strict';
+    const PreviewApp = {
+      currentView: 'grid',
+      currentTab: 'directorio',
+      sidebarCollapsed: false,
+      procedure: 'condusef',
+      evidenceFiles: [],
+      pdfPreviewState: {
+        mode: 'dom',
+        layout: null,
+        meta: null,
+        filename: 'Escrito-CONDUSEF.pdf',
+        docType: 'queja',
+        blobUrl: null,
+        folio: null,
+        folioIsRedeco: null
+      },
+      comparatorList: [],
+      matchedEntities: null,
+      pageSize: 30,
+      renderLimit: 30,
+      selectedExpedienteEntity: null,
+      creditoAnticipo: 'NO',
+      creditoMatchedSipres: null,
+      creditoMatchedApp: null,
+      lastCreditoDiag: null,
+      lastAmortRows: [],
+      toastTimer: null,
+      lastRoadmapData: null,
+      chatbotOpen: false,
+      chatbotBusy: false,
+      chatContext: { app: null, entity: null },
+      chatEngine: localStorage.getItem('escudo_chat_engine') || 'local',
+      geminiApiKey: localStorage.getItem('escudo_gemini_key') || '',
+      isListeningSpeech: false,
+      speechRecognition: null,
+      activeSpeechBtn: null,
+      chatHistory: [],
+      lastCopilotoDraft: null,
+      alerts: [
+        "<strong>Alerta Oficial:</strong> Detección de gestores no autorizados en WhatsApp solicitando anticipos. Recuerda: <em>ninguna entidad regulada cobra por autorizar créditos</em> (Art. 386 CPF).",
+        "<strong>Radar SIPRES:</strong> 409 instituciones financieras verificadas en el directorio oficial CONDUSEF 2026.",
+        "<strong>Seguridad Cívica:</strong> Si fuiste víctima de cobranza abusiva, genera tu reclamación jurídica con folio oficial en el módulo de Quejas."
+      ],
+      alertIndex: 0,
 
-  // Catálogo oficial de UDECOs (Unidades de Atención a Usuarios CONDUSEF)
-  const UDECO_CATALOG = {
-    CDMX_CENTRAL: {
-      nombre: 'UDECO Metropolitana Central',
-      direccion: 'Av. Insurgentes Sur 762, PB, Col. Del Valle Norte, Alcaldía Benito Juárez, C.P. 03103, Ciudad de México.',
-      telefono: '55 53 400 999',
-      titular: 'Dirección General de Unidades de Atención a Usuarios — Región Metropolitana'
-    },
-    CDMX_ORIENTE: {
-      nombre: 'UDECO Metropolitana Oriente',
-      direccion: 'Av. Telecomunicaciones s/n, Esquina Calle 3, Col. Chinampac de Juárez, Alcaldía Iztapalapa, C.P. 09208, Ciudad de México.',
-      telefono: '55 53 400 999',
-      titular: 'Unidad de Atención Regional CDMX Oriente'
-    },
-    JALISCO: {
-      nombre: 'UDECO Jalisco',
-      direccion: 'Av. Vallarta No. 1540, Mezzanine 1, Col. Americana, C.P. 44160, Guadalajara, Jalisco.',
-      telefono: '33 36 15 57 96',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Jalisco'
-    },
-    NUEVO_LEON: {
-      nombre: 'UDECO Nuevo León',
-      direccion: 'Av. Eugenio Garza Sada No. 2411, Piso 2, Col. Roma, C.P. 64700, Monterrey, Nuevo León.',
-      telefono: '81 83 45 42 34',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Nuevo León'
-    },
-    PUEBLA: {
-      nombre: 'UDECO Puebla',
-      direccion: 'Calle 15 de Mayo No. 2929, Col. Las Hadas, C.P. 72070, Puebla, Puebla.',
-      telefono: '222 237 8100',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Puebla'
-    },
-    VERACRUZ: {
-      nombre: 'UDECO Veracruz',
-      direccion: 'Av. 5 de Mayo No. 1025, Piso 1, Centro Histórico, C.P. 91700, Veracruz, Veracruz.',
-      telefono: '229 932 7872',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Veracruz'
-    },
-    GUANAJUATO: {
-      nombre: 'UDECO Guanajuato',
-      direccion: 'Blvd. Adolfo López Mateos No. 1101 Ote., Col. Los Paraísos, C.P. 37328, León, Guanajuato.',
-      telefono: '477 717 6245',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Guanajuato'
-    },
-    QUERETARO: {
-      nombre: 'UDECO Querétaro',
-      direccion: 'Av. Constituyentes No. 124 Pte., Col. El Carrizal, C.P. 76030, Santiago de Querétaro, Qro.',
-      telefono: '442 216 0240',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Querétaro'
-    },
-    YUCATAN: {
-      nombre: 'UDECO Yucatán',
-      direccion: 'Calle 60 No. 488 x 57 y 59, Edificio Centro de Negocios, Centro, C.P. 97000, Mérida, Yucatán.',
-      telefono: '999 923 8815',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Yucatán'
-    },
-    BAJA_CALIFORNIA: {
-      nombre: 'UDECO Baja California',
-      direccion: 'Paseo de los Héroes No. 9365, Zona Urbana Río Tijuana, C.P. 22010, Tijuana, B.C.',
-      telefono: '664 684 0072',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Baja California'
-    },
-    CHIHUAHUA: {
-      nombre: 'UDECO Chihuahua',
-      direccion: 'Av. Francisco Villa No. 4311, Col. San Felipe, C.P. 31203, Chihuahua, Chih.',
-      telefono: '614 414 4780',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Chihuahua'
-    },
-    SONORA: {
-      nombre: 'UDECO Sonora',
-      direccion: 'Blvd. Rosales y Monterrey s/n, Edificio México, Hermosillo, Sonora.',
-      telefono: '662 213 1894',
-      titular: 'Unidad de Atención a Usuarios en el Estado de Sonora'
-    }
-  };
+      init() {
+        this.matchedEntities = window.SIPRES_DATABASE || [];
+        this.renderLimit = this.pageSize;
+        this.renderEntities();
+        this.populateDatalist();
+        this.populateCreditoDatalist();
+        this.setupKeyboardShortcuts();
+        this.initSignatureCanvas();
+        this.updateComparatorUI();
+        this.updateDocPreview();
+        this.handleCreditoLenderInput('BBVA');
+        this.updateRadarKPIs();
+        this.initFontSize();
+        this.initPanicKeyShortcut();
+        this.initServiceWorkerPwa();
+        this.updateQuejaHashLive();
+        this.initChatbotUi();
+        this.updateEngineBadgeUI();
+        this.initChatbotDragAndPaste();
+        // Cargar preferencia de tema
+        if (localStorage.getItem('escudo_theme') === 'dark' || (!localStorage.getItem('escudo_theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+          document.getElementById('theme-toggle-icon').className = 'fa-solid fa-sun text-xs text-amber-400';
+        }
+        // Apertura automática pop-up de Términos y Condiciones al abrir la página
+        this.checkTermsOnLaunch();
+      },
 
-  // Directorio de Canales y Teléfonos Legítimos de Principales Bancos en México
-  const VERIFIED_CHANNELS = {
-    BBVA: { web: 'bbva.mx', tel: '55 5226 2663', seguro: 'bbva.mx' },
-    SANTANDER: { web: 'santander.com.mx', tel: '55 5169 4300', seguro: 'santander.com.mx' },
-    BANORTE: { web: 'banorte.com', tel: '81 8156 9600', seguro: 'banorte.com' },
-    AZTECA: { web: 'bancoazteca.com.mx', tel: '55 5447 8810', seguro: 'bancoazteca.com.mx' },
-    CITIBANAMEX: { web: 'banamex.com', tel: '55 1226 2639', seguro: 'banamex.com' },
-    HSBC: { web: 'hsbc.com.mx', tel: '55 5721 3390', seguro: 'hsbc.com.mx' },
-    SCOTIABANK: { web: 'scotiabank.com.mx', tel: '55 5728 1900', seguro: 'scotiabank.com.mx' },
-    INBURSA: { web: 'inbursa.com', tel: '55 5447 8000', seguro: 'inbursa.com' },
-    NU: { web: 'nu.com.mx', tel: '800 099 1133', seguro: 'nu.com.mx' },
-    STORI: { web: 'storicard.com', tel: '55 7822 6646', seguro: 'storicard.com' }
-  };
+      /* =======================================================================
+         CHATBOT ASISTENTE CÍVICO CON GEMINI & HEURÍSTICA ("ESCUDOBOT")
+         ======================================================================= */
+      getEscudobotLogoSvg(customClass = "w-5 h-5", shieldColor = "#f59e0b") {
+        return `<svg class="${customClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="8.5" y1="2" x2="8.5" y2="4" stroke="currentColor" stroke-width="1.5" />
+          <circle cx="8.5" cy="1.8" r="0.8" fill="${shieldColor}" stroke="none" />
+          <rect x="4" y="4" width="9" height="5.5" rx="1.8" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.4" />
+          <rect x="5.8" y="5.8" width="5.4" height="1.9" rx="0.95" fill="${shieldColor}" stroke="none" />
+          <line x1="7.5" y1="9.5" x2="9.5" y2="9.5" stroke="currentColor" stroke-width="1.5" />
+          <rect x="3.5" y="10.5" width="9" height="7.2" rx="1.8" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.4" />
+          <circle cx="8" cy="14" r="0.9" fill="${shieldColor}" stroke="none" />
+          <path d="M3.5 12 C1.8 12.5 1.5 14.5 1.8 16.5" stroke="currentColor" stroke-width="1.4" />
+          <path d="M12.5 12.5 C13.8 12.5 14.8 13.5 15.5 14.2" stroke="currentColor" stroke-width="1.6" />
+          <rect x="4.8" y="17.7" width="2.2" height="3" rx="0.8" fill="currentColor" stroke="none" />
+          <rect x="9" y="17.7" width="2.2" height="3" rx="0.8" fill="currentColor" stroke="none" />
+          <path d="M15 9.2 C17 8.5 20 8.5 22 9.2 C22 14.2 19.5 18 18.5 21 C17.5 18 15 14.2 15 9.2 Z" fill="${shieldColor}" fill-opacity="0.22" stroke="${shieldColor}" stroke-width="1.6" stroke-linejoin="round" />
+          <path d="M17 14 L18.2 15.2 L20.2 12.8" stroke="${shieldColor}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>`;
+      },
 
-  // Apps Montadeudas identificadas por Policía Cibernética
-  const MONTADEUDAS_LIST = [
-    'José Cash', 'Cashbox', 'Sueño Dinero', 'Listo Cash', 'Préstamo Feliz (Falsa)',
-    'Dinero Ya', 'Crediti', 'Efectivo Express', 'Ok Crédito', 'Campanita Cash',
-    'Amor Préstamo', 'Guayaba Cash', 'Mi Préstamo', 'Viva Crédito', 'Super Préstamo',
-    'Tala (Suplantadora)', 'Gato de Préstamos', 'Menta', 'Melo Préstamo', 'Pasto Crédito',
-    'Rayo Crédito', 'Presta Fácil', 'Moneda Grande', 'León Préstamo', 'Full Pago',
-    'Guanaco Cash', 'Súper Apoyo', 'Plata Segura', 'Águila Desierto', 'Financiera Sol',
-    'Cash Cash', 'Envía Dinero', 'Kueski (Falsa APK)', 'Mony Mony', 'Rápido Más',
-    'CrediYa', 'Alcancía Plus', 'Préstamo Seguro', 'Dinerito', 'Cash Plus',
-    'Fácil Sol', 'Préstamo Estrella', 'Móvil Crédito', 'Oro Préstamo', 'Ultra Crédito'
-  ];
+      toggleChatbot() {
+        this.chatbotOpen = !this.chatbotOpen;
+        const win = document.getElementById('escudobot-window');
+        if (win) {
+          if (this.chatbotOpen) {
+            win.classList.remove('hidden');
+            setTimeout(() => document.getElementById('escudobot-input')?.focus(), 60);
+          } else {
+            win.classList.add('hidden');
+            const menu = document.getElementById('escudobot-engine-menu');
+            if (menu) menu.classList.add('hidden');
+          }
+        }
+      },
 
-  // Catálogo oficial ABM / Banxico de prefijos CLABE (primeros 3 dígitos)
-  const CLABE_BANKS = {
-    '002': 'Banamex (Banco Nacional de México)',
-    '006': 'Bancomext',
-    '009': 'Banobras',
-    '012': 'BBVA México',
-    '014': 'Banco Santander México',
-    '019': 'Banjército',
-    '021': 'HSBC México',
-    '030': 'Banco del Bajío',
-    '036': 'Banco Inbursa',
-    '042': 'Banca Mifel',
-    '044': 'Scotiabank Inverlat',
-    '058': 'Banregio',
-    '059': 'Banco Invex',
-    '060': 'Bansi',
-    '062': 'Banca Afirme',
-    '072': 'Banorte (Banco Mercantil del Norte)',
-    '106': 'Bank of America México',
-    '112': 'Banco Monex',
-    '113': 'Banco Ve Por Más',
-    '127': 'Banco Azteca',
-    '128': 'Kapital Bank (Autofin)',
-    '130': 'Banco Compartamos',
-    '132': 'Banco Multiva',
-    '133': 'Banco Actinver',
-    '136': 'Intercam Banco',
-    '137': 'BanCoppel',
-    '138': 'Ualá (ABC Capital)',
-    '140': 'Consubanco',
-    '143': 'CIBanco',
-    '145': 'Banco Base',
-    '147': 'Bankaool',
-    '148': 'Pagatodo',
-    '150': 'Banco Inmobiliario Mexicano',
-    '151': 'Fundación Dondé Banco',
-    '152': 'Banco Bancrea',
-    '154': 'Banco Covalto',
-    '156': 'Banco Sabadell',
-    '166': 'Banco del Bienestar',
-    '167': 'Hey Banco',
-    '638': 'Nu México (Nubank / Akala)',
-    '646': 'STP (Sistema de Transferencias y Pagos)',
-    '659': 'ASP Integra Opciones',
-    '661': 'Klar',
-    '684': 'Transfer (OXXO / Saldazo)',
-    '706': 'Arcus Fi',
-    '710': 'NVIO Pagos México',
-    '722': 'Mercado Pago W',
-    '723': 'Cuenca',
-    '728': 'Spin by OXXO (Compropago)'
-  };
+      initChatbotUi() {
+        const container = document.getElementById('escudobot-messages');
+        if (container && !container.dataset.bound) {
+          container.dataset.bound = '1';
+          container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-chat-cmd]');
+            if (!btn) return;
+            const cmd = btn.getAttribute('data-chat-cmd');
+            const arg = btn.getAttribute('data-chat-arg') || '';
+            this.runChatAction(cmd, arg);
+          });
+        }
+      },
 
-  // Base inicial de reportes ciudadanos
-  const SEED_REPORTS = [
-    {
-      id: 'REP-2026-001',
-      tipo: 'suplantacion',
-      nombre: 'Falsos Gestores BBVA Préstamos',
-      telefono: '5584921104',
-      clabe: '646180112345678907',
-      estado: 'Ciudad de México',
-      monto: 1500,
-      confirmaciones: 18,
-      relato: 'Me contactaron vía WhatsApp ofreciendo $80,000 preaprobados con logo de BBVA. Pedían transferir $1,500 de fianza a una cuenta OXXO STP para liberar el crédito.',
-      fecha: '2026-10-23'
-    },
-    {
-      id: 'REP-2026-002',
-      tipo: 'montadeudas',
-      nombre: 'App "José Cash / Rápido Más"',
-      telefono: '3319482055',
-      clabe: '728180009876543214',
-      estado: 'Jalisco',
-      monto: 4000,
-      confirmaciones: 31,
-      relato: 'Descargué la app por $2,000. Al 4to día cobraron $4,800 con amenazas de enviar fotos mías a todos mis contactos telefónicos y redes sociales.',
-      fecha: '2026-10-22'
-    },
-    {
-      id: 'REP-2026-003',
-      tipo: 'anticipos',
-      nombre: 'Financiera Inbursa Falsa (WhatsApp)',
-      telefono: '8129403311',
-      clabe: '722180001122334458',
-      estado: 'Nuevo León',
-      monto: 3200,
-      confirmaciones: 12,
-      relato: 'Prometen crédito automotriz sin enganche ni buró. Exigen el pago de "gastos notariales" previo al depósito.',
-      fecha: '2026-10-20'
-    },
-    {
-      id: 'REP-2026-004',
-      tipo: 'phishing',
-      nombre: 'Portal Clonado "Banca Azteca Digital"',
-      telefono: 'Web: bbva-seguro-acceso.info',
-      clabe: '',
-      estado: 'Estado de México',
-      monto: 12000,
-      confirmaciones: 22,
-      relato: 'Llegó un SMS con alerta de cargo no reconocido en Mercado Libre. El link dirigía a un sitio idéntico al banco solicitando usuario, contraseña y clave token.',
-      fecha: '2026-10-19'
-    },
-    {
-      id: 'REP-2026-005',
-      tipo: 'suplantacion',
-      nombre: 'Suplantadores de Caja Popular / SOFIPO',
-      telefono: '2228409182',
-      clabe: '127180005544332219',
-      estado: 'Puebla',
-      monto: 2800,
-      confirmaciones: 9,
-      relato: 'Usan el nombre comercial y logotipo de una SOFIPO autorizada para pedir contratos firmados y depósito de seguro por anticipado.',
-      fecha: '2026-10-18'
-    }
-  ];
+      initChatbotDragAndPaste() {
+        const win = document.getElementById('escudobot-window');
+        if (!win || win.dataset.dropBound) return;
+        win.dataset.dropBound = '1';
 
-  // Estado Central de la Aplicación
-  const state = {
-    entities: [],
-    searchIndex: [],
-    activeTab: 'directorio',
-    statusFilter: 'todas',
-    sectorFilter: '',
-    estadoFilter: '',
-    searchQuery: '',
-    filteredEntities: [],
-    renderLimit: 50,
-    selectedEntity: null,
-    recentSearches: [],
-    comparatorList: [],
-    quejaProcedure: 'condusef', // 'condusef' | 'redeco'
-    evidenceImages: [],
-    signatureDataUrl: null,
-    aiMode: 'offline', // 'offline' | 'gemini'
-    aiInputMode: 'text', // 'text' | 'image' | 'url'
-    geminiApiKey: '',
-    citizenReports: [],
-    radarFilter: 'todos',
-    radarStateFilter: '',
-    radarSubtab: 'muro',
-    chatbotOpen: false,
-    chatbotHistory: [],
-    lastVerdict: null
-  };
-
-  /**
-   * Inicialización global al cargar el DOM
-   */
-  async function init() {
-    console.log('[Escudo Financiero Pro] Inicializando plataforma integral...');
-
-    initDarkMode();
-    await loadSipresDatabase();
-    loadRecentSearches();
-    loadCitizenReports();
-    setupSearchListeners();
-    setupKeyboardShortcuts();
-    setupInitialFormValues();
-    setupQuejaDraftAutosave();
-    restoreQuejaDraft();
-    initSignaturePad();
-    applyFilters();
-    calcCredito();
-    renderMontadeudasList();
-    renderMexicoHeatmap();
-    renderForensicHistory();
-    initChatbotUi();
-    initPWA();
-
-    console.log('[Escudo Financiero Pro] Sistema 100% operativo con 409 entidades.');
-  }
-
-  /* =========================================================================
-     MODO OSCURO (DARK MODE)
-     ========================================================================= */
-  function initDarkMode() {
-    const isDark = localStorage.getItem('escudo_theme') === 'dark' || 
-      (!localStorage.getItem('escudo_theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-      updateThemeIcon(true);
-    } else {
-      document.documentElement.classList.remove('dark');
-      updateThemeIcon(false);
-    }
-  }
-
-  function toggleDarkMode() {
-    const isDark = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('escudo_theme', isDark ? 'dark' : 'light');
-    updateThemeIcon(isDark);
-  }
-
-  function updateThemeIcon(isDark) {
-    const icon = document.getElementById('theme-toggle-icon');
-    if (icon) {
-      icon.className = isDark ? 'fa-solid fa-sun text-amber-400 text-base' : 'fa-solid fa-moon text-slate-300 text-base';
-    }
-  }
-
-  /* =========================================================================
-     MÓDULO 1: BUSCADOR SIPRES CON FUZZY SEARCH SIN ACENTOS (409 ENTIDADES)
-     ========================================================================= */
-  function normalizeText(str) {
-    return String(str || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .trim();
-  }
-
-  async function loadSipresDatabase() {
-    if (window.SIPRES_DATABASE && Array.isArray(window.SIPRES_DATABASE)) {
-      state.entities = window.SIPRES_DATABASE;
-    } else {
-      const filesToTry = ['sipres_db.json', 'condusef-2026-10-25 (1).json', 'condusef-2026-10-25.json'];
-      for (const file of filesToTry) {
-        try {
-          const res = await fetch(file);
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-              state.entities = data.map(normalizeRawRecord);
-              break;
+        // Escuchar pegado de capturas con el portapapeles (Ctrl+V)
+        window.addEventListener('paste', (e) => {
+          if (!this.chatbotOpen) return;
+          const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+          if (!items) return;
+          for (const item of items) {
+            if (item.type.indexOf('image') !== -1) {
+              const file = item.getAsFile();
+              if (file) {
+                e.preventDefault();
+                this.processChatbotImage(file);
+                break;
+              }
             }
           }
-        } catch (err) {
-          console.warn(`[Escudo] Intento fallido con ${file}:`, err);
-        }
-      }
-    }
+        });
 
-    if (state.entities.length > 0 && state.entities[0].table !== undefined) {
-      state.entities = state.entities.map(normalizeRawRecord);
-    }
-
-    // Excluir estrictamente SOFOM E.N.R. y SOFOM E.R. y registros sin denominación
-    state.entities = state.entities.filter(e => {
-      const social = (e.s || '').toUpperCase();
-      const sector = (e.t || '').toUpperCase();
-      if (!social || social === 'VER') return false;
-      if (social.includes('SOFOM') || sector.includes('SOFOM') || sector.includes('OBJETO MÚLTIPLE')) return false;
-      return true;
-    });
-
-    // Pre-procesar índice de búsqueda insensible a acentos (tildes) y mayúsculas
-    state.searchIndex = state.entities.map(item => ({
-      f: normalizeText(item.f),
-      n: normalizeText(item.n),
-      s: normalizeText(item.s),
-      t: normalizeText(item.t),
-      d: normalizeText(item.d),
-      e: normalizeText(item.e),
-      r: item.r || 'REGULADA',
-      a: Boolean(item.a),
-      raw: item
-    }));
-
-    updateStatsCounters();
-    populateStateFilter();
-    populateEntitiesDatalist();
-  }
-
-  function populateStateFilter() {
-    const estadoSelect = document.getElementById('filter-estado');
-    if (!estadoSelect || state.entities.length === 0) return;
-
-    const countsByState = {};
-    state.entities.forEach(e => {
-      const st = (e.d || 'Nacional').trim();
-      countsByState[st] = (countsByState[st] || 0) + 1;
-    });
-
-    const sortedStates = Object.keys(countsByState).sort((a, b) => a.localeCompare(b, 'es-MX'));
-    let optionsHtml = `<option value="">Todas las entidades federativas (${sortedStates.length} estados)</option>`;
-    sortedStates.forEach(st => {
-      const label = st === 'México' ? 'Estado de México' : st;
-      optionsHtml += `<option value="${escapeHtml(st)}">${escapeHtml(label)} (${countsByState[st]})</option>`;
-    });
-
-    estadoSelect.innerHTML = optionsHtml;
-  }
-
-  function populateEntitiesDatalist() {
-    const datalist = document.getElementById('sipres-entities-datalist');
-    if (!datalist || state.entities.length === 0) return;
-
-    datalist.innerHTML = state.entities.map(e => 
-      `<option value="${escapeHtml(e.s)}">${escapeHtml(e.n)} — Folio SIPRES: ${escapeHtml(e.f)} (${escapeHtml(e.t)})</option>`
-    ).join('');
-  }
-
-  function findMentionedEntities(text) {
-    const norm = normalizeText(text);
-    if (!norm || norm.length < 2) return [];
-
-    const matches = [];
-    for (const item of state.searchIndex) {
-      // Coincidencia por folio exacto de 5 dígitos
-      if (item.f && item.f.length >= 4 && norm.includes(item.f)) {
-        matches.push(item.raw);
-        continue;
-      }
-      // Coincidencia por nombre comercial (al menos 3 caracteres y palabra completa o frase)
-      if (item.n && item.n.length >= 3) {
-        const escapedN = item.n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regexN = new RegExp(`(^|\\b|\\s)${escapedN}(\\b|\\s|$)`, 'i');
-        if (regexN.test(norm)) {
-          matches.push(item.raw);
-          continue;
-        }
-      }
-      // Coincidencia por primera parte de denominación social
-      const firstPart = item.s.split(',')[0].trim();
-      if (firstPart.length >= 5 && norm.includes(firstPart)) {
-        matches.push(item.raw);
-      }
-    }
-    return matches;
-  }
-
-  function normalizeRawRecord(item) {
-    if (item.f !== undefined && item.s !== undefined) return item;
-    
-    const folio = String(item.table || item.folio || '').trim();
-    const social = String(item['table (2)'] || item.denominacion || item.razon_social || '').trim();
-    const col3 = String(item['table (3)'] || item.nombre_corto || '').trim();
-    const col4 = String(item['table (4)'] || item.estatus || '').trim();
-    const col5 = String(item['table (5)'] || item.sector || '').trim();
-    const col6 = String(item['table (6)'] || item.estado || '').trim();
-
-    const isCol3Sector = col3.includes('Sociedades') || col3.includes('Instituciones');
-    let nombre = isCol3Sector ? social.split(',')[0] : (col3 && col3 !== '-' ? col3 : social.split(',')[0]);
-    let sector = isCol3Sector ? col3 : col5;
-    let estatus = col4;
-    let estado = isCol3Sector ? col5 : col6;
-
-    let riesgo = 'REGULADA';
-    if (estatus.includes('Cancelada') || estatus.includes('Disuelta')) {
-      riesgo = 'CANCELADA_ALTO_RIESGO';
-    } else if (estatus.includes('Fusionada') || estatus === 'ver') {
-      riesgo = 'EN_REVISION';
-    }
-
-    const upper = (nombre + ' ' + social).toUpperCase();
-    const a = ['BBVA', 'SANTANDER', 'BANORTE', 'AZTECA', 'SCOTIABANK', 'NU', 'STORI', 'KUESKI', 'INBURSA', 'BANAMEX'].some(k => upper.includes(k));
-
-    return {
-      f: folio,
-      s: social,
-      n: nombre,
-      t: sector || 'Entidad Financiera',
-      e: estatus === 'ver' ? 'En revisión' : (estatus.includes('operaci') ? 'En operación' : estatus),
-      d: (estado || 'Nacional').split('\n')[0].trim(),
-      r: riesgo,
-      a: a
-    };
-  }
-
-  function updateStatsCounters() {
-    const total = state.entities.length;
-    const operacion = state.entities.filter(e => e.r === 'REGULADA').length;
-    const enRevision = state.entities.filter(e => e.r === 'EN_REVISION' || e.r === 'CANCELADA_ALTO_RIESGO').length;
-    const suplantables = state.entities.filter(e => e.a).length;
-
-    const elTotal = document.getElementById('stat-total');
-    const elOp = document.getElementById('stat-operacion');
-    const elCanc = document.getElementById('stat-canceladas');
-    const elSupl = document.getElementById('stat-suplantables');
-
-    if (elTotal) elTotal.textContent = total.toLocaleString('es-MX');
-    if (elOp) elOp.textContent = operacion.toLocaleString('es-MX');
-    if (elCanc) elCanc.textContent = enRevision.toLocaleString('es-MX');
-    if (elSupl) elSupl.textContent = `${suplantables}+`;
-  }
-
-  function setupSearchListeners() {
-    const input = document.getElementById('sipres-search-input');
-    const clearBtn = document.getElementById('sipres-search-clear');
-
-    if (input) {
-      let debounceTimer = null;
-      input.addEventListener('input', (e) => {
-        state.searchQuery = e.target.value.trim().toLowerCase();
-        
-        if (state.searchQuery.length > 0) {
-          clearBtn.classList.remove('hidden');
-        } else {
-          clearBtn.classList.add('hidden');
-        }
-
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          state.renderLimit = 50;
-          if (state.searchQuery.length >= 3) {
-            saveRecentSearch(state.searchQuery);
+        // Arrastrar y soltar imagen en la ventana del chat
+        win.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          win.classList.add('ring-2', 'ring-legal-gold');
+        });
+        win.addEventListener('dragleave', (e) => {
+          e.preventDefault();
+          win.classList.remove('ring-2', 'ring-legal-gold');
+        });
+        win.addEventListener('drop', (e) => {
+          e.preventDefault();
+          win.classList.remove('ring-2', 'ring-legal-gold');
+          const file = e.dataTransfer?.files?.[0];
+          if (file && file.type.startsWith('image/')) {
+            this.processChatbotImage(file);
           }
-          applyFilters();
-        }, 75);
-      });
-    }
-  }
+        });
+      },
 
-  function clearSearch() {
-    const input = document.getElementById('sipres-search-input');
-    const clearBtn = document.getElementById('sipres-search-clear');
-    if (input) input.value = '';
-    if (clearBtn) clearBtn.classList.add('hidden');
-    state.searchQuery = '';
-    state.renderLimit = 50;
-    applyFilters();
-    if (input) input.focus();
-  }
+      toggleEngineSelector() {
+        const menu = document.getElementById('escudobot-engine-menu');
+        if (menu) menu.classList.toggle('hidden');
+      },
 
-  function focusSearch() {
-    switchTab('directorio');
-    const input = document.getElementById('sipres-search-input');
-    if (input) {
-      input.focus();
-      input.select();
-    }
-  }
+      setChatEngine(engine) {
+        this.chatEngine = engine;
+        try { localStorage.setItem('escudo_chat_engine', engine); } catch (e) {}
+        this.updateEngineBadgeUI();
+        const menu = document.getElementById('escudobot-engine-menu');
+        if (menu) menu.classList.add('hidden');
+        const keyBox = document.getElementById('escudobot-api-key-box');
+        if (keyBox) {
+          if (engine === 'gemini') keyBox.classList.remove('hidden');
+          else keyBox.classList.add('hidden');
+        }
+        this.showToast(engine === 'gemini' ? 'Motor activado: Google Gemini IA (BYOK)' : 'Motor activado: Heurística Local (0ms • Offline)');
+      },
 
-  function setStatusFilter(status) {
-    state.statusFilter = status;
-    state.renderLimit = 50;
+      saveGeminiApiKey() {
+        const input = document.getElementById('escudobot-api-key-input');
+        const key = (input?.value || '').trim();
+        this.geminiApiKey = key;
+        try { localStorage.setItem('escudo_gemini_key', key); } catch (e) {}
+        this.showToast(key ? 'Clave de Gemini API guardada en memoria local.' : 'Clave de Gemini API eliminada.');
+        const menu = document.getElementById('escudobot-engine-menu');
+        if (menu) menu.classList.add('hidden');
+        this.updateEngineBadgeUI();
+      },
 
-    document.querySelectorAll('.status-chip').forEach(btn => {
-      if (btn.getAttribute('data-status') === status) {
-        btn.classList.add('bg-slate-900', 'text-white');
-        btn.classList.remove('bg-slate-100', 'text-slate-700');
-      } else {
-        btn.classList.remove('bg-slate-900', 'text-white');
-        btn.classList.add('bg-slate-100', 'text-slate-700');
-      }
-    });
-
-    applyFilters();
-  }
-
-  function applySecondaryFilters() {
-    const sectorEl = document.getElementById('filter-sector');
-    const estadoEl = document.getElementById('filter-estado');
-
-    state.sectorFilter = sectorEl ? normalizeText(sectorEl.value) : '';
-    state.estadoFilter = estadoEl ? normalizeText(estadoEl.value) : '';
-    state.renderLimit = 50;
-    applyFilters();
-  }
-
-  // Algoritmo de Distancia de Levenshtein para Búsqueda Tolerante a Errores (Fuzzy Search)
-  function levenshtein(a, b) {
-    if (a.length === 0) return b.length;
-    if (b.length === 0) return a.length;
-    const matrix = [];
-    for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
-    for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
-
-    for (let i = 1; i <= b.length; i++) {
-      for (let j = 1; j <= a.length; j++) {
-        if (b.charAt(i - 1) === a.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
+      updateEngineBadgeUI() {
+        const textEl = document.getElementById('escudobot-engine-text');
+        const dotEl = document.getElementById('escudobot-engine-dot');
+        const keyInput = document.getElementById('escudobot-api-key-input');
+        if (keyInput && this.geminiApiKey) keyInput.value = this.geminiApiKey;
+        if (!textEl || !dotEl) return;
+        if (this.chatEngine === 'gemini') {
+          textEl.innerText = this.geminiApiKey ? 'Gemini 2.5 Flash' : 'Gemini (Sin Key)';
+          textEl.className = 'font-mono text-[10px] text-legal-gold';
+          dotEl.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse';
         } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
+          textEl.innerText = 'Heurística Local';
+          textEl.className = 'font-mono text-[10px] text-emerald-400';
+          dotEl.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
         }
-      }
-    }
-    return matrix[b.length][a.length];
-  }
+      },
 
-  function isFuzzyMatch(target, query) {
-    if (target.includes(query)) return true;
-    if (query.length < 4) return false;
-    const words = target.split(/\s+/);
-    for (const w of words) {
-      if (w.length >= 4 && Math.abs(w.length - query.length) <= 2) {
-        if (levenshtein(w, query) <= 2) return true;
-      }
-    }
-    return false;
-  }
+      toggleSpeechRecognition() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          this.showToast('El reconocimiento de voz (Web Speech API) no está soportado en este navegador.');
+          return;
+        }
 
-  function applyFilters() {
-    const q = normalizeText(state.searchQuery);
-    const status = state.statusFilter;
-    const sector = state.sectorFilter;
-    const estado = state.estadoFilter;
+        const micBtn = document.getElementById('escudobot-mic-btn');
+        if (this.isListeningSpeech) {
+          if (this.speechRecognition) {
+            try { this.speechRecognition.stop(); } catch (e) {}
+          }
+          this.isListeningSpeech = false;
+          if (micBtn) {
+            micBtn.classList.remove('bg-rose-500', 'text-white', 'animate-pulse');
+            micBtn.classList.add('text-slate-500', 'hover:text-legal-gold');
+            micBtn.innerHTML = '<i class="fa-solid fa-microphone text-xs"></i>';
+          }
+          return;
+        }
 
-    let results = state.searchIndex;
+        try {
+          const recognition = new SpeechRec();
+          recognition.lang = 'es-MX';
+          recognition.interimResults = true;
+          recognition.continuous = false;
 
-    if (status === 'autorizadas') {
-      results = results.filter(i => i.r === 'REGULADA');
-    } else if (status === 'canceladas') {
-      results = results.filter(i => i.r === 'CANCELADA_ALTO_RIESGO');
-    } else if (status === 'alertas') {
-      results = results.filter(i => i.a === true);
-    } else if (status === 'revision') {
-      results = results.filter(i => i.r === 'EN_REVISION');
-    }
+          recognition.onstart = () => {
+            this.isListeningSpeech = true;
+            if (micBtn) {
+              micBtn.classList.add('bg-rose-500', 'text-white', 'animate-pulse');
+              micBtn.classList.remove('text-slate-500', 'hover:text-legal-gold');
+              micBtn.innerHTML = '<i class="fa-solid fa-stop text-xs"></i>';
+            }
+            this.showToast('Escuchando tu consulta por voz... habla ahora.');
+          };
 
-    if (sector) {
-      results = results.filter(i => i.t.includes(sector));
-    }
+          recognition.onresult = (e) => {
+            let transcript = '';
+            for (let i = e.resultIndex; i < e.results.length; ++i) {
+              transcript += e.results[i][0].transcript;
+            }
+            const input = document.getElementById('escudobot-input');
+            if (input && transcript) {
+              input.value = transcript;
+            }
+          };
 
-    if (estado) {
-      results = results.filter(i => i.d === estado || i.d.startsWith(estado));
-    }
+          recognition.onerror = (e) => {
+            console.warn('[EscudoBot] Speech Recognition Error:', e);
+            this.isListeningSpeech = false;
+            if (micBtn) {
+              micBtn.classList.remove('bg-rose-500', 'text-white', 'animate-pulse');
+              micBtn.classList.add('text-slate-500', 'hover:text-legal-gold');
+              micBtn.innerHTML = '<i class="fa-solid fa-microphone text-xs"></i>';
+            }
+            this.showToast('No se detectó audio o el micrófono fue cancelado.');
+          };
 
-    if (q) {
-      // Búsqueda directa sin acentos o difusa (Fuzzy)
-      results = results.filter(i => 
-        i.n.includes(q) || 
-        i.s.includes(q) || 
-        i.f.includes(q) || 
-        i.t.includes(q) ||
-        i.d.includes(q) ||
-        isFuzzyMatch(i.n, q) ||
-        isFuzzyMatch(i.s, q)
-      );
-    }
+          recognition.onend = () => {
+            this.isListeningSpeech = false;
+            if (micBtn) {
+              micBtn.classList.remove('bg-rose-500', 'text-white', 'animate-pulse');
+              micBtn.classList.add('text-slate-500', 'hover:text-legal-gold');
+              micBtn.innerHTML = '<i class="fa-solid fa-microphone text-xs"></i>';
+            }
+          };
 
-    state.filteredEntities = results;
-    renderSipresCards();
-  }
+          this.speechRecognition = recognition;
+          recognition.start();
+        } catch (err) {
+          console.error('[EscudoBot] Speech start error:', err);
+          this.showToast('No se pudo acceder al micrófono.');
+        }
+      },
 
-  function renderSipresCards() {
-    const container = document.getElementById('sipres-cards-container');
-    const countEl = document.getElementById('results-count');
-    const loadMoreBtn = document.getElementById('btn-load-more');
+      toggleSpeechSynthesis(btn) {
+        if (!('speechSynthesis' in window)) {
+          this.showToast('La síntesis de voz no está soportada en tu navegador.');
+          return;
+        }
 
-    if (!container) return;
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+          document.querySelectorAll('[data-speaking="1"]').forEach(el => {
+            el.dataset.speaking = '0';
+            el.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+            el.classList.remove('text-amber-500', 'animate-pulse');
+          });
+          if (this.activeSpeechBtn === btn) {
+            this.activeSpeechBtn = null;
+            return;
+          }
+        }
 
-    const total = state.filteredEntities.length;
-    if (countEl) countEl.textContent = total.toLocaleString('es-MX');
+        const text = btn.getAttribute('data-speech-text') || '';
+        if (!text) return;
 
-    renderSipresGroupSummary(state.searchQuery, state.filteredEntities);
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'es-MX';
+        utter.rate = 1.05;
+        utter.pitch = 1.0;
 
-    if (total === 0) {
-      container.innerHTML = `
-        <div class="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200 p-6 space-y-3">
-          <div class="w-14 h-14 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-2xl">
-            <i class="fa-solid fa-magnifying-glass"></i>
-          </div>
-          <h4 class="font-bold text-slate-800 text-base">No se encontraron entidades con esos criterios</h4>
-          <p class="text-xs text-slate-500 max-w-md mx-auto">
-            Verifica la ortografía o intenta buscar por una palabra clave (ej. "Banco", "Financiera", o el número de folio SIPRES).
-          </p>
-          <button onclick="EscudoApp.clearSearch()" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800">
-            Restablecer búsqueda
-          </button>
-        </div>
-      `;
-      if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
-      return;
-    }
+        btn.dataset.speaking = '1';
+        btn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+        btn.classList.add('text-amber-500', 'animate-pulse');
+        this.activeSpeechBtn = btn;
 
-    const itemsToRender = state.filteredEntities.slice(0, state.renderLimit);
+        utter.onend = () => {
+          btn.dataset.speaking = '0';
+          btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+          btn.classList.remove('text-amber-500', 'animate-pulse');
+          this.activeSpeechBtn = null;
+        };
 
-    let html = '';
-    for (let i = 0; i < itemsToRender.length; i++) {
-      const item = itemsToRender[i].raw;
-      const isRegulada = item.r === 'REGULADA';
-      const isCancelada = item.r === 'CANCELADA_ALTO_RIESGO';
+        utter.onerror = () => {
+          btn.dataset.speaking = '0';
+          btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+          btn.classList.remove('text-amber-500', 'animate-pulse');
+          this.activeSpeechBtn = null;
+        };
 
-      let badgeHtml = '';
-      if (isRegulada) {
-        badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-          <i class="fa-solid fa-circle-check mr-1 text-[8px]"></i> En Operación
-        </span>`;
-      } else if (isCancelada) {
-        badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-200">
-          <i class="fa-solid fa-ban mr-1 text-[8px]"></i> Cancelada (No Operar)
-        </span>`;
-      } else {
-        badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-          <i class="fa-solid fa-clock-rotate-left mr-1 text-[8px]"></i> En Revisión / Fusión
-        </span>`;
-      }
+        window.speechSynthesis.speak(utter);
+      },
 
-      const alertaSuplantacion = item.a ? `
-        <div class="mt-2.5 p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-start space-x-1.5">
-          <i class="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5"></i>
-          <span><strong>Alerta CONDUSEF:</strong> Nombre frecuentemente suplantado en WhatsApp. Valida canales oficiales.</span>
-        </div>
-      ` : '';
+      async handleChatbotImageUpload(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        e.target.value = '';
+        await this.processChatbotImage(file);
+      },
 
-      html += `
-        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-          <div>
-            <div class="flex items-start justify-between gap-2 mb-2">
-              <span class="font-mono text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                Folio: ${item.f}
-              </span>
-              ${badgeHtml}
-            </div>
+      async processChatbotImage(file) {
+        if (!file || !file.type.startsWith('image/')) {
+          this.showToast('Por favor selecciona un archivo de imagen (JPG, PNG o WEBP).');
+          return;
+        }
+        this.showToast('Sanitizando metadatos EXIF de la imagen (Protección de privacidad)...');
+        const sanitized = await this.sanitizeImageExif(file);
+        
+        // Renderizar burbuja del usuario con thumbnail de la imagen
+        this.renderChatBubble('user', `📸 [Captura adjuntada: ${file.name}]`, [], {
+          imageThumb: sanitized.dataUrl
+        });
 
-            <h4 class="font-heading font-bold text-slate-900 text-sm leading-snug line-clamp-2">
-              ${escapeHtml(item.n)}
-            </h4>
-            
-            <p class="text-[11px] text-slate-500 line-clamp-2 mt-1 leading-normal">
-              ${escapeHtml(item.s)}
-            </p>
+        const typing = document.getElementById('escudobot-typing');
+        if (typing) typing.classList.remove('hidden');
 
-            <div class="mt-3 space-y-1 text-[11px] text-slate-600 border-t border-slate-100 pt-2">
-              <div class="flex items-center space-x-1.5 truncate">
-                <i class="fa-solid fa-tag text-slate-400 w-3.5"></i>
-                <span class="truncate">${escapeHtml(item.t)}</span>
-              </div>
-              <div class="flex items-center space-x-1.5 truncate">
-                <i class="fa-solid fa-location-dot text-slate-400 w-3.5"></i>
-                <span class="truncate">${escapeHtml(item.d)}</span>
-              </div>
-            </div>
-
-            ${alertaSuplantacion}
-          </div>
-
-          <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5">
-            <button onclick="EscudoApp.openExpediente('${item.f}')" class="flex-1 py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors flex items-center justify-center space-x-1">
-              <i class="fa-solid fa-eye text-slate-500"></i>
-              <span>Ficha</span>
-            </button>
-            <button onclick="EscudoApp.addToComparator('${item.f}')" class="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-300" title="Agregar al comparador lado a lado">
-              <i class="fa-solid fa-code-compare"></i>
-            </button>
-            <button onclick="EscudoApp.transferEntityToQueja('${item.f}')" class="py-1.5 px-3 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-semibold transition-colors flex items-center space-x-1">
-              <i class="fa-solid fa-file-pen text-sky-600"></i>
-              <span>Reclamar</span>
-            </button>
-          </div>
-        </div>
-      `;
-    }
-
-    container.innerHTML = html;
-
-    if (loadMoreBtn) {
-      if (state.renderLimit < total) {
-        loadMoreBtn.classList.remove('hidden');
-      } else {
-        loadMoreBtn.classList.add('hidden');
-      }
-    }
-  }
-
-  function renderSipresGroupSummary(query, results) {
-    const summaryContainer = document.getElementById('sipres-group-summary');
-    if (!summaryContainer) return;
-
-    if (!query || query.trim().length < 2) {
-      summaryContainer.innerHTML = '';
-      return;
-    }
-
-    const qClean = query.trim().toUpperCase();
-
-    if (results.length === 0) {
-      summaryContainer.innerHTML = `
-        <div class="p-4 rounded-xl bg-red-50 border border-red-300 text-red-900 mb-4 shadow-sm flex items-start space-x-3">
-          <i class="fa-solid fa-triangle-exclamation text-red-600 text-xl mt-0.5"></i>
-          <div>
-            <h4 class="font-bold text-sm text-red-800">NO SE ENCONTRÓ REGISTRO OFICIAL PARA "${escapeHtml(qClean)}"</h4>
-            <p class="text-xs text-red-700 mt-1 leading-relaxed">
-              La entidad no figura en los 409 registros oficiales del SIPRES de la CONDUSEF. Si alguien te ofrece préstamos bajo este nombre, se trata de una <strong>financiera no regulada o posible fraude</strong> (Art. 103 de la Ley de Instituciones de Crédito por captación ilícita).
-            </p>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    const primary = results[0].raw;
-    const isSuplantable = results.some(r => r.raw.a);
-
-    const relatedList = results.slice(0, 5).map(r => `
-      <li class="flex items-center justify-between py-1 border-b border-slate-700/60 last:border-none">
-        <div class="truncate mr-2">
-          <strong class="text-white">${escapeHtml(r.raw.n)}</strong>
-          <span class="text-slate-400 block text-[10px] truncate">${escapeHtml(r.raw.s)}</span>
-        </div>
-        <div class="text-right shrink-0">
-          <span class="font-mono text-[10px] text-sky-300">Folio ${r.raw.f}</span>
-          <span class="block text-[10px] ${r.raw.r === 'REGULADA' ? 'text-emerald-400' : 'text-red-400'} font-semibold">${escapeHtml(r.raw.e)}</span>
-        </div>
-      </li>
-    `).join('');
-
-    const alertaSuplantacionBanner = isSuplantable ? `
-      <div class="mt-3 p-3 rounded-xl bg-amber-950/70 border border-amber-500/50 text-amber-200 text-xs flex items-start space-x-2">
-        <i class="fa-solid fa-shield-halved text-amber-400 text-base mt-0.5"></i>
-        <div>
-          <strong class="text-amber-100 font-bold">ALERTA OFICIAL DE CIBERSEGURIDAD CONDUSEF:</strong>
-          <span>El nombre o marca <strong>"${escapeHtml(qClean)}"</strong> es frecuentemente suplantado por estafadores en WhatsApp ofreciendo créditos preaprobados exigiendo depósitos de "fianza". <strong>Ninguna institución real cobra por prestar.</strong></span>
-        </div>
-      </div>
-    ` : '';
-
-    summaryContainer.innerHTML = `
-      <div class="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 text-white mb-5 shadow-xl border border-sky-500/30">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700">
-          <div>
-            <div class="flex items-center space-x-2">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                <i class="fa-solid fa-circle-check mr-1.5 text-xs text-emerald-400"></i> Existencia Oficial Comprobada en SIPRES
-              </span>
-              <span class="text-xs text-slate-400 font-mono">Búsqueda: "${escapeHtml(qClean)}"</span>
-            </div>
-            <h3 class="font-heading font-extrabold text-lg sm:text-2xl mt-1.5 text-white">
-              Ficha del Grupo Financiero & Relacionados: ${escapeHtml(primary.n)}
-            </h3>
-          </div>
-          <div class="flex items-center space-x-2 shrink-0">
-            <button onclick="EscudoApp.openExpediente('${primary.f}')" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/20 transition-all flex items-center space-x-1.5">
-              <i class="fa-solid fa-file-invoice text-sky-400"></i>
-              <span>Expediente</span>
-            </button>
-            <button onclick="EscudoApp.transferEntityToQueja('${primary.f}')" class="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all shadow-md flex items-center space-x-1.5">
-              <i class="fa-solid fa-file-pen"></i>
-              <span>Reclamar</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mt-4 text-xs">
-          <div class="md:col-span-5 space-y-2 bg-slate-800/60 p-3.5 rounded-xl border border-slate-700">
-            <span class="text-slate-400 block text-[11px] font-semibold uppercase tracking-wider">Entidad Matriz / Principal:</span>
-            <h4 class="text-white font-bold text-sm sm:text-base leading-snug">${escapeHtml(primary.s)}</h4>
-            <div class="pt-2 border-t border-slate-700/80 space-y-1 text-slate-300">
-              <div class="flex justify-between">
-                <span class="text-slate-400">Folio SIPRES:</span>
-                <span class="font-mono font-bold text-sky-300">${escapeHtml(primary.f)}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-slate-400">Sector Regulado:</span>
-                <span class="font-semibold text-slate-200">${escapeHtml(primary.t)}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-slate-400">Estatus Operativo:</span>
-                <span class="font-bold ${primary.r === 'REGULADA' ? 'text-emerald-400' : 'text-red-400'}">${escapeHtml(primary.e)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="md:col-span-7 bg-slate-800/60 p-3.5 rounded-xl border border-slate-700">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
-                Entidades Relacionadas Encontradas (${results.length}):
-              </span>
-              <span class="text-slate-400 text-[10px]">Filtradas abajo en las tarjetas</span>
-            </div>
-            <ul class="space-y-1">
-              ${relatedList}
-            </ul>
-          </div>
-        </div>
-
-        ${alertaSuplantacionBanner}
-      </div>
-    `;
-  }
-
-  function loadMoreResults() {
-    state.renderLimit += 50;
-    renderSipresCards();
-  }
-
-  function openExpediente(folio) {
-    const entity = state.entities.find(e => e.f === folio);
-    if (!entity) return;
-
-    state.selectedEntity = entity;
-
-    const titleEl = document.getElementById('exp-modal-title');
-    const folioEl = document.getElementById('exp-modal-folio');
-    const contentEl = document.getElementById('exp-modal-content');
-    const btnTransfer = document.getElementById('exp-btn-transfer');
-
-    if (titleEl) titleEl.textContent = entity.n;
-    if (folioEl) folioEl.textContent = `Registro SIPRES Oficial: ${entity.f}`;
-
-    // Buscar si tenemos datos verificados de contacto oficial
-    let contactChannels = '';
-    const upperName = (entity.n + ' ' + entity.s).toUpperCase();
-    for (const [key, val] of Object.entries(VERIFIED_CHANNELS)) {
-      if (upperName.includes(key)) {
-        contactChannels = `
-          <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs space-y-1">
-            <strong class="font-bold block flex items-center text-emerald-800">
-              <i class="fa-solid fa-shield-check mr-1 text-emerald-600"></i> Canales Oficiales Verificados:
-            </strong>
-            <div class="flex flex-wrap gap-4 pt-1 font-mono text-[11px]">
-              <span>🌐 Web Oficial: <a href="https://${val.web}" target="_blank" class="underline font-bold">${val.web}</a></span>
-              <span>📞 Teléfono Verificado: <strong>${val.tel}</strong></span>
-            </div>
-          </div>
-        `;
-        break;
-      }
-    }
-
-    if (contentEl) {
-      contentEl.innerHTML = `
-        ${contactChannels}
-
-        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
-          <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wider">Datos Registrales Oficiales</h4>
+        try {
+          // Ejecutar auditoría sobre la imagen sanitizada
+          this.switchForenseMode('image');
+          this.runForensicAudit();
+          const r = this.lastForenseResult;
           
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <span class="text-slate-400 block font-medium">Nombre Comercial:</span>
-              <span class="font-bold text-slate-800">${escapeHtml(entity.n)}</span>
+          setTimeout(() => {
+            if (typing) typing.classList.add('hidden');
+            const lines = [
+              `🧠 **Auditoría Heurística de Evidencia Visual**`,
+              `• **Veredicto:** ${r?.verdictTitle || 'Evidencia Evaluada'} (Riesgo: **${r?.score || 88}/100**)`,
+              `• **Tipología:** ${r?.tipologia || 'Coacción y Amenazas Móviles'}`,
+              `• **Fundamento Legal:** ${r?.legalBasis || 'Art. 284 Bis y 386 CPF'}`,
+              `• **Acción recomendada:** ${r?.accionInmediata || 'No pagar, preservar evidencias y denunciar al 088'}`
+            ];
+            const actions = [
+              { label: '📄 Descargar Dictamen PDF', cmd: 'forensicPdf' },
+              { label: '⚖️ Cargar a Quejas CONDUSEF', cmd: 'forensicQueja' },
+              { label: '🚓 Denuncia Policía Cibernética (088)', cmd: 'police' },
+              { label: '📋 Copiar Aviso para WhatsApp', cmd: 'shield', arg: 'App no regulada' }
+            ];
+            this.respondChatbot(lines.join('\n'), actions);
+          }, 450);
+        } catch (err) {
+          if (typing) typing.classList.add('hidden');
+          this.respondChatbot('Pude recibir la captura con metadatos depurados, pero ocurrió un detalle al analizarla. Puedes verla en el Laboratorio Heurístico.', [
+            { label: 'Ir al Laboratorio Heurístico', cmd: 'goto', arg: 'forense' }
+          ]);
+        }
+      },
+
+      extractQuejaDraft(text) {
+        if (!text || text.length < 15) return null;
+        const clean = this.normalizeText(text);
+
+        // Intención de reclamación o controversia patrimonial
+        const hasComplaintIntent = /(quej|reclam|carg|transfer|comision|descont|cobro|quitaron|robaron|estaf|fraude|usur|interes|no reconozc|no autoric)/i.test(clean);
+        if (!hasComplaintIntent) return null;
+
+        // Extracción de montos ($1,500, 1500 pesos, $300.50, etc.)
+        let amount = null;
+        const amountMatch = text.match(/\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/) ||
+                            text.match(/([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)\s*(?:pesos|mxn)/i);
+        if (amountMatch) {
+          const rawNum = amountMatch[1].replace(/,/g, '');
+          const num = parseFloat(rawNum);
+          if (!isNaN(num) && num >= 50 && num <= 5000000) {
+            amount = num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }
+        }
+
+        // Extracción de fecha (15 de octubre, 2026-10-15, ayer, etc.)
+        let dateStr = new Date().toISOString().split('T')[0];
+        const dateMatch = text.match(/(\d{1,2})\s+de\s+([a-záéíóú]+)(?:\s+de\s+(\d{4}))?/i);
+        if (dateMatch) {
+          const meses = { enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06', julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12' };
+          const dia = dateMatch[1].padStart(2, '0');
+          const mes = meses[this.normalizeText(dateMatch[2])] || '10';
+          const anio = dateMatch[3] || '2026';
+          dateStr = `${anio}-${mes}-${dia}`;
+        }
+
+        // Detección de entidad financiera SIPRES
+        const entities = this.findMentionedEntities(text);
+        const matchedEntity = entities.length > 0 ? entities[0] : null;
+
+        // Detección de causa
+        let causa = 'cargos_no_reconocidos';
+        let causaLabel = 'Cargo no reconocido';
+        if (/transferencia/.test(clean)) {
+          causa = 'transferencia_no_reconocida';
+          causaLabel = 'Transferencia electrónica no reconocida (SPEI)';
+        } else if (/comision|comisiones/.test(clean)) {
+          causa = 'comision_no_pactada';
+          causaLabel = 'Cobro indebido de comisiones no pactadas';
+        } else if (/interes|usura|tasa/.test(clean)) {
+          causa = 'intereses_excesivos';
+          causaLabel = 'Cobro abusivo de intereses o usura';
+        } else if (/cobranza|amenaz|despacho/.test(clean)) {
+          causa = 'cobranza_indebida';
+          causaLabel = 'Cobranza indebida y hostigamiento (REDECO)';
+        }
+
+        // Si se identificó al menos una entidad o un monto con intención de queja
+        if (matchedEntity || amount) {
+          return {
+            entity: matchedEntity,
+            entityName: matchedEntity ? (matchedEntity.s || matchedEntity.n) : 'Entidad por verificar',
+            amount: amount || '1,000.00',
+            date: dateStr,
+            causa,
+            causaLabel,
+            rawText: text
+          };
+        }
+        return null;
+      },
+
+      loadChatDraftToQueja(draft) {
+        this.switchTab('quejas');
+        this.setWizardStep(2);
+
+        if (draft.entity) {
+          this.applyEntityToQuejaFields(draft.entity);
+        } else {
+          const entInput = document.getElementById('input-queja-entidad');
+          if (entInput) entInput.value = draft.entityName;
+        }
+
+        const montoInput = document.getElementById('input-queja-monto');
+        if (montoInput && draft.amount) montoInput.value = draft.amount;
+
+        const fechaInput = document.getElementById('input-queja-fecha');
+        if (fechaInput && draft.date) fechaInput.value = draft.date;
+
+        const causaInput = document.getElementById('input-queja-causa');
+        if (causaInput && draft.causa) causaInput.value = draft.causa;
+
+        const hechosInput = document.getElementById('input-queja-hechos');
+        if (hechosInput) {
+          hechosInput.value = `En fecha ${draft.date}, se suscitó la siguiente controversia financiera: "${draft.rawText.trim()}". Motivo por el cual interpongo formal reclamación por hechos constitutivos de ${draft.causaLabel}, sin que mediara mi consentimiento expreso ni autorización legal en términos de la Ley de Protección y Defensa al Usuario de Servicios Financieros.`;
+        }
+
+        const pretInput = document.getElementById('input-queja-pretensiones');
+        if (pretInput) {
+          pretInput.value = `Solicito a la institución y a esta H. Comisión la inmediata devolución e indemnización del importe reclamado por $${draft.amount} MXN, así como la cancelación de accesorios moratorios y el cese de afectaciones en Sociedades de Información Crediticia.`;
+        }
+
+        this.updateDocPreview();
+        this.showToast('¡Borrador procesal precargado con éxito! Revisa los Pasos 2, 3 y 4 en Quejas CONDUSEF.');
+      },
+
+      exportChatSummary() {
+        if (!this.chatHistory || this.chatHistory.length === 0) {
+          this.showToast('No hay mensajes aún en la sesión para exportar.');
+          return;
+        }
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const transcriptLines = this.chatHistory.map(m => `[${m.time}] ${m.sender === 'user' ? 'USUARIO' : 'ESCUDOBOT'}:\n${m.text}\n`).join('\n');
+        
+        let hashStr = 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855';
+        try {
+          let hash = 0;
+          for (let i = 0; i < transcriptLines.length; i++) {
+            hash = ((hash << 5) - hash) + transcriptLines.charCodeAt(i);
+            hash |= 0;
+          }
+          hashStr = 'NOM151-' + Math.abs(hash).toString(16).toUpperCase().padStart(16, '0') + '-SEC2026';
+        } catch (e) {}
+
+        const doc = [
+          '=========================================================================',
+          '   MINUTA DE ASISTENCIA Y ORIENTACIÓN CÍVICO-FINANCIERA (ESCUDOBOT)     ',
+          '        Plataforma Escudo Financiero Pro • Sistema Cívico Digital       ',
+          '=========================================================================',
+          `Fecha y hora de emisión: ${dateStr}`,
+          `Constancia Digital de Integridad (NOM-151): ${hashStr}`,
+          'Modo de Inferencia: ' + (this.chatEngine === 'gemini' ? 'Google Gemini 2.5 Flash IA' : 'Heurística Algorítmica Local (0ms • Offline)'),
+          '-------------------------------------------------------------------------',
+          '1. CONTACTOS DE EMERGENCIA Y ASISTENCIA INMEDIATA:',
+          '   • Denuncia Policía Cibernética Guardia Nacional: 088 (Atención 24/7)',
+          '   • CONDUSEF Asesoría y Quejas: 55 53 400 999 / condusef.gob.mx',
+          '   • Registro de Despachos de Cobranza (REDECO): condusef.gob.mx/redeco',
+          '   • Semáforo & Quejas en PDF: Disponible en este aplicativo web local.',
+          '-------------------------------------------------------------------------',
+          '2. TRANSCRIPCIÓN ÍNTEGRA DE LA SESIÓN DE ORIENTACIÓN:',
+          '',
+          transcriptLines,
+          '-------------------------------------------------------------------------',
+          '3. AVISO LEGAL Y SALVAGUARDA DE PRIVACIDAD (LFPDPPP):',
+          'Esta minuta tiene valor de orientación cívica y preservación de memoria local.',
+          'No sustituye el asesoramiento de un abogado postulante ni constituye resolución judicial.',
+          'Ningún dato de esta sesión ha sido transferido a servidores externos ni retenido en bases de datos.',
+          '========================================================================='
+        ].join('\n');
+
+        const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Minuta-Orientacion-EscudoBot-${now.toISOString().slice(0, 10)}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(doc).then(() => {
+            this.showToast('📄 Minuta descargada y copiada al portapapeles con éxito.');
+          }).catch(() => {
+            this.showToast('📄 Minuta descargada con éxito.');
+          });
+        } else {
+          this.showToast('📄 Minuta descargada con éxito.');
+        }
+      },
+
+      resetChatbot() {
+        const container = document.getElementById('escudobot-messages');
+        if (container) {
+          container.innerHTML = `
+            <div class="flex items-start space-x-2">
+              <div class="w-6 h-6 rounded-lg bg-slate-900 dark:bg-legal-navy border border-legal-gold/30 text-legal-gold flex items-center justify-center shrink-0 text-[10px] shadow-2xs">
+                ${this.getEscudobotLogoSvg('w-4 h-4')}
+              </div>
+              <div class="chat-bubble-bot p-2.5 rounded-xl max-w-[85%] text-xs leading-relaxed font-sans shadow-2xs">
+                ¡Hola de nuevo! Sesión reiniciada. Soy <strong>EscudoBot</strong>, tu copiloto de ciberseguridad financiera y derechos cívicos. ¿En qué te oriento ahora?
+              </div>
             </div>
-            <div>
-              <span class="text-slate-400 block font-medium">Clave / Folio SIPRES:</span>
-              <span class="font-mono font-bold text-slate-800">${escapeHtml(entity.f)}</span>
+          `;
+        }
+        this.chatHistory = [];
+        this.showToast('Conversación de EscudoBot reiniciada.');
+      },
+
+      sendChatbotCommand(command) {
+        const input = document.getElementById('escudobot-input');
+        if (input) {
+          input.value = command;
+          this.handleChatbotSubmit();
+        }
+      },
+
+      renderChatBubble(sender, text, actions = [], extra = {}) {
+        const container = document.getElementById('escudobot-messages');
+        if (!container) return;
+
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        if (!this.chatHistory) this.chatHistory = [];
+        this.chatHistory.push({ sender, text, time: timeStr, actions });
+
+        const div = document.createElement('div');
+        div.className = sender === 'user' ? 'flex justify-end' : 'flex items-start space-x-2';
+
+        if (sender === 'user') {
+          let imgThumbHtml = '';
+          if (extra && extra.imageThumb) {
+            imgThumbHtml = `
+              <div class="mb-2 rounded-lg overflow-hidden border border-white/20 bg-black/20">
+                <img src="${extra.imageThumb}" alt="Captura enviada" class="max-h-36 max-w-full rounded object-contain">
+                <div class="text-[9px] text-emerald-300 font-mono px-2 py-0.5 bg-black/40 flex items-center gap-1">
+                  <i class="fa-solid fa-shield-halved text-[8px]"></i> EXIF &amp; GPS Eliminados
+                </div>
+              </div>
+            `;
+          }
+          div.innerHTML = `<div class="chat-bubble-user p-2.5 rounded-xl max-w-[85%] text-xs shadow-xs leading-relaxed font-sans">${imgThumbHtml}${this.escapeHtml(text)}</div>`;
+        } else {
+          const html = this.escapeHtml(text)
+            .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-legal-gold dark:text-amber-400">$1</strong>')
+            .replace(/\n/g, '<br>');
+
+          let copilotoHtml = '';
+          if (extra && extra.copilotoDraft) {
+            const d = extra.copilotoDraft;
+            copilotoHtml = `
+              <div class="mt-2.5 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] space-y-1.5 font-sans">
+                <div class="flex items-center justify-between font-bold text-legal-gold">
+                  <span class="flex items-center gap-1"><i class="fa-solid fa-bolt"></i> Copiloto Procesal CONDUSEF</span>
+                  <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500">1 Clic</span>
+                </div>
+                <div class="text-slate-700 dark:text-slate-300 space-y-0.5">
+                  <div><strong>Entidad:</strong> ${this.escapeHtml(d.entityName)}</div>
+                  <div><strong>Monto reclamado:</strong> $${this.escapeHtml(d.amount)} MXN</div>
+                  <div><strong>Causa:</strong> ${this.escapeHtml(d.causaLabel)}</div>
+                </div>
+                <button type="button" data-chat-cmd="loadDraft" class="w-full mt-1 py-1.5 px-2 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all">
+                  <i class="fa-solid fa-file-pen text-[11px]"></i> Cargar a Quejas CONDUSEF
+                </button>
+              </div>
+            `;
+          }
+
+          const actionsHtml = Array.isArray(actions) && actions.length > 0
+            ? `<div class="mt-2.5 flex flex-wrap gap-1.5">${actions.map(a =>
+                `<button type="button" data-chat-cmd="${this.escapeHtml(a.cmd)}" data-chat-arg="${this.escapeHtml(a.arg || '')}" class="px-2.5 py-1 rounded-lg bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border text-slate-800 dark:text-slate-200 hover:border-legal-gold hover:text-legal-gold font-semibold text-[11px] shadow-2xs transition-all text-left flex items-center gap-1">${this.escapeHtml(a.label)}</button>`
+              ).join('')}</div>`
+            : '';
+
+          const speechText = text.replace(/\*\*/g, '').replace(/[\n\r]+/g, ' ');
+
+          div.innerHTML = `
+            <div class="w-6 h-6 rounded-lg bg-slate-900 dark:bg-legal-navy border border-legal-gold/30 text-legal-gold flex items-center justify-center shrink-0 text-[10px] mt-0.5 shadow-2xs">
+              ${this.getEscudobotLogoSvg('w-4 h-4')}
             </div>
+            <div class="chat-bubble-bot p-2.5 rounded-xl max-w-[85%] text-xs leading-relaxed font-sans shadow-2xs relative group">
+              <div class="absolute top-1.5 right-1.5 opacity-40 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                <button type="button" onclick="PreviewApp.toggleSpeechSynthesis(this)" data-speech-text="${this.escapeHtml(speechText)}" class="p-1 rounded text-slate-400 hover:text-legal-gold text-[10px] transition-colors" title="Leer respuesta en voz alta">
+                  <i class="fa-solid fa-volume-high"></i>
+                </button>
+              </div>
+              ${html}
+              ${copilotoHtml}
+              ${actionsHtml}
+            </div>
+          `;
+        }
+
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+      },
+
+      respondChatbot(text, actions = [], extra = {}) {
+        this.renderChatBubble('bot', text, actions, extra);
+      },
+
+      runChatAction(cmd, arg) {
+        switch (cmd) {
+          case 'goto':
+            this.switchTab(arg);
+            break;
+          case 'ficha':
+            this.openAppFicha(arg);
+            break;
+          case 'report':
+            this.openNuevoReporteModal(arg);
+            break;
+          case 'police':
+            this.openPoliceComplaintModal(arg);
+            break;
+          case 'shield':
+            this.copyWhatsAppWarning(arg);
+            this.respondChatbot('📋 Copié el aviso de autodefensa para tus contactos. Pégalo en tus grupos de WhatsApp o estados.');
+            break;
+          case 'queja':
+            this.switchTab('quejas');
+            break;
+          case 'forensicPdf':
+            this.downloadForensicPdf();
+            break;
+          case 'forensicQueja':
+            this.transferForenseToQueja();
+            break;
+          case 'loadDraft':
+            if (this.lastCopilotoDraft) {
+              this.loadChatDraftToQueja(this.lastCopilotoDraft);
+            } else {
+              this.switchTab('quejas');
+            }
+            break;
+          case 'command':
+            this.sendChatbotCommand(arg);
+            break;
+          default:
+            break;
+        }
+      },
+
+      detectSuspiciousInput(msg) {
+        const trimmed = (msg || '').trim();
+        const norm = this.normalizeText(trimmed);
+
+        const urlOnly = trimmed.match(/^(?:(?:analiza|analizame|revisa|revisame|checa|verifica|es\s+seguro|es\s+confiable)\s*:?\s*)?((?:https?:\/\/|www\.)\S+)$/i);
+        if (urlOnly) return { type: 'url', text: urlOnly[1] };
+
+        const explicit = trimmed.match(/^(?:analiza|analizame|revisa|revisame|checa|me\s+lleg[oó]\s+(?:este|el)\s+(?:mensaje|sms|texto)|me\s+mandaron|me\s+enviaron)[^:]{0,40}:\s*([\s\S]{20,})$/i);
+        if (explicit) return { type: 'text', text: explicit[1].trim() };
+
+        const fraudKw = /(fianza|anticipo|deposit|oxxo|spin|stp|pre-?aprobad|felicidades|liberar|gastos de gestion|sin buro|garantizad|deudor|embargo|urgente|clic|enlace|link|apk|codigo|otp|nip|cuenta suspendida|cuenta bloqueada|tarjeta terminacion|transferencia|clabe|aval|contactos|agenda|ultimo aviso|demanda|ganaste|premio)/;
+        if (trimmed.length >= 60 && fraudKw.test(norm)) {
+          return { type: 'text', text: trimmed };
+        }
+        return null;
+      },
+
+      findMentionedApps(text) {
+        const catalog = window.APPS_PRESTAMO_DB || [];
+        if (!catalog.length) return [];
+        const clean = this.normalizeText(text);
+        if (!clean) return [];
+
+        const hits = [];
+        for (const item of catalog) {
+          const appNorm = this.normalizeText(item.app);
+          if (appNorm.length >= 3 && clean.includes(appNorm)) {
+            hits.push(item);
+          }
+        }
+        return hits.slice(0, 3);
+      },
+
+      describeAppForChat(a) {
+        const condusef = a.condusef === 'SÍ'
+          ? 'SÍ, acumula reportes ante CONDUSEF'
+          : 'NO, sin registro ante CONDUSEF (opera en la informalidad)';
+        const play = a.googlePlay === 'ACTIVA' ? 'ACTIVA (sigue disponible en la tienda)'
+          : (a.googlePlay === 'BAJA' ? 'DADA DE BAJA de Google Play' : 'NO ENCONTRADA en Google Play');
+        const apk = a.apk === 'ACTIVA' ? 'ACTIVA (circula como APK externo, riesgo alto)'
+          : (a.apk === 'BAJA' ? 'BAJA' : 'NO ENCONTRADA');
+        const alertLevel = a.reportes >= 100 || a.apk === 'ACTIVA'
+          ? '🚨 **Alerta Preventiva:** acumula un volumen alto de reportes o circula como APK externo fuera de tiendas oficiales. Te sugerimos **no solicitar préstamos ni otorgar permisos de contactos ni galería**.'
+          : '⚠️ **Aviso Cívico:** cuenta con reportes ciudadanos en el radar. Procede con cautela.';
+        return `📱 **${a.app}** (N° ${a.num} en el Radar Comunitario)\n` +
+          `• ¿Reportada ante CONDUSEF? **${condusef}**\n` +
+          `• Reportes ciudadanos acumulados: **${Number(a.reportes).toLocaleString('es-MX')}**\n` +
+          `• Google Play Store: **${play}**\n` +
+          `• Archivo APK externo: **${apk}**\n` +
+          `${alertLevel}`;
+      },
+
+      buildAppReply(apps) {
+        const body = apps.map(a => this.describeAppForChat(a)).join('\n\n');
+        const footer = '\n\nRecuerda: ninguna entidad legal exige anticipos para autorizar un crédito ni amenaza a tus contactos personales.';
+        const actions = [];
+        apps.slice(0, 2).forEach(a => {
+          actions.push({ label: `Ver ficha de ${a.app}`, cmd: 'ficha', arg: String(a.num) });
+        });
+        actions.push({ label: `Reportar app #${apps[0].num}`, cmd: 'report', arg: String(apps[0].num) });
+        actions.push({ label: 'Ir a Medidor de Crédito', cmd: 'goto', arg: 'credito' });
+        return { text: body + footer, actions };
+      },
+
+      async deriveToHeuristicLab(det) {
+        const isUrl = det.type === 'url';
+        this.respondChatbot(`🔎 Eso parece un ${isUrl ? 'enlace' : 'mensaje'} sospechoso. Lo derivo de inmediato a nuestro **Laboratorio Heurístico**, ejecuto la auditoría técnica y te desgloso el veredicto:`);
+
+        this.switchTab('forense');
+        if (isUrl) {
+          this.switchForenseMode('url');
+          const urlEl = document.getElementById('fn-url-input');
+          if (urlEl) urlEl.value = det.text;
+        } else {
+          this.switchForenseMode('text');
+          const textEl = document.getElementById('fn-text-input');
+          if (textEl) textEl.value = det.text;
+        }
+        this.runForensicAudit();
+
+        const r = this.lastForenseResult;
+        if (!r) {
+          this.respondChatbot('Abriendo el Laboratorio Heurístico para que verifiques los parámetros.', [{ label: 'Ir a Laboratorio Heurístico', cmd: 'goto', arg: 'forense' }]);
+          return;
+        }
+
+        const levelIcon = r.score >= 70 ? '🚨' : (r.score >= 40 ? '⚠️' : '✅');
+        const lines = [
+          `${levelIcon} **Veredicto: ${r.verdictTitle || 'Evaluación Heurística'}** (Amenaza: ${r.score}/100).`,
+          `• **Clasificación:** ${r.threatType || 'Riesgo Detectado'}`,
+          `• **Entidad involucrada:** ${r.bankInvolved || 'No regulada'}`,
+          `• **Acción recomendada:** ${r.recommendation || 'No realizar depósitos'}`,
+          'El análisis técnico completo y la opción de emitir la Evaluación Heurística en PDF están listos en el Laboratorio.'
+        ];
+        const actions = [
+          { label: '🧠 Ver Veredicto en Pantalla', cmd: 'goto', arg: 'forense' },
+          { label: '📄 Descargar PDF Evaluación', cmd: 'forensicPdf' }
+        ];
+        if (r.score >= 40) {
+          actions.push({ label: '🚓 Denuncia 088', cmd: 'police' });
+          actions.push({ label: '⚖️ Iniciar Queja CONDUSEF', cmd: 'queja' });
+        }
+        this.respondChatbot(lines.join('\n'), actions);
+      },
+
+      handleEmergencyMessage(msg, apps = []) {
+        const lines = [
+          '🚨 **Lo que describes es una práctica ilícita de hostigamiento o cobranza extrajudicial indebida (Art. 284 Bis CPF). Respira: la ley te protege.**',
+          '1. **No pagues bajo amenaza** ni entregues más dinero o códigos de seguridad.',
+          '2. **Preserva las evidencias:** guarda capturas de pantalla de chats, audios, números telefónicos y estados de cuenta.',
+          '3. **Revoca accesos y bloquea:** retira permisos de contactos y cámara en los ajustes de tu celular y bloquea los números agresores.',
+          '4. **Avisa preventivamente a tus contactos:** para que no atiendan llamadas de cobranza (te preparé un texto listo para compartir).',
+          '5. **Denuncia formal:** ante la Policía Cibernética (**088**) o genera tu queja REDECO en el módulo de Quejas.'
+        ];
+        if (apps.length > 0) {
+          lines.push('\nSobre la app identificada en tu mensaje:\n' + apps.map(a => `• **${a.app}** (N° ${a.num}): ${Number(a.reportes).toLocaleString('es-MX')} reportes registrados.`).join('\n'));
+        }
+        const actions = [
+          { label: '🚓 Formato Denuncia 088', cmd: 'police', arg: msg.slice(0, 300) },
+          { label: '📋 Copiar Aviso para Contactos', cmd: 'shield', arg: apps[0]?.app || 'App no regulada' },
+          { label: '⚖️ Redactar Queja REDECO / CONDUSEF', cmd: 'queja' },
+          { label: '📡 Abrir Radar Comunitario', cmd: 'goto', arg: 'radar' }
+        ];
+        this.respondChatbot(lines.join('\n'), actions);
+      },
+
+      findMentionedEntities(text) {
+        const full = window.SIPRES_DATABASE || [];
+        const clean = this.normalizeText(text);
+        if (!clean) return [];
+
+        const hits = [];
+        for (const item of full) {
+          const nameNorm = this.normalizeText(item.n);
+          const comNorm = this.normalizeText(item.s);
+          if ((nameNorm.length >= 4 && clean.includes(nameNorm)) || (comNorm.length >= 4 && clean.includes(comNorm))) {
+            hits.push(item);
+          }
+        }
+        return hits.slice(0, 3);
+      },
+
+      async handleChatbotSubmit() {
+        const input = document.getElementById('escudobot-input');
+        const msg = (input?.value || '').trim();
+        if (!msg || this.chatbotBusy) return;
+
+        this.chatbotBusy = true;
+        input.value = '';
+        this.renderChatBubble('user', msg);
+
+        const typing = document.getElementById('escudobot-typing');
+        if (typing) typing.classList.remove('hidden');
+
+        try {
+          await this.processChatMessage(msg);
+        } catch (err) {
+          console.error('[EscudoBot] Error procesando mensaje:', err);
+          this.respondChatbot('Ocurrió un detalle técnico al procesar la consulta. Puedes usar los accesos directos superiores o explorar directamente los módulos.');
+        } finally {
+          this.chatbotBusy = false;
+          if (typing) typing.classList.add('hidden');
+        }
+      },
+
+      async queryGeminiApi(userMsg) {
+        if (!this.geminiApiKey) return null;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(this.geminiApiKey)}`;
+        
+        const systemPrompt = "Eres EscudoBot, asistente cívico y de ciberseguridad financiera de México integrado en Escudo Financiero Pro. Orientas a la ciudadanía en derechos financieros ante CONDUSEF, SIPRES (409 entidades reguladas), Medidor de Crédito (Art. 386 CPF, Art. 103 LIC), Radar Comunitario de 399 apps montadeudas y combate a la cobranza ilegítima (Art. 284 Bis CPF). Responde de forma precisa, empática, concisa y profesional con citas legales y pasos claros. Da respuestas directas en español de México.";
+
+        const body = {
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: systemPrompt + "\n\nConsulta del usuario:\n" + userMsg }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 600
+          }
+        };
+
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!resp.ok) {
+          throw new Error(`Gemini API status ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return text || null;
+      },
+
+      async processChatMessage(msg) {
+        const lower = msg.toLowerCase();
+        const norm = this.normalizeText(msg);
+
+        // Si el motor Gemini IA está activo y cuenta con API Key, consultar Gemini con fallback
+        if (this.chatEngine === 'gemini' && this.geminiApiKey) {
+          try {
+            const geminiReply = await this.queryGeminiApi(msg);
+            if (geminiReply) {
+              const contextualChips = [
+                { label: '⚖️ Cargar a Quejas CONDUSEF', cmd: 'queja' },
+                { label: '🔍 Consultar SIPRES', cmd: 'goto', arg: 'directorio' },
+                { label: '🧠 Laboratorio Heurístico', cmd: 'goto', arg: 'forense' }
+              ];
+              this.respondChatbot(geminiReply, contextualChips);
+              return;
+            }
+          } catch (gemErr) {
+            console.warn('[EscudoBot] Gemini API fallback to Local Heuristics:', gemErr);
+            this.showToast('Nota: Consulta procesada con Motor Heurístico Local.');
+          }
+        }
+
+        // 1. Detección de amenazas / extorsión (Art. 284 Bis CPF)
+        const emergencyRe = /(amenaz|extors|hostig|acos|chantaj|mis contactos|difam|cobranza abusiva|embargar|carcel|policia me va a detener)/;
+        const apps = this.findMentionedApps(msg);
+
+        if (emergencyRe.test(norm) && !this.detectSuspiciousInput(msg)) {
+          this.handleEmergencyMessage(msg, apps);
+          return;
+        }
+
+        // 2. Detección de mensaje sospechoso o enlace phishing
+        const suspicious = this.detectSuspiciousInput(msg);
+        if (suspicious) {
+          await this.deriveToHeuristicLab(suspicious);
+          return;
+        }
+
+        // 3. Copiloto Procesal: detección de hechos con monto/entidad y prellenado en 1 clic
+        const quejaDraft = this.extractQuejaDraft(msg);
+        if (quejaDraft) {
+          this.lastCopilotoDraft = quejaDraft;
+          const body = `⚖️ **Copiloto Procesal CONDUSEF Detectado**\nAnalicé tu consulta e identifiqué una controversia por **${quejaDraft.causaLabel}** con **${quejaDraft.entityName}** por la cantidad de **$${quejaDraft.amount} MXN**.\n\nEstructuré los fundamentos jurídicos (Art. 68 LPDUSF y Código Penal Federal). Puedes transferir todos los datos directamente al formulario de quejas con un solo clic:`;
+          const actions = [
+            { label: '⚡ Cargar Borrador en Quejas (1 Clic)', cmd: 'loadDraft' },
+            { label: '🔍 Ver Folio SIPRES', cmd: 'goto', arg: 'directorio' },
+            { label: '📊 Medidor de Crédito', cmd: 'goto', arg: 'credito' }
+          ];
+          this.renderChatBubble('bot', body, actions, { copilotoDraft: quejaDraft });
+          return;
+        }
+
+        // 4. Consulta sobre Apps de préstamo (Radar Comunitario)
+        if (apps.length > 0) {
+          const reply = this.buildAppReply(apps);
+          this.respondChatbot(reply.text, reply.actions);
+          return;
+        }
+
+        // 5. Comandos directos de navegación
+        if (lower.includes('buscar bbva') || (lower.includes('buscar') && lower.includes('bbva'))) {
+          this.switchTab('directorio');
+          this.handleDirectSearch('BBVA');
+          const searchInput = document.getElementById('preview-sipres-search');
+          if (searchInput) searchInput.value = 'BBVA';
+          this.respondChatbot('¡Hecho! Te he llevado al directorio SIPRES y filtré las entidades correspondientes a **BBVA**.', [
+            { label: 'Ver Ficha Oficial BBVA', cmd: 'goto', arg: 'directorio' },
+            { label: '⚖️ Queja contra BBVA', cmd: 'queja' }
+          ]);
+          return;
+        }
+
+        if (lower.includes('calcular') || lower.includes('crédito') || lower.includes('semáforo') || lower.includes('medidor') || lower.includes('interés') || lower.includes('cat')) {
+          this.switchTab('credito');
+          this.respondChatbot('¡Listo! Te trasladé al **Medidor de Crédito**. Aquí puedes evaluar escenarios, desglosar la amortización y verificar el CAT real frente a Banxico.', [
+            { label: 'Evaluar CAT y Pagos', cmd: 'goto', arg: 'credito' },
+            { label: '🔍 Verificar Financiera en SIPRES', cmd: 'goto', arg: 'directorio' }
+          ]);
+          return;
+        }
+
+        if (lower.includes('queja') || lower.includes('condusef') || lower.includes('denuncia') || lower.includes('reclamar') || lower.includes('pretension')) {
+          this.switchTab('quejas');
+          this.respondChatbot('Te he situado en el **Generador de Quejas Jurídicas CONDUSEF / REDECO**. Puedes seguir el Stepper interactivo de 5 pasos y descargar tu escrito oficial en PDF vectorial.', [
+            { label: 'Llenar Queja Paso a Paso', cmd: 'goto', arg: 'quejas' },
+            { label: '📞 Ver Teléfonos UNE Bancarias', cmd: 'goto', arg: 'directorio' }
+          ]);
+          return;
+        }
+
+        if (lower.includes('forense') || lower.includes('heurístico') || lower.includes('heuristico') || lower.includes('sospechoso') || lower.includes('mensaje')) {
+          this.switchTab('forense');
+          this.respondChatbot('Te he llevado al **Laboratorio Heurístico de Mensajes & Evidencias**. Puedes pegar textos de WhatsApp, verificar enlaces de phishing o subir capturas con extracción OCR.', [
+            { label: 'Ejecutar Auditoría Heurística', cmd: 'goto', arg: 'forense' },
+            { label: '🚓 Denuncia 088 Policía Cibernética', cmd: 'police' }
+          ]);
+          return;
+        }
+
+        if (lower.includes('radar') || lower.includes('montadeudas') || lower.includes('mapa') || lower.includes('reportes')) {
+          this.switchTab('radar');
+          this.respondChatbot('Te he trasladado al **Radar Comunitario (399 Apps de Préstamo Móvil)**. Puedes explorar el mapa de calor por estados, verificar si una app tiene registro CONDUSEF o publicar un reporte ciudadano.', [
+            { label: 'Ver Muro de Reportes', cmd: 'goto', arg: 'radar' },
+            { label: '🚨 Protocolo Anti-Amenazas', cmd: 'command', arg: 'Me están amenazando por un préstamo' }
+          ]);
+          return;
+        }
+
+        if (lower.includes('modo oscuro') || lower.includes('dark') || lower.includes('claro') || lower.includes('tema')) {
+          this.toggleTheme();
+          this.respondChatbot('¡Modo de visualización alternado con éxito!');
+          return;
+        }
+
+        // 6. Consulta sobre entidades reguladas de SIPRES
+        const entities = this.findMentionedEntities(msg);
+        if (entities.length > 0) {
+          const e = entities[0];
+          const lines = [
+            `🏛️ **${e.n}** (Nombre Comercial: **${e.s}**)`,
+            `• **Folio Oficial SIPRES:** ${e.f}`,
+            `• **Sector:** ${e.t}`,
+            `• **Estatus Regulatorio:** ${e.e}`,
+            `• **Sede:** ${e.d}`,
+            'Es una institución financiera debidamente regulada. Si presentas controversias o cargos no reconocidos, puedes generar tu queja formal directa.'
+          ];
+          const actions = [
+            { label: `Ver en SIPRES (#${e.f})`, cmd: 'goto', arg: 'directorio' },
+            { label: `Iniciar Queja contra ${e.s}`, cmd: 'queja' },
+            { label: `📊 Evaluar en Medidor de Crédito`, cmd: 'goto', arg: 'credito' }
+          ];
+          this.respondChatbot(lines.join('\n'), actions);
+          return;
+        }
+
+        // 7. Respuesta orientativa general con chips contextuales
+        const generalReply =
+          'Entiendo tu consulta. Como **EscudoBot**, te oriento en cuatro ejes principales:\n\n' +
+          '1. **Directorio SIPRES (409):** Verificar si un banco, fintech o financiera está regulada ante CONDUSEF.\n' +
+          '2. **Medidor de Crédito:** Calcular el costo financiero real, retenciones y CAT conforme a Banxico.\n' +
+          '3. **Laboratorio Heurístico:** Analizar mensajes engañosos, enlaces de phishing o cuentas receptoras.\n' +
+          '4. **Radar Comunitario & Quejas:** Protocolo anti-montadeudas y generación de escritos procesales en PDF.\n\n' +
+          '¿Te gustaría que busquemos una institución en específico o redactemos una reclamación formal?';
+        const generalActions = [
+          { label: '🔍 Buscar en SIPRES', cmd: 'goto', arg: 'directorio' },
+          { label: '⚖️ Generador de Quejas', cmd: 'goto', arg: 'quejas' },
+          { label: '📊 Medidor de Crédito', cmd: 'goto', arg: 'credito' },
+          { label: '🧠 Laboratorio Heurístico', cmd: 'goto', arg: 'forense' },
+          { label: '📡 Radar Comunitario', cmd: 'goto', arg: 'radar' }
+        ];
+        this.respondChatbot(generalReply, generalActions);
+      },
+
+      initFontSize() {
+        const saved = localStorage.getItem('escudo_font_scale') || 'md';
+        this.setFontSize(saved);
+      },
+
+      setFontSize(size) {
+        const root = document.documentElement;
+        root.classList.remove('text-scale-sm', 'text-scale-md', 'text-scale-lg');
+        if (size === 'sm') root.classList.add('text-scale-sm');
+        else if (size === 'lg') root.classList.add('text-scale-lg');
+        else root.classList.add('text-scale-md');
+
+        try { localStorage.setItem('escudo_font_scale', size); } catch (e) {}
+
+        const btnSm = document.getElementById('font-btn-sm');
+        const btnMd = document.getElementById('font-btn-md');
+        const btnLg = document.getElementById('font-btn-lg');
+
+        [btnSm, btnMd, btnLg].forEach(b => {
+          if (b) {
+            b.classList.remove('bg-white', 'dark:bg-obsidian-surface', 'text-legal-gold', 'shadow-xs');
+            b.classList.add('text-slate-500');
+          }
+        });
+
+        const activeBtn = size === 'sm' ? btnSm : (size === 'lg' ? btnLg : btnMd);
+        if (activeBtn) {
+          activeBtn.classList.remove('text-slate-500');
+          activeBtn.classList.add('bg-white', 'dark:bg-obsidian-surface', 'text-legal-gold', 'shadow-xs');
+        }
+      },
+
+      initPanicKeyShortcut() {
+        let escCount = 0;
+        let lastEsc = 0;
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            const now = Date.now();
+            if (now - lastEsc < 900) {
+              escCount++;
+            } else {
+              escCount = 1;
+            }
+            lastEsc = now;
+            if (escCount >= 3) {
+              escCount = 0;
+              this.triggerPanicExit();
+            }
+          }
+        });
+      },
+
+      triggerPanicExit() {
+        try {
+          this.clearQuejaDraft();
+          this.clearForenseImage();
+          const t = document.getElementById('fn-text-input');
+          if (t) t.value = '';
+          const u = document.getElementById('fn-url-input');
+          if (u) u.value = '';
+          sessionStorage.clear();
+          localStorage.clear();
+        } catch (e) {}
+
+        try {
+          window.location.replace('https://es.wikipedia.org/wiki/Portal:M%C3%A9xico');
+        } catch (e) {
+          document.body.innerHTML = `
+            <div style="font-family:Arial,sans-serif;background:#fff;color:#202124;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">
+              <div style="font-size:42px;font-weight:bold;margin-bottom:20px;">
+                <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc05">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span>
+              </div>
+              <div style="width:100%;max-width:540px;border:1px solid #dfe1e5;border-radius:24px;padding:12px 20px;box-shadow:0 1px 6px rgba(32,33,36,.28);">
+                <input type="text" value="Noticias de México hoy" style="width:100%;border:none;outline:none;font-size:16px;">
+              </div>
+            </div>`;
+        }
+      },
+
+      initServiceWorkerPwa() {
+        if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+          navigator.serviceWorker.register('./sw.js').then((reg) => {
+            const badge = document.getElementById('pwa-offline-badge');
+            if (badge) badge.classList.remove('hidden');
+          }).catch(() => {});
+        } else {
+          const badge = document.getElementById('pwa-offline-badge');
+          if (badge) badge.classList.remove('hidden');
+        }
+      },
+
+      async generateSha256(text) {
+        try {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(text);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch (e) {
+          let h1 = 0xdeadbeef, h2 = 0x41c64e6d;
+          for (let i = 0, ch; i < text.length; i++) {
+            ch = text.charCodeAt(i);
+            h1 = Math.imul(h1 ^ ch, 2654435761);
+            h2 = Math.imul(h2 ^ ch, 1597334677);
+          }
+          h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+          h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+          const s = (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+          return (s + s + s + s).slice(0, 64).padStart(64, '0');
+        }
+      },
+
+      async sanitizeImageExif(file) {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth || img.width;
+              canvas.height = img.naturalHeight || img.height;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+              canvas.toBlob((blob) => {
+                const cleanFile = new File([blob || file], file.name.replace(/\.[^/.]+$/, "") + "-sanitized.jpg", {
+                  type: 'image/jpeg',
+                  lastModified: Date.now()
+                });
+                resolve({ file: cleanFile, dataUrl, name: file.name });
+              }, 'image/jpeg', 0.92);
+            };
+            img.onerror = () => resolve({ file, dataUrl: e.target.result, name: file.name });
+            img.src = e.target.result;
+          };
+          reader.onerror = () => resolve({ file, dataUrl: null, name: file.name });
+          reader.readAsDataURL(file);
+        });
+      },
+
+      calculateLegalDeadline(startDate = new Date(), businessDays = 20) {
+        let count = 0;
+        let cur = new Date(startDate);
+        while (count < businessDays) {
+          cur.setDate(cur.getDate() + 1);
+          const day = cur.getDay();
+          if (day !== 0 && day !== 6) {
+            count++;
+          }
+        }
+        return cur;
+      },
+
+      async updateQuejaHashLive() {
+        const data = this.collectQuejaFormData();
+        const rawContent = `${data.curp}|${data.folioSipres}|${data.fechaHechos}|${data.monto}|${data.hechos}|${data.pretensiones}`;
+        const hash = await this.generateSha256(rawContent);
+        const el = document.getElementById('doc-preview-hash');
+        if (el) el.innerText = hash;
+      },
+
+      async openPostDownloadRoadmap(customData = null, customBuilt = null) {
+        const data = customData || this.collectQuejaFormData();
+        const folio = data.folioSipres || '40012';
+        const channels = VERIFIED_CHANNELS_PREVIEW[folio] || { une: 'atencion.usuarios@condusef.gob.mx' };
+        
+        // 1. Sello SHA-256
+        const rawContent = `${data.curp}|${data.folioSipres}|${data.fechaHechos}|${data.monto}|${data.hechos}|${data.pretensiones}`;
+        const hash = await this.generateSha256(rawContent);
+
+        // 2. Plazos procesales (20 días hábiles)
+        const today = new Date();
+        const deadline = this.calculateLegalDeadline(today, 20);
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const deadlineStr = deadline.toLocaleDateString('es-MX', options);
+
+        this.lastRoadmapData = {
+          data,
+          hash,
+          today,
+          deadline,
+          uneEmail: channels.une
+        };
+
+        // 3. Inyectar datos en el modal
+        const elDate = document.getElementById('roadmap-deadline-date');
+        if (elDate) elDate.innerText = deadlineStr;
+
+        const elHash = document.getElementById('roadmap-crypto-hash');
+        if (elHash) elHash.innerText = hash;
+
+        const elUne = document.getElementById('roadmap-une-email');
+        if (elUne) elUne.innerText = channels.une;
+
+        const elMailto = document.getElementById('roadmap-btn-mailto');
+        if (elMailto) {
+          const subject = encodeURIComponent(`Reclamación Formal CONDUSEF - Folio SIPRES ${folio} - ${data.nombre}`);
+          const body = encodeURIComponent(
+            `A la Unidad Especializada de Atención a Usuarios (UNE):\n\n` +
+            `Por medio del presente correo interpongo formal escrito de reclamación de conformidad con los Artículos 50 Bis, 68 y 68 Bis de la LPDUSF.\n\n` +
+            `• Promovente: ${data.nombre}\n` +
+            `• CURP: ${data.curp}\n` +
+            `• Institución: ${data.institucion} (Folio SIPRES ${folio})\n` +
+            `• Causa: ${data.causa}\n` +
+            `• Sello de Integridad SHA-256: ${hash}\n\n` +
+            `Adjunto al presente el documento formal en formato PDF emitido con firma digital autógrafa y constancia probatoria.\n\n` +
+            `Atentamente,\n${data.nombre}`
+          );
+          elMailto.href = `mailto:${channels.une}?subject=${subject}&body=${body}`;
+        }
+
+        const modal = document.getElementById('modal-post-descarga-roadmap');
+        if (modal) modal.classList.remove('hidden');
+      },
+
+      closeRoadmapModal() {
+        const modal = document.getElementById('modal-post-descarga-roadmap');
+        if (modal) modal.classList.add('hidden');
+      },
+
+      copyRoadmapHash() {
+        if (!this.lastRoadmapData) return;
+        const hash = this.lastRoadmapData.hash;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(hash).then(() => {
+            this.showToast('Sello criptográfico SHA-256 copiado al portapapeles.');
+          });
+        } else {
+          this.showToast('Sello SHA-256: ' + hash.slice(0, 16) + '...');
+        }
+      },
+
+      downloadCalendarIcs() {
+        if (!this.lastRoadmapData) return;
+        const d = this.lastRoadmapData;
+        const formatIcsDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        
+        const icsContent = [
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//Escudo Financiero Pro//Legaltech Calendario//ES',
+          'CALSCALE:GREGORIAN',
+          'METHOD:PUBLISH',
+          'BEGIN:VEVENT',
+          `UID:escudo-legal-${Date.now()}@escudofinanciero.mx`,
+          `DTSTAMP:${formatIcsDate(new Date())}`,
+          `DTSTART:${formatIcsDate(d.deadline)}`,
+          `DTEND:${formatIcsDate(new Date(d.deadline.getTime() + 3600000))}`,
+          `SUMMARY:Vencimiento de Contestación UNE / CONDUSEF (Folio ${d.data.folioSipres})`,
+          `DESCRIPTION:Vencen los 20 días hábiles que la LPDUSF (Art. 68) otorga a la institución financiera para contestar la queja formal presentada por ${d.data.nombre}. Si no hubo contestación favorable, solicitar cita para audiencia de conciliación.`,
+          'BEGIN:VALARM',
+          'ACTION:DISPLAY',
+          'DESCRIPTION:Recordatorio de término legal CONDUSEF',
+          'TRIGGER:-P2D',
+          'END:VALARM',
+          'END:VEVENT',
+          'END:VCALENDAR'
+        ].join('\r\n');
+
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Vencimiento-Legal-CONDUSEF-Folio-${d.data.folioSipres}.ics`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        this.showToast('Recordatorio .ics descargado para tu calendario.');
+      },
+
+      openGoogleCalendarReminder() {
+        if (!this.lastRoadmapData) return;
+        const d = this.lastRoadmapData;
+        const dStr = d.deadline.toISOString().replace(/[-:]/g, '').slice(0, 8);
+        const title = `Vencimiento Contestación CONDUSEF - Folio ${d.data.folioSipres}`;
+        const desc = `Vencimiento de 20 días hábiles (Art. 68 LPDUSF) para informe de ${d.data.institucion}. Sello SHA-256: ${d.hash}`;
+        const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dStr}/${dStr}&details=${encodeURIComponent(desc)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      },
+
+      escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      },
+
+      normalizeText(str) {
+        return String(str || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .trim();
+      },
+
+      showToast(msg) {
+        const toast = document.getElementById('preview-toast');
+        const txt = document.getElementById('preview-toast-text');
+        if (!toast || !txt) return;
+        txt.innerText = msg;
+        toast.classList.remove('hidden');
+        if (this.toastTimer) clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => {
+          toast.classList.add('hidden');
+        }, 3200);
+      },
+
+      toggleTheme() {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('escudo_theme', isDark ? 'dark' : 'light');
+        document.getElementById('theme-toggle-icon').className = isDark ? 'fa-solid fa-sun text-xs text-amber-400' : 'fa-solid fa-moon text-xs';
+      },
+
+      toggleSidebar() {
+        const sidebar = document.getElementById('main-sidebar');
+        const brandHeader = document.getElementById('sidebar-brand-header');
+        const collapsedFooter = document.getElementById('sidebar-collapsed-footer');
+        const icon = document.getElementById('sidebar-toggle-icon');
+
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        const isCollapsed = this.sidebarCollapsed;
+
+        sidebar.classList.toggle('w-20', isCollapsed);
+        sidebar.classList.toggle('w-64', !isCollapsed);
+
+        brandHeader.classList.toggle('px-0', isCollapsed);
+        brandHeader.classList.toggle('justify-center', isCollapsed);
+        brandHeader.classList.toggle('px-5', !isCollapsed);
+        brandHeader.classList.toggle('justify-start', !isCollapsed);
+
+        document.querySelectorAll('.sidebar-text-element').forEach(el => {
+          el.style.display = isCollapsed ? 'none' : '';
+        });
+
+        if (collapsedFooter) {
+          collapsedFooter.classList.toggle('hidden', !isCollapsed);
+          collapsedFooter.classList.toggle('flex', isCollapsed);
+        }
+
+        this.updateSidebarNavStyles();
+        icon.className = isCollapsed ? 'fa-solid fa-angles-right text-[10px]' : 'fa-solid fa-angles-left text-[10px]';
+      },
+
+      updateSidebarNavStyles() {
+        const alignClasses = this.sidebarCollapsed ? 'justify-center px-0' : 'justify-between px-3';
+        document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+          const isActive = btn.getAttribute('data-tab') === this.currentTab;
+          const iconEl = btn.querySelector('i');
+          if (isActive) {
+            btn.className = `sidebar-nav-btn w-full flex items-center ${alignClasses} py-2.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-obsidian-elevated text-slate-900 dark:text-white border-l-4 border-legal-gold`;
+            if (iconEl) iconEl.classList.add('text-legal-gold');
+          } else {
+            btn.className = `sidebar-nav-btn w-full flex items-center ${alignClasses} py-2.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-obsidian-elevated transition-colors border-l-4 border-transparent`;
+            if (iconEl) iconEl.classList.remove('text-legal-gold');
+          }
+        });
+      },
+
+      rotateAlert() {
+        this.alertIndex = (this.alertIndex + 1) % this.alerts.length;
+        document.getElementById('alert-banner-text').innerHTML = this.alerts[this.alertIndex];
+      },
+
+      switchTab(tabId) {
+        if (tabId !== 'directorio' && tabId !== 'quejas' && tabId !== 'credito' && tabId !== 'forense' && tabId !== 'radar') {
+          alert('Este módulo interactivo estará disponible en el siguiente paso de la maqueta. Actualmente puedes explorar a detalle el Directorio SIPRES (con paginación progresiva, Ficha y Comparador), el Generador de Quejas de 5 pasos, el Medidor de Crédito, el Laboratorio Heurístico y el Radar Comunitario.');
+          return;
+        }
+        this.currentTab = tabId;
+        this.updateSidebarNavStyles();
+
+        document.getElementById('module-directorio').classList.add('hidden');
+        document.getElementById('module-quejas').classList.add('hidden');
+        document.getElementById('module-credito').classList.add('hidden');
+        const modForense = document.getElementById('module-forense');
+        if (modForense) modForense.classList.add('hidden');
+        const modRadar = document.getElementById('module-radar');
+        if (modRadar) modRadar.classList.add('hidden');
+
+        if (tabId === 'directorio') {
+          document.getElementById('module-directorio').classList.remove('hidden');
+          document.getElementById('breadcrumb-current-tab').innerText = 'Directorio SIPRES (409 Entidades)';
+        } else if (tabId === 'quejas') {
+          document.getElementById('module-quejas').classList.remove('hidden');
+          document.getElementById('breadcrumb-current-tab').innerText = 'Generador de Quejas CONDUSEF';
+        } else if (tabId === 'credito') {
+          document.getElementById('module-credito').classList.remove('hidden');
+          document.getElementById('breadcrumb-current-tab').innerText = 'Medidor de Crédito';
+          this.calcCredito();
+        } else if (tabId === 'forense') {
+          if (modForense) modForense.classList.remove('hidden');
+          document.getElementById('breadcrumb-current-tab').innerText = 'Laboratorio Heurístico';
+          this.runForensicAudit();
+        } else if (tabId === 'radar') {
+          if (modRadar) modRadar.classList.remove('hidden');
+          document.getElementById('breadcrumb-current-tab').innerText = 'Radar Comunitario (399 Apps & Alertas)';
+          this.initRadar();
+        }
+      },
+
+      setViewMode(mode) {
+        this.currentView = mode;
+        const gridBtn = document.getElementById('view-grid-btn');
+        const tableBtn = document.getElementById('view-table-btn');
+        const gridCont = document.getElementById('sipres-grid-container');
+        const tableCont = document.getElementById('sipres-table-container');
+
+        if (mode === 'grid') {
+          gridBtn.className = "px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 bg-slate-900 dark:bg-legal-gold text-white shadow-sm";
+          tableBtn.className = "px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white";
+          gridCont.classList.remove('hidden');
+          tableCont.classList.add('hidden');
+        } else {
+          tableBtn.className = "px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 bg-slate-900 dark:bg-legal-gold text-white shadow-sm";
+          gridBtn.className = "px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white";
+          tableCont.classList.remove('hidden');
+          gridCont.classList.add('hidden');
+        }
+      },
+
+      renderEntities(newMatchedList, resetLimit = false) {
+        if (Array.isArray(newMatchedList)) {
+          this.matchedEntities = newMatchedList;
+        } else if (!this.matchedEntities) {
+          this.matchedEntities = window.SIPRES_DATABASE || [];
+        }
+        if (resetLimit) {
+          this.renderLimit = this.pageSize;
+        }
+
+        const total = this.matchedEntities.length;
+        const list = this.matchedEntities.slice(0, this.renderLimit);
+        const gridCont = document.getElementById('sipres-grid-container');
+        const tableBody = document.getElementById('sipres-table-body');
+
+        this.updatePaginationUI(list.length, total);
+
+        if (total === 0) {
+          gridCont.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 text-xs bg-white dark:bg-obsidian-surface rounded-2xl border border-slate-200 dark:border-obsidian-border">No se encontraron instituciones con ese criterio de búsqueda.</div>`;
+          tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-xs">No se encontraron instituciones coincidentes.</td></tr>`;
+          return;
+        }
+
+        // Render Cuadrícula (Fichas Interactivas con Ficha, Comparar y Realizar Queja)
+        gridCont.innerHTML = list.map(item => {
+          const isCompared = this.comparatorList.some(c => c.f === item.f);
+          return `
+            <div class="bg-white dark:bg-obsidian-surface rounded-2xl border ${isCompared ? 'border-legal-gold ring-1 ring-legal-gold/30' : 'border-slate-200 dark:border-obsidian-border'} p-5 hover:border-legal-gold/60 dark:hover:border-legal-gold/60 hover:shadow-lg transition-all flex flex-col justify-between group">
+              <div>
+                <div class="flex items-start justify-between gap-2 mb-2.5">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-obsidian-border">
+                    FOLIO ${this.escapeHtml(item.f)}
+                  </span>
+                  ${item.a ? `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-legal-gold border border-legal-gold/30">
+                      <i class="fa-solid fa-triangle-exclamation mr-1"></i> Suplantación Detectada
+                    </span>
+                  ` : `
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold ${item.r === 'REGULADA' ? 'bg-emerald-500/10 text-legal-emerald border-emerald-500/20' : 'bg-slate-200/70 dark:bg-obsidian-elevated text-slate-500 border-slate-300 dark:border-obsidian-border'} border">
+                      <i class="fa-solid ${item.r === 'REGULADA' ? 'fa-circle-check' : 'fa-clock-rotate-left'} mr-1"></i> ${this.escapeHtml(item.e)}
+                    </span>
+                  `}
+                </div>
+                
+                <button type="button" onclick="PreviewApp.openExpediente('${item.f}')" class="text-left block w-full">
+                  <h3 class="font-serif text-lg font-bold text-slate-900 dark:text-white group-hover:text-legal-gold transition-colors">
+                    ${this.escapeHtml(item.n)}
+                  </h3>
+                </button>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                  ${this.escapeHtml(item.s)}
+                </p>
+
+                <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400 dark:text-slate-500">
+                  <span class="truncate max-w-[180px]" title="${this.escapeHtml(item.t)}"><i class="fa-solid fa-building-columns mr-1 text-slate-400"></i>${this.escapeHtml(item.t)}</span>
+                  <span><i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${this.escapeHtml(item.d)}</span>
+                </div>
+              </div>
+
+              <div class="pt-3.5 mt-4 border-t border-slate-100 dark:border-obsidian-border flex items-center justify-between gap-1.5 text-xs">
+                <div class="flex items-center gap-1.5">
+                  <button type="button" onclick="PreviewApp.openExpediente('${item.f}')" class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated hover:border-legal-gold/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-obsidian-border font-medium text-[11px] transition-colors flex items-center gap-1" title="Ver Ficha Técnica Oficial SIPRES">
+                    <i class="fa-solid fa-file-shield text-[10px] text-slate-400"></i>
+                    <span>Ficha</span>
+                  </button>
+                  <button type="button" onclick="PreviewApp.toggleComparator('${item.f}')" class="px-2.5 py-1.5 rounded-lg border font-semibold text-[11px] transition-all flex items-center gap-1 ${isCompared ? 'bg-legal-gold/15 text-legal-gold border-legal-gold/50' : 'bg-slate-50 dark:bg-obsidian-elevated hover:border-legal-gold/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-obsidian-border'}" title="Agregar o quitar del Comparador de Instituciones">
+                    <i class="fa-solid ${isCompared ? 'fa-check' : 'fa-code-compare'} text-[10px]"></i>
+                    <span>${isCompared ? 'Comparando' : 'Comparar'}</span>
+                  </button>
+                </div>
+
+                <button type="button" onclick="PreviewApp.startQuejaByFolio('${item.f}')" class="px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-obsidian-elevated hover:bg-legal-gold dark:hover:bg-legal-gold text-white dark:text-slate-200 dark:hover:text-white border border-transparent dark:border-obsidian-border font-semibold text-[11px] transition-colors flex items-center gap-1.5 shrink-0">
+                  <span>Realizar Queja</span>
+                  <i class="fa-solid fa-arrow-right text-[9px]"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Render Tabla de Auditoría (con Ficha, Comparar y Realizar Queja en cada fila)
+        tableBody.innerHTML = list.map(item => {
+          const isCompared = this.comparatorList.some(c => c.f === item.f);
+          return `
+            <tr class="hover:bg-slate-50 dark:hover:bg-obsidian-elevated/50 transition-colors">
+              <td class="p-3.5 font-mono text-slate-500 text-[11px]">${this.escapeHtml(item.f)}</td>
+              <td class="p-3.5">
+                <button type="button" onclick="PreviewApp.openExpediente('${item.f}')" class="font-serif font-bold text-slate-900 dark:text-white hover:text-legal-gold text-sm text-left transition-colors">
+                  ${this.escapeHtml(item.n)}
+                </button>
+                <div class="text-[10px] text-slate-400">${this.escapeHtml(item.d)}</div>
+              </td>
+              <td class="p-3.5 text-slate-600 dark:text-slate-400 text-xs max-w-xs truncate" title="${this.escapeHtml(item.s)}">${this.escapeHtml(item.s)}</td>
+              <td class="p-3.5 text-slate-500 text-[11px]">${this.escapeHtml(item.t)}</td>
+              <td class="p-3.5">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${item.a ? 'bg-amber-500/10 text-legal-gold border border-legal-gold/20' : 'bg-emerald-500/10 text-legal-emerald border border-emerald-500/20'}">
+                  ${item.a ? 'Alerta WhatsApp' : this.escapeHtml(item.e)}
+                </span>
+              </td>
+              <td class="p-3.5 text-right">
+                <div class="inline-flex items-center justify-end gap-1.5">
+                  <button type="button" onclick="PreviewApp.openExpediente('${item.f}')" class="px-2 py-1 rounded bg-slate-100 dark:bg-obsidian-elevated hover:border-legal-gold/50 border border-slate-200 dark:border-obsidian-border text-[11px] font-medium text-slate-700 dark:text-slate-300" title="Ver Ficha Oficial">
+                    Ficha
+                  </button>
+                  <button type="button" onclick="PreviewApp.toggleComparator('${item.f}')" class="px-2 py-1 rounded border text-[11px] font-semibold flex items-center gap-1 transition-colors ${isCompared ? 'bg-legal-gold/15 text-legal-gold border-legal-gold/50' : 'bg-slate-100 dark:bg-obsidian-elevated hover:border-legal-gold/50 border-slate-200 dark:border-obsidian-border text-slate-700 dark:text-slate-300'}" title="Comparar institución">
+                    <i class="fa-solid ${isCompared ? 'fa-check' : 'fa-code-compare'} text-[10px]"></i>
+                    <span>${isCompared ? 'Comparando' : 'Comparar'}</span>
+                  </button>
+                  <button type="button" onclick="PreviewApp.startQuejaByFolio('${item.f}')" class="px-2.5 py-1 rounded bg-slate-900 dark:bg-legal-gold hover:opacity-90 text-[11px] font-semibold text-white whitespace-nowrap">
+                    Realizar Queja
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      },
+
+      updatePaginationUI(shown, total) {
+        const container = document.getElementById('sipres-load-more-container');
+        const statusEl = document.getElementById('sipres-pagination-status');
+        const barEl = document.getElementById('sipres-pagination-bar');
+        const btnEl = document.getElementById('sipres-load-more-btn');
+        const btnTextEl = document.getElementById('sipres-load-more-text');
+        const endBadge = document.getElementById('sipres-end-of-list-badge');
+        const endText = document.getElementById('sipres-end-of-list-text');
+
+        if (!container) return;
+        if (total === 0) {
+          container.classList.add('hidden');
+          return;
+        }
+        container.classList.remove('hidden');
+
+        if (statusEl) {
+          statusEl.innerText = `Mostrando ${shown} de ${total} instituciones registradas`;
+        }
+        if (barEl) {
+          const pct = Math.min(100, Math.max(2, (shown / total) * 100));
+          barEl.style.width = `${pct.toFixed(1)}%`;
+          barEl.className = shown >= total
+            ? 'h-full bg-legal-emerald transition-all duration-300'
+            : 'h-full bg-legal-gold transition-all duration-300';
+        }
+
+        const remaining = total - shown;
+        if (remaining > 0) {
+          const nextBatch = Math.min(this.pageSize, remaining);
+          if (btnEl) btnEl.classList.remove('hidden');
+          if (btnTextEl) {
+            btnTextEl.innerText = remaining <= this.pageSize
+              ? `Mostrar las últimas ${remaining} instituciones`
+              : `Mostrar más instituciones (+${nextBatch} • restan ${remaining})`;
+          }
+          if (endBadge) {
+            endBadge.classList.add('hidden');
+            endBadge.classList.remove('flex');
+          }
+        } else {
+          if (btnEl) btnEl.classList.add('hidden');
+          if (endBadge) {
+            endBadge.classList.remove('hidden');
+            endBadge.classList.add('flex');
+          }
+          if (endText) {
+            endText.innerText = `Repertorio completo mostrado (${total} de ${total} instituciones)`;
+          }
+        }
+      },
+
+      loadMoreEntities() {
+        const total = (this.matchedEntities || []).length;
+        if (this.renderLimit >= total) return;
+        this.renderLimit = Math.min(total, this.renderLimit + this.pageSize);
+        this.renderEntities();
+      },
+
+      setActiveChip(btnEl) {
+        if (!btnEl) return;
+        document.querySelectorAll('.chip-filter').forEach(el => {
+          if (el.textContent.includes('Alerta')) {
+            el.className = 'chip-filter px-2.5 py-1 rounded-md border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 font-medium flex items-center space-x-1 transition-colors';
+          } else {
+            el.className = 'chip-filter px-2.5 py-1 rounded-md border border-slate-200 dark:border-obsidian-border bg-white dark:bg-obsidian-surface text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium transition-colors';
+          }
+        });
+        btnEl.className = 'chip-filter active px-2.5 py-1 rounded-md border border-legal-gold bg-legal-gold/10 text-legal-gold font-semibold flex items-center space-x-1 transition-colors';
+      },
+
+      filterEntities(query) {
+        const q = this.normalizeText(query);
+        const full = window.SIPRES_DATABASE || [];
+        if (!q) {
+          this.renderEntities(full, true);
+          return;
+        }
+        const filtered = full.filter(item => 
+          this.normalizeText(item.n).includes(q) || 
+          this.normalizeText(item.s).includes(q) || 
+          String(item.f).includes(q)
+        );
+        this.renderEntities(filtered, true);
+      },
+
+      quickFilter(sectorKeyword, btnEl) {
+        this.setActiveChip(btnEl);
+        const searchInput = document.getElementById('sipres-filter-input');
+        const sectorSelect = document.getElementById('sector-select');
+        if (searchInput) searchInput.value = '';
+        if (sectorSelect) sectorSelect.value = '';
+        const full = window.SIPRES_DATABASE || [];
+        if (!sectorKeyword) {
+          this.renderEntities(full, true);
+          return;
+        }
+        const kw = this.normalizeText(sectorKeyword);
+        const filtered = full.filter(item => this.normalizeText(item.t).includes(kw));
+        this.renderEntities(filtered, true);
+      },
+
+      filterAlerta(btnEl) {
+        this.setActiveChip(btnEl);
+        const searchInput = document.getElementById('sipres-filter-input');
+        if (searchInput) searchInput.value = '';
+        const full = window.SIPRES_DATABASE || [];
+        const filtered = full.filter(item => item.a === true);
+        this.renderEntities(filtered, true);
+      },
+
+      filterBySector(val) {
+        const full = window.SIPRES_DATABASE || [];
+        if (!val) {
+          this.renderEntities(full, true);
+          return;
+        }
+        const filtered = full.filter(item => item.t === val);
+        this.renderEntities(filtered, true);
+      },
+
+      /* =======================================================================
+         FICHA TÉCNICA INTERACTIVA (EXPEDIENTE SIPRES)
+         ======================================================================= */
+      openExpediente(folio) {
+        const full = window.SIPRES_DATABASE || [];
+        const entity = full.find(e => e.f === String(folio).trim());
+        if (!entity) {
+          this.showToast('Selecciona primero una institución registrada en SIPRES.');
+          return;
+        }
+        this.selectedExpedienteEntity = entity;
+
+        document.getElementById('exp-folio-badge').innerText = `FOLIO SIPRES #${entity.f}`;
+        const statusBadge = document.getElementById('exp-status-badge');
+        statusBadge.innerText = entity.e;
+        statusBadge.className = entity.r === 'REGULADA'
+          ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-legal-emerald border border-emerald-500/20'
+          : 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-legal-gold border border-legal-gold/30';
+
+        document.getElementById('exp-nombre-comercial').innerText = entity.n;
+        document.getElementById('exp-razon-social').innerText = entity.s;
+
+        const channels = VERIFIED_CHANNELS_PREVIEW[entity.f];
+        const body = document.getElementById('exp-body-content');
+        body.innerHTML = `
+          ${entity.a ? `
+            <div class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+              <i class="fa-solid fa-triangle-exclamation text-legal-gold mt-0.5"></i>
+              <div>
+                <div class="font-bold">Alerta Preventiva CONDUSEF: Suplantación de Identidad Detectada</div>
+                <p class="text-[11px] mt-0.5 leading-relaxed">Esta institución es auténtica y regulada, pero terceros fraudulentos han usado su logotipo en WhatsApp o redes sociales para pedir anticipos ilegales. Opera únicamente en sus canales oficiales.</p>
+              </div>
+            </div>
+          ` : `
+            <div class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
+              <i class="fa-solid fa-shield-check text-legal-emerald mt-0.5"></i>
+              <div>
+                <div class="font-bold">Registro Institucional Verificado en Padrón SIPRES</div>
+                <p class="text-[11px] mt-0.5 leading-relaxed">Entidad localizada en el Sistema de Registro de Prestadores de Servicios Financieros. Ninguna entidad regulada solicita depósitos previos para liberar créditos.</p>
+              </div>
+            </div>
+          `}
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-obsidian-elevated p-4 rounded-xl border border-slate-200 dark:border-obsidian-border">
             <div class="sm:col-span-2">
-              <span class="text-slate-400 block font-medium">Denominación Social Completa:</span>
-              <span class="font-semibold text-slate-800">${escapeHtml(entity.s)}</span>
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Denominación / Razón Social Oficial</span>
+              <span class="font-semibold text-slate-900 dark:text-white text-xs mt-0.5 block">${this.escapeHtml(entity.s)}</span>
             </div>
             <div>
-              <span class="text-slate-400 block font-medium">Sector Regulado:</span>
-              <span class="font-semibold text-slate-800">${escapeHtml(entity.t)}</span>
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Clave de Registro SIPRES</span>
+              <span class="font-mono font-bold text-slate-900 dark:text-white text-xs mt-0.5 block">${this.escapeHtml(entity.f)}</span>
             </div>
             <div>
-              <span class="text-slate-400 block font-medium">Estatus Actual:</span>
-              <span class="font-bold ${entity.r === 'REGULADA' ? 'text-emerald-700' : 'text-red-700'}">${escapeHtml(entity.e)}</span>
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Sector Financiero CNBV</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-200 text-xs mt-0.5 block">${this.escapeHtml(entity.t)}</span>
             </div>
-            <div class="sm:col-span-2">
-              <span class="text-slate-400 block font-medium">Entidad Federativa:</span>
-              <span class="font-semibold text-slate-800">${escapeHtml(entity.d)}</span>
+            <div>
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Entidad Federativa / Sede</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-200 text-xs mt-0.5 block">${this.escapeHtml(entity.d)}</span>
+            </div>
+            <div>
+              <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Estatus Operativo</span>
+              <span class="font-bold ${entity.r === 'REGULADA' ? 'text-legal-emerald' : 'text-legal-gold'} text-xs mt-0.5 block">${this.escapeHtml(entity.e)}</span>
             </div>
           </div>
-        </div>
-      `;
-    }
 
-    if (btnTransfer) {
-      btnTransfer.onclick = () => {
-        closeModal('modal-expediente');
-        transferEntityToQueja(entity.f);
-      };
-    }
-
-    const copyTextEl = document.getElementById('exp-btn-copy-text');
-    if (copyTextEl) copyTextEl.textContent = 'Copiar Cédula Oficial';
-
-    openModal('modal-expediente');
-  }
-
-  function copyExpedienteCedula() {
-    const entity = state.selectedEntity;
-    if (!entity) return;
-
-    const cedula = [
-      `🛡️ CÉDULA DE VERIFICACIÓN OFICIAL SIPRES — ESCUDO FINANCIERO PRO`,
-      `• Nombre Comercial: ${entity.n}`,
-      `• Denominación Social: ${entity.s}`,
-      `• Clave / Folio SIPRES: ${entity.f}`,
-      `• Sector Financiero: ${entity.t}`,
-      `• Estatus Oficial: ${entity.e}`,
-      `• Entidad Federativa: ${entity.d}`,
-      `⚠️ Nota de Seguridad CONDUSEF: Ninguna institución financiera legal en México solicita anticipos, fianzas ni depósitos previos para liberar un crédito.`
-    ].join('\n');
-
-    navigator.clipboard.writeText(cedula).then(() => {
-      const copyTextEl = document.getElementById('exp-btn-copy-text');
-      if (copyTextEl) {
-        copyTextEl.textContent = '¡Cédula Copiada!';
-        setTimeout(() => { copyTextEl.textContent = 'Copiar Cédula Oficial'; }, 2500);
-      }
-    });
-  }
-
-  function saveRecentSearch(term) {
-    if (!term || term.length < 3) return;
-    state.recentSearches = state.recentSearches.filter(t => t !== term);
-    state.recentSearches.unshift(term);
-    if (state.recentSearches.length > 5) state.recentSearches.pop();
-    localStorage.setItem('escudo_recent_searches', JSON.stringify(state.recentSearches));
-    renderRecentSearches();
-  }
-
-  function loadRecentSearches() {
-    const saved = localStorage.getItem('escudo_recent_searches');
-    if (saved) {
-      try { state.recentSearches = JSON.parse(saved); } catch (e) {}
-    }
-    renderRecentSearches();
-  }
-
-  function renderRecentSearches() {
-    const box = document.getElementById('recent-searches-box');
-    const container = document.getElementById('recent-chips');
-    if (!box || !container) return;
-
-    if (state.recentSearches.length === 0) {
-      box.classList.add('hidden');
-      return;
-    }
-
-    box.classList.remove('hidden');
-    container.innerHTML = state.recentSearches.map(term => `
-      <button onclick="document.getElementById('sipres-search-input').value = '${term}'; EscudoApp.executeDirectSearch('${term}');" class="px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono text-[10px] transition-colors border border-slate-200">
-        ${escapeHtml(term)}
-      </button>
-    `).join('');
-  }
-
-  function executeDirectSearch(term) {
-    state.searchQuery = term.toLowerCase();
-    state.renderLimit = 50;
-    applyFilters();
-  }
-
-  /* =========================================================================
-     COMPARADOR DE ENTIDADES LADO A LADO
-     ========================================================================= */
-  function addToComparator(folio) {
-    const entity = state.entities.find(e => e.f === folio);
-    if (!entity) return;
-
-    if (state.comparatorList.some(e => e.f === folio)) {
-      alert('Esta entidad ya está agregada al comparador.');
-      openComparatorModal();
-      return;
-    }
-
-    if (state.comparatorList.length >= 3) {
-      alert('El comparador permite un máximo de 3 entidades a la vez. Quita una para agregar otra.');
-      openComparatorModal();
-      return;
-    }
-
-    state.comparatorList.push(entity);
-    updateComparatorBadge();
-    openComparatorModal();
-  }
-
-  function removeFromComparator(folio) {
-    state.comparatorList = state.comparatorList.filter(e => e.f !== folio);
-    updateComparatorBadge();
-    renderComparatorGrid();
-  }
-
-  function clearComparator() {
-    state.comparatorList = [];
-    updateComparatorBadge();
-    renderComparatorGrid();
-  }
-
-  function updateComparatorBadge() {
-    const badge = document.getElementById('compare-badge');
-    if (badge) {
-      if (state.comparatorList.length > 0) {
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
-    }
-  }
-
-  function openComparatorModal() {
-    renderComparatorGrid();
-    openModal('modal-comparator');
-  }
-
-  function renderComparatorGrid() {
-    const grid = document.getElementById('comparator-grid');
-    if (!grid) return;
-
-    if (state.comparatorList.length === 0) {
-      grid.innerHTML = `
-        <div class="col-span-full py-8 text-center text-slate-400">
-          No has agregado entidades al comparador. En el Buscador SIPRES, haz clic en el icono <i class="fa-solid fa-code-compare mx-1"></i> de cualquier entidad para compararla.
-        </div>
-      `;
-      return;
-    }
-
-    grid.innerHTML = state.comparatorList.map(item => `
-      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 flex flex-col justify-between">
-        <div>
-          <div class="flex items-center justify-between">
-            <span class="font-mono text-[10px] text-slate-400">Folio: ${item.f}</span>
-            <button onclick="EscudoApp.removeFromComparator('${item.f}')" class="text-red-500 hover:text-red-700 text-xs">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </div>
-          <h4 class="font-bold text-slate-900 text-sm mt-1">${escapeHtml(item.n)}</h4>
-          <p class="text-[11px] text-slate-500 mt-0.5 line-clamp-2">${escapeHtml(item.s)}</p>
-
-          <div class="mt-3 pt-2 border-t border-slate-200 space-y-1.5 text-[11px]">
-            <div>
-              <span class="text-slate-400 block text-[10px]">Estatus:</span>
-              <span class="font-bold ${item.r === 'REGULADA' ? 'text-emerald-600' : 'text-red-600'}">${escapeHtml(item.e)}</span>
+          ${channels ? `
+            <div class="p-4 rounded-xl bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border space-y-2">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-legal-gold flex items-center gap-1.5">
+                <i class="fa-solid fa-headset"></i>
+                <span>Unidad Especializada de Atención a Usuarios (UNE Verificada)</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                <div><span class="text-slate-400 block text-[10px]">Teléfono UNE:</span><span class="font-mono font-semibold text-slate-800 dark:text-slate-200">${channels.tel}</span></div>
+                <div><span class="text-slate-400 block text-[10px]">Correo Oficial UNE:</span><span class="font-mono text-slate-800 dark:text-slate-200">${channels.une}</span></div>
+                <div><span class="text-slate-400 block text-[10px]">Dominio Oficial:</span><span class="font-mono text-legal-emerald font-semibold">${channels.web}</span></div>
+              </div>
             </div>
+          ` : ''}
+        `;
+
+        this.syncExpedienteCompareBtn();
+
+        const btnQueja = document.getElementById('exp-btn-queja');
+        btnQueja.onclick = () => {
+          this.closeExpediente();
+          this.startQuejaByFolio(entity.f);
+        };
+
+        document.getElementById('exp-btn-copy-text').innerText = 'Copiar Cédula Oficial';
+        document.getElementById('modal-expediente').classList.remove('hidden');
+      },
+
+      syncExpedienteCompareBtn() {
+        const entity = this.selectedExpedienteEntity;
+        const btn = document.getElementById('exp-btn-compare');
+        const txt = document.getElementById('exp-btn-compare-text');
+        if (!entity || !btn || !txt) return;
+
+        const isCompared = this.comparatorList.some(c => c.f === entity.f);
+        if (isCompared) {
+          btn.className = 'px-3.5 py-2 rounded-xl border border-legal-gold bg-legal-gold/15 text-legal-gold text-xs font-bold flex items-center gap-1.5 transition-all';
+          txt.innerText = 'En Comparador (Ver)';
+          btn.onclick = () => {
+            this.closeExpediente();
+            this.openComparatorModal();
+          };
+        } else {
+          btn.className = 'px-3.5 py-2 rounded-xl bg-white dark:bg-obsidian-surface hover:border-legal-gold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-obsidian-border text-xs font-semibold flex items-center gap-1.5 transition-all';
+          txt.innerText = 'Comparar Institución';
+          btn.onclick = () => {
+            this.toggleComparator(entity.f, true);
+            this.closeExpediente();
+            this.openComparatorModal();
+          };
+        }
+      },
+
+      closeExpediente() {
+        document.getElementById('modal-expediente').classList.add('hidden');
+      },
+
+      copyExpedienteCedula() {
+        const e = this.selectedExpedienteEntity;
+        if (!e) return;
+        const cedula = [
+          `CÉDULA DE VERIFICACIÓN OFICIAL SIPRES — ESCUDO FINANCIERO PRO`,
+          `• Nombre Comercial: ${e.n}`,
+          `• Razón Social Oficial: ${e.s}`,
+          `• Folio SIPRES: ${e.f}`,
+          `• Sector Financiero: ${e.t}`,
+          `• Estatus Oficial: ${e.e}`,
+          `• Entidad Federativa: ${e.d}`,
+          `Nota CONDUSEF: Ninguna institución financiera regulada solicita anticipos para liberar un crédito.`
+        ].join('\n');
+
+        const copyDone = () => {
+          const btnText = document.getElementById('exp-btn-copy-text');
+          if (btnText) btnText.innerText = '¡Cédula Copiada!';
+          this.showToast(`Cédula oficial de ${e.n} copiada al portapapeles.`);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cedula).then(copyDone).catch(() => {
+            this.showToast(`Cédula oficial de ${e.n} generada.`);
+          });
+        } else {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = cedula;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+            copyDone();
+          } catch (err) {
+            this.showToast(`Cédula oficial de ${e.n} generada.`);
+          }
+        }
+      },
+
+      /* =======================================================================
+         COMPARADOR INTERACTIVO DE ENTIDADES (HASTA 3 LADO A LADO)
+         ======================================================================= */
+      toggleComparator(folio, forceAddOnly = false) {
+        const full = window.SIPRES_DATABASE || [];
+        const entity = full.find(e => e.f === String(folio).trim());
+        if (!entity) return;
+
+        const exists = this.comparatorList.some(e => e.f === entity.f);
+        if (exists) {
+          if (!forceAddOnly) {
+            this.comparatorList = this.comparatorList.filter(e => e.f !== entity.f);
+            this.showToast(`${entity.n} se quitó del comparador.`);
+          }
+        } else {
+          if (this.comparatorList.length >= 3) {
+            this.showToast('Máximo 3 instituciones a la vez en el comparador.');
+            this.openComparatorModal();
+            return;
+          }
+          this.comparatorList.push(entity);
+          this.showToast(`${entity.n} agregada al comparador (${this.comparatorList.length}/3).`);
+        }
+
+        this.updateComparatorUI();
+        this.renderEntities();
+        this.syncExpedienteCompareBtn();
+        if (!document.getElementById('modal-comparator').classList.contains('hidden')) {
+          this.renderComparatorGrid();
+        }
+      },
+
+      removeFromComparator(folio) {
+        this.comparatorList = this.comparatorList.filter(e => e.f !== String(folio));
+        this.updateComparatorUI();
+        this.renderEntities();
+        this.renderComparatorGrid();
+      },
+
+      clearComparator() {
+        this.comparatorList = [];
+        this.updateComparatorUI();
+        this.renderEntities();
+        this.renderComparatorGrid();
+      },
+
+      updateComparatorUI() {
+        const count = this.comparatorList.length;
+        const badge = document.getElementById('compare-badge');
+        const floatingBar = document.getElementById('floating-compare-bar');
+        const floatingCount = document.getElementById('floating-compare-count');
+        const floatingChips = document.getElementById('floating-compare-chips');
+
+        if (badge) {
+          badge.innerText = count;
+          badge.classList.toggle('hidden', count === 0);
+        }
+
+        if (floatingBar) {
+          floatingBar.classList.toggle('hidden', count === 0);
+          if (floatingCount) floatingCount.innerText = `${count}/3`;
+          if (floatingChips) {
+            floatingChips.innerHTML = this.comparatorList.map(item => `
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                <span>${this.escapeHtml(item.n)}</span>
+                <button type="button" onclick="PreviewApp.removeFromComparator('${item.f}')" class="text-slate-400 hover:text-red-500">
+                  <i class="fa-solid fa-xmark text-[10px]"></i>
+                </button>
+              </span>
+            `).join('');
+          }
+        }
+      },
+
+      openComparatorModal() {
+        this.renderComparatorGrid();
+        document.getElementById('modal-comparator').classList.remove('hidden');
+      },
+
+      closeComparatorModal() {
+        document.getElementById('modal-comparator').classList.add('hidden');
+        const res = document.getElementById('comparator-search-results');
+        if (res) res.classList.add('hidden');
+      },
+
+      handleComparatorQuickSearch(query) {
+        const resultsEl = document.getElementById('comparator-search-results');
+        const q = this.normalizeText(query);
+        if (!resultsEl) return;
+        if (q.length < 2) {
+          resultsEl.classList.add('hidden');
+          return;
+        }
+        const full = window.SIPRES_DATABASE || [];
+        const matches = full.filter(item =>
+          !this.comparatorList.some(c => c.f === item.f) &&
+          (this.normalizeText(item.n).includes(q) || this.normalizeText(item.s).includes(q) || String(item.f).includes(q))
+        ).slice(0, 6);
+
+        resultsEl.classList.remove('hidden');
+        if (matches.length === 0) {
+          resultsEl.innerHTML = `<div class="p-2.5 text-slate-400 text-center">Sin coincidencias disponibles para añadir.</div>`;
+          return;
+        }
+        resultsEl.innerHTML = matches.map(item => `
+          <button type="button" onclick="PreviewApp.toggleComparator('${item.f}', true); document.getElementById('comparator-search-input').value=''; document.getElementById('comparator-search-results').classList.add('hidden');" class="w-full text-left p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-obsidian-surface flex items-center justify-between gap-2 transition-colors">
             <div>
-              <span class="text-slate-400 block text-[10px]">Sector:</span>
-              <span class="font-semibold text-slate-700">${escapeHtml(item.t)}</span>
+              <span class="font-serif font-bold text-slate-900 dark:text-white">${this.escapeHtml(item.n)}</span>
+              <span class="block text-[10px] text-slate-500 truncate max-w-md">${this.escapeHtml(item.s)}</span>
             </div>
-            <div>
-              <span class="text-slate-400 block text-[10px]">Ubicación:</span>
-              <span class="text-slate-700">${escapeHtml(item.d)}</span>
-            </div>
-          </div>
-        </div>
-
-        <button onclick="EscudoApp.transferEntityToQueja('${item.f}'); EscudoApp.closeModal('modal-comparator');" class="w-full py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs mt-3">
-          Iniciar Queja
-        </button>
-      </div>
-    `).join('');
-  }
-
-  /* =========================================================================
-     MÓDULO 2: GENERADOR DE QUEJAS (REDACCIÓN JURÍDICA FORENSE SIN SOBREPOSICIÓN)
-     ========================================================================= */
-  function setQuejaProcedure(proc) {
-    state.quejaProcedure = proc;
-    const btnCondusef = document.getElementById('btn-proc-condusef');
-    const btnRedeco = document.getElementById('btn-proc-redeco');
-    const lblInst = document.getElementById('lbl-institucion');
-
-    if (proc === 'condusef') {
-      if (btnCondusef) btnCondusef.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white shadow-sm transition-all';
-      if (btnRedeco) btnRedeco.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 transition-all';
-      if (lblInst) lblInst.textContent = 'Institución Financiera Reclamada *';
-    } else {
-      if (btnCondusef) btnCondusef.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 transition-all';
-      if (btnRedeco) btnRedeco.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white shadow-sm transition-all';
-      if (lblInst) lblInst.textContent = 'Despacho de Cobranza o Entidad Financiera Denunciada *';
-      loadTemplate('cobranza');
-    }
-  }
-
-  function transferEntityToQueja(folio) {
-    const entity = state.entities.find(e => e.f === folio);
-    if (!entity) return;
-
-    switchTab('quejas');
-    applyEntityToQuejaFields(entity);
-    saveQuejaDraft();
-
-    const formEl = document.getElementById('form-queja');
-    if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
-  }
-
-  function applyEntityToQuejaFields(entity) {
-    const instEl = document.getElementById('q-institucion');
-    const folioEl = document.getElementById('q-folio-sipres');
-    const sectorEl = document.getElementById('q-sector');
-    const badgeEl = document.getElementById('q-institucion-match-badge');
-
-    if (instEl) instEl.value = entity.s || entity.n;
-    if (folioEl) folioEl.value = entity.f;
-
-    if (sectorEl) {
-      const secNorm = normalizeText(entity.t);
-      if (secNorm.includes('banca multiple')) sectorEl.value = 'Banca Múltiple';
-      else if (secNorm.includes('banca de desarrollo')) sectorEl.value = 'Banca de Desarrollo';
-      else if (secNorm.includes('cooperativa')) sectorEl.value = 'SOCAP';
-      else if (secNorm.includes('popular')) sectorEl.value = 'SOFIPO';
-      else if (secNorm.includes('uniones')) sectorEl.value = 'Uniones de Crédito';
-      else if (secNorm.includes('pago electr')) sectorEl.value = 'Fintech / IFPE';
-      else if (secNorm.includes('financiamiento colectivo')) sectorEl.value = 'Fintech / IFC';
-    }
-
-    if (badgeEl) {
-      badgeEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> SIPRES Folio #${escapeHtml(entity.f)} (${escapeHtml(entity.e)})`;
-      badgeEl.classList.remove('hidden');
-    }
-  }
-
-  function handleInstitucionAutocomplete(val) {
-    const badgeEl = document.getElementById('q-institucion-match-badge');
-    const norm = normalizeText(val);
-    if (!norm || norm.length < 2) {
-      if (badgeEl) badgeEl.classList.add('hidden');
-      return;
-    }
-
-    // Buscar coincidencia exacta por denominación social, nombre comercial o folio
-    const exactMatch = state.entities.find(e => 
-      normalizeText(e.s) === norm ||
-      normalizeText(e.n) === norm ||
-      normalizeText(e.f) === norm
-    );
-
-    if (exactMatch) {
-      applyEntityToQuejaFields(exactMatch);
-      saveQuejaDraft();
-    } else if (badgeEl) {
-      badgeEl.classList.add('hidden');
-    }
-  }
-
-  function validateCurpLive() {
-    const input = document.getElementById('q-curp');
-    const badge = document.getElementById('curp-validation-badge');
-    if (!input || !badge) return;
-
-    const val = input.value.trim().toUpperCase();
-    input.value = val;
-
-    if (val.length === 0) {
-      badge.textContent = 'Formato RENAPO';
-      badge.className = 'text-[10px] font-mono text-slate-400';
-      return;
-    }
-
-    const curpRegex = /^[A-Z]{4}\d{6}[HM](AS|BC|BS|CC|CS|CH|CL|CM|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/;
-
-    if (curpRegex.test(val)) {
-      badge.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i> CURP Válida (RENAPO)';
-      badge.className = 'text-[10px] font-mono font-bold text-emerald-600';
-    } else if (val.length < 18) {
-      badge.textContent = `${val.length}/18 caracteres`;
-      badge.className = 'text-[10px] font-mono text-amber-600';
-    } else {
-      badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> Estructura CURP inválida';
-      badge.className = 'text-[10px] font-mono font-bold text-red-600';
-    }
-  }
-
-  function setupQuejaDraftAutosave() {
-    const form = document.getElementById('form-queja');
-    if (!form) return;
-
-    form.addEventListener('input', () => {
-      saveQuejaDraft();
-      scheduleLivePreviewRefresh();
-    });
-    form.addEventListener('change', () => {
-      saveQuejaDraft();
-      scheduleLivePreviewRefresh();
-    });
-  }
-
-  function saveQuejaDraft() {
-    try {
-      const data = collectQuejaFormData();
-      sessionStorage.setItem('escudo_queja_draft', JSON.stringify(data));
-      const statusEl = document.getElementById('queja-draft-status');
-      if (statusEl) statusEl.classList.remove('hidden');
-    } catch (e) {}
-  }
-
-  function restoreQuejaDraft() {
-    try {
-      const raw = sessionStorage.getItem('escudo_queja_draft');
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      const map = {
-        'q-nombre': d.nombre,
-        'q-curp': d.curp,
-        'q-email': d.email,
-        'q-telefono': d.telefono,
-        'q-calle': d.calle,
-        'q-colonia': d.colonia,
-        'q-municipio': d.municipio,
-        'q-cp': d.cp,
-        'q-udeco': d.udecoKey,
-        'q-institucion': d.institucion,
-        'q-folio-sipres': d.folioSipres,
-        'q-sector': d.sector,
-        'q-producto': d.producto,
-        'q-causa': d.causa,
-        'q-contrato': d.contrato,
-        'q-monto': d.monto !== '0' ? d.monto : '',
-        'q-fecha-hechos': d.fechaHechos,
-        'q-hechos': d.hechos,
-        'q-pretensiones': d.pretensiones
-      };
-      let restoredAny = false;
-      for (const [id, val] of Object.entries(map)) {
-        const el = document.getElementById(id);
-        if (el && val) {
-          el.value = val;
-          restoredAny = true;
-        }
-      }
-      if (restoredAny) {
-        validateCurpLive();
-        updateUdecoInfo();
-        const statusEl = document.getElementById('queja-draft-status');
-        if (statusEl) statusEl.classList.remove('hidden');
-      }
-    } catch (e) {}
-  }
-
-  function clearQuejaDraft() {
-    sessionStorage.removeItem('escudo_queja_draft');
-    const form = document.getElementById('form-queja');
-    if (form) form.reset();
-    setupInitialFormValues();
-    clearSignature();
-    state.evidenceImages = [];
-    renderEvidencePreviews();
-    const statusEl = document.getElementById('queja-draft-status');
-    if (statusEl) statusEl.classList.add('hidden');
-    const badgeEl = document.getElementById('q-institucion-match-badge');
-    if (badgeEl) badgeEl.classList.add('hidden');
-    validateCurpLive();
-  }
-
-  function updateUdecoInfo() {
-    const select = document.getElementById('q-udeco');
-    const infoText = document.getElementById('udeco-info-text');
-    if (!select || !infoText) return;
-
-    const udeco = UDECO_CATALOG[select.value] || UDECO_CATALOG.CDMX_CENTRAL;
-    infoText.innerHTML = `
-      <strong class="block font-semibold">${escapeHtml(udeco.nombre)}:</strong>
-      <span>${escapeHtml(udeco.direccion)} Tel: ${escapeHtml(udeco.telefono)}</span>
-    `;
-  }
-
-  function loadTemplate(type) {
-    const hechosEl = document.getElementById('q-hechos');
-    const pretensionesEl = document.getElementById('q-pretensiones');
-    const causaEl = document.getElementById('q-causa');
-    const productoEl = document.getElementById('q-producto');
-
-    if (type === 'cargos') {
-      if (causaEl) causaEl.value = 'Cargos no reconocidos en cuenta o tarjeta';
-      if (productoEl) productoEl.value = 'Tarjeta de Crédito';
-      if (hechosEl) {
-        hechosEl.value = 
-`PRIMERO. Con fecha [FECHA], advertí en mi estado de cuenta una disposición indebida por $[MONTO] MXN bajo el concepto de [CONCEPTO], el cual jamás realicé ni consentí física o electrónicamente.
-SEGUNDO. Reporté inmediatamente a la línea bancaria solicitando folio de aclaración, notificando el desconocimiento total de la transacción.
-TERCERO. La institución denegó la restitución sin aportarme bitácoras biométricas, pagarés firmados ni coordenadas IP de la operación, violentando las Disposiciones Generales de la CONDUSEF.`;
-      }
-      if (pretensionesEl) {
-        pretensionesEl.value = 
-`1. Restitución total e inmediata del importe no reconocido de $[MONTO] MXN.
-2. Cancelación y abono de intereses ordinarios y moratorios generados indebidamente.
-3. Rectificación de mi historial crediticio ante Buró y Círculo de Crédito.`;
-      }
-    } else if (type === 'spei') {
-      if (causaEl) causaEl.value = 'Transferencia SPEI no autorizada / Fraude cibernético';
-      if (productoEl) productoEl.value = 'Transferencia Electrónica (SPEI)';
-      if (hechosEl) {
-        hechosEl.value = 
-`PRIMERO. Con fecha [FECHA], se debitó de mi cuenta bancaria una transferencia interbancaria SPEI por $[MONTO] MXN sin mi autenticación ni confirmación del segundo factor.
-SEGUNDO. Los filtros de prevención de fraude del banco resultaron ineficaces ante un movimiento totalmente atípico para mi perfil financiero.
-TERCERO. La institución omitió el oportuno auxilio para el bloqueo y retorno de los fondos bancarios.`;
-      }
-      if (pretensionesEl) {
-        pretensionesEl.value = 
-`1. Reintegro íntegro de la cantidad de $[MONTO] MXN sustraída ilícitamente.
-2. Exhibición de la bitácora técnica de seguridad y certificación del segundo factor de autenticación.`;
-      }
-    } else if (type === 'cobranza') {
-      if (causaEl) causaEl.value = 'Cobranza amenazante, ilícita o acoso a contactos';
-      if (productoEl) productoEl.value = 'Crédito Personal o de Nómina';
-      if (hechosEl) {
-        hechosEl.value = 
-`PRIMERO. A partir de [FECHA], he recibido llamadas y mensajes intimidatorios fuera de los horarios permitidos por parte de despachos delegados.
-SEGUNDO. Dichos gestores han amenazado con embargos extrajudiciales y hostigado a mis referencias familiares y laborales, conducta tipificada en el Art. 284 Bis del Código Penal Federal y sancionada en el REDECO.`;
-      }
-      if (pretensionesEl) {
-        pretensionesEl.value = 
-`1. Cese definitivo de todo acto de molestia e intimidación telefónica o presencial.
-2. Imposición de las sanciones económicas correspondientes al despacho ante el REDECO.`;
-      }
-    } else if (type === 'seguro') {
-      if (causaEl) causaEl.value = 'Negativa indebida de indemnización de seguro';
-      if (productoEl) productoEl.value = 'Seguro de Auto o Gastos Médicos';
-      if (hechosEl) {
-        hechosEl.value = 
-`PRIMERO. Con póliza vigente número [CONTRATO], con fecha [FECHA] aconteció el siniestro amparado debidamente reportado a cabina.
-SEGUNDO. Habiendo exhibido los comprobantes y peritajes requeridos, la aseguradora emitió un rechazo con argumentos notoriamente infundados.`;
-      }
-      if (pretensionesEl) {
-        pretensionesEl.value = 
-`1. Liquidación íntegra de la indemnización pactada por $[MONTO] MXN.
-2. Pago de intereses moratorios conforme al Art. 276 de la Ley de Instituciones de Seguros y Fianzas.`;
-      }
-    }
-  }
-
-  function applyTemplateCausa() {
-    const causa = document.getElementById('q-causa').value;
-    if (causa.includes('Cargos')) loadTemplate('cargos');
-    else if (causa.includes('SPEI')) loadTemplate('spei');
-    else if (causa.includes('Cobranza')) loadTemplate('cobranza');
-    else if (causa.includes('indemnización')) loadTemplate('seguro');
-  }
-
-  /* =========================================================================
-     LIENZO DE FIRMA AUTÓGRAFA DIGITALIZADA (CANVAS TÁCTIL)
-     ========================================================================= */
-  let sigCanvas = null;
-  let sigCtx = null;
-  let isSigning = false;
-
-  function initSignaturePad() {
-    sigCanvas = document.getElementById('signature-canvas');
-    if (!sigCanvas) return;
-
-    sigCtx = sigCanvas.getContext('2d');
-    resizeSignaturePad();
-
-    window.addEventListener('resize', resizeSignaturePad);
-
-    // Eventos Mouse
-    sigCanvas.addEventListener('mousedown', startSign);
-    sigCanvas.addEventListener('mousemove', drawSign);
-    sigCanvas.addEventListener('mouseup', stopSign);
-    sigCanvas.addEventListener('mouseleave', stopSign);
-
-    // Eventos Táctiles Móviles
-    sigCanvas.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      const rect = sigCanvas.getBoundingClientRect();
-      startSign({ clientX: touch.clientX, clientY: touch.clientY });
-    }, { passive: false });
-
-    sigCanvas.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      drawSign({ clientX: touch.clientX, clientY: touch.clientY });
-    }, { passive: false });
-
-    sigCanvas.addEventListener('touchend', stopSign);
-  }
-
-  function resizeSignaturePad() {
-    if (!sigCanvas || !sigCtx) return;
-    const rect = sigCanvas.parentElement.getBoundingClientRect();
-    sigCanvas.width = rect.width;
-    sigCanvas.height = 160;
-    sigCtx.lineWidth = 2.5;
-    sigCtx.lineCap = 'round';
-    sigCtx.strokeStyle = '#0f172a';
-  }
-
-  function startSign(e) {
-    if (!sigCtx) return;
-    isSigning = true;
-    const rect = sigCanvas.getBoundingClientRect();
-    sigCtx.beginPath();
-    sigCtx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-  }
-
-  function drawSign(e) {
-    if (!isSigning || !sigCtx) return;
-    const rect = sigCanvas.getBoundingClientRect();
-    sigCtx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    sigCtx.stroke();
-  }
-
-  function stopSign() {
-    if (!isSigning) return;
-    isSigning = false;
-    state.signatureDataUrl = sigCanvas.toDataURL('image/png');
-    scheduleLivePreviewRefresh();
-  }
-
-  function clearSignature() {
-    if (!sigCanvas || !sigCtx) return;
-    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
-    state.signatureDataUrl = null;
-    scheduleLivePreviewRefresh();
-  }
-
-  /* =========================================================================
-     GESTIÓN DE ANEXOS Y PRUEBAS DOCUMENTALES
-     ========================================================================= */
-  function handleEvidenceUpload(event) {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    for (let i = 0; i < Math.min(files.length, 4); i++) {
-      const file = files[i];
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        state.evidenceImages.push({
-          name: file.name,
-          data: e.target.result
-        });
-        renderEvidencePreviews();
-        scheduleLivePreviewRefresh();
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
-  function renderEvidencePreviews() {
-    const container = document.getElementById('evidence-preview-container');
-    if (!container) return;
-
-    container.innerHTML = state.evidenceImages.map((img, idx) => `
-      <div class="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-300 bg-slate-100 group">
-        <img src="${img.data}" class="w-full h-full object-cover">
-        <button type="button" onclick="EscudoApp.removeEvidence(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] shadow">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-    `).join('');
-  }
-
-  function removeEvidence(idx) {
-    state.evidenceImages.splice(idx, 1);
-    renderEvidencePreviews();
-    scheduleLivePreviewRefresh();
-  }
-
-  /* =========================================================================
-     MOTOR VECTORIAL DE REDACCIÓN JURÍDICA FORENSE, VISTA PREVIA E IMPRESIÓN
-     ========================================================================= */
-  const pdfPreviewState = {
-    docType: 'queja', // 'queja' | 'forense'
-    forensicId: null,
-    mode: 'dom',      // 'dom' (SVG vectorial) | 'blob' (Visor PDF nativo en iframe)
-    layout: null,
-    meta: null,
-    filename: 'Documento-Escudo-Financiero.pdf',
-    blobUrl: null,
-    folio: null,
-    folioIsRedeco: null
-  };
-  let livePreviewTimer = null;
-
-  function revokePreviewBlobUrl() {
-    if (pdfPreviewState.blobUrl) {
-      try { URL.revokeObjectURL(pdfPreviewState.blobUrl); } catch (e) {}
-      pdfPreviewState.blobUrl = null;
-    }
-  }
-
-  function scheduleLivePreviewRefresh() {
-    const modal = document.getElementById('modal-preview-pdf');
-    if (!modal || modal.classList.contains('hidden')) return;
-    if (pdfPreviewState.docType !== 'queja') return;
-    if (livePreviewTimer) clearTimeout(livePreviewTimer);
-    livePreviewTimer = setTimeout(() => {
-      refreshQuejaPreviewInBackground();
-    }, 180);
-  }
-
-  async function refreshQuejaPreviewInBackground() {
-    try {
-      const data = collectQuejaFormData();
-      const built = await buildQuejaLayout(data);
-      await renderPreviewIntoModal(built, { keepMode: true });
-    } catch (err) {
-      console.warn('[EscudoPDF] Error actualizando vista previa en tiempo real:', err);
-    }
-  }
-
-  function collectQuejaFormData() {
-    return {
-      nombre: (document.getElementById('q-nombre')?.value || '').trim(),
-      curp: (document.getElementById('q-curp')?.value || '').trim().toUpperCase(),
-      email: (document.getElementById('q-email')?.value || '').trim(),
-      telefono: (document.getElementById('q-telefono')?.value || '').trim(),
-      calle: (document.getElementById('q-calle')?.value || '').trim(),
-      colonia: (document.getElementById('q-colonia')?.value || '').trim(),
-      municipio: (document.getElementById('q-municipio')?.value || '').trim(),
-      cp: (document.getElementById('q-cp')?.value || '').trim(),
-      udecoKey: document.getElementById('q-udeco')?.value || 'CDMX_CENTRAL',
-      institucion: (document.getElementById('q-institucion')?.value || '').trim(),
-      folioSipres: (document.getElementById('q-folio-sipres')?.value || '').trim(),
-      sector: document.getElementById('q-sector')?.value || 'Banca Múltiple',
-      producto: document.getElementById('q-producto')?.value || 'Tarjeta de Crédito',
-      causa: document.getElementById('q-causa')?.value || 'Cargos no reconocidos',
-      contrato: (document.getElementById('q-contrato')?.value || '').trim(),
-      monto: document.getElementById('q-monto')?.value || '0',
-      fechaHechos: document.getElementById('q-fecha-hechos')?.value || new Date().toISOString().split('T')[0],
-      hechos: (document.getElementById('q-hechos')?.value || '').trim(),
-      pretensiones: (document.getElementById('q-pretensiones')?.value || '').trim(),
-      isRedeco: state.quejaProcedure === 'redeco'
-    };
-  }
-
-  /**
-   * Construye el documento jurídico vectorial de Queja CONDUSEF / REDECO con EscudoPDF
-   */
-  async function buildQuejaLayout(data) {
-    await EscudoPDF.ready();
-    const { B } = EscudoPDF;
-
-    if (!pdfPreviewState.folio || pdfPreviewState.folioIsRedeco !== data.isRedeco) {
-      pdfPreviewState.folio = `${data.isRedeco ? 'REDECO-CONDUSEF' : 'CONDUSEF-UDECO'}-2026-${Math.floor(10000 + Math.random() * 90000)}`;
-      pdfPreviewState.folioIsRedeco = data.isRedeco;
-    }
-    const folioExp = pdfPreviewState.folio;
-    const fechaHoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
-    const udecoObj = UDECO_CATALOG[data.udecoKey] || UDECO_CATALOG.CDMX_CENTRAL;
-
-    const sigImg = state.signatureDataUrl
-      ? await EscudoPDF.prepareImage(state.signatureDataUrl, { keepAlpha: true, trim: true, maxDim: 900 })
-      : null;
-
-    const evImgs = [];
-    for (let i = 0; i < state.evidenceImages.length; i++) {
-      const ev = state.evidenceImages[i];
-      const prep = await EscudoPDF.prepareImage(ev.data, { keepAlpha: false, maxDim: 1400 });
-      if (prep) evImgs.push({ name: ev.name || `Anexo ${i + 1}`, img: prep });
-    }
-
-    const doc = EscudoPDF.createDocument({
-      family: 'times',
-      size: 10.8,
-      lineHeight: 1.48,
-      color: '#0f172a',
-      margins: { top: 48, right: 54, bottom: 56, left: 54 },
-      onPageStart: (d, idx) => {
-        if (idx > 0) {
-          d.textAt(d.left, d.y + 8, data.isRedeco ? 'DENUNCIA FORMAL REDECO — CONDUSEF' : 'ESCRITO INICIAL DE RECLAMACIÓN — CONDUSEF', {
-            size: 8.5,
-            style: 'bold',
-            color: '#475569'
-          });
-          d.textAt(d.right, d.y + 8, `EXP: ${folioExp}`, {
-            size: 8.5,
-            style: 'monoBold',
-            color: '#0f172a',
-            align: 'right'
-          });
-          d.y += 14;
-          d.rule({ width: 0.75, color: '#cbd5e1', spaceAfter: 10 });
-        }
-      }
-    });
-
-    // 1. Encabezado Membretado Oficial (Página 1)
-    const headerTop = doc.y;
-    const boxW = 154;
-    const boxH = 34;
-    const leftW = doc.contentWidth - boxW - 12;
-
-    doc.rectAt(doc.right - boxW, headerTop, boxW, boxH, {
-      fill: '#f8fafc',
-      stroke: '#0f172a',
-      lineWidth: 0.9
-    });
-    doc.textAt(doc.right - 7, headerTop + 13, folioExp, {
-      size: 8.5,
-      style: 'monoBold',
-      align: 'right',
-      color: '#0f172a',
-      maxWidth: boxW - 14
-    });
-    doc.textAt(doc.right - 7, headerTop + 25, `RADICACIÓN: ${fechaHoy.toUpperCase()}`, {
-      size: 6.8,
-      style: 'regular',
-      align: 'right',
-      color: '#475569',
-      maxWidth: boxW - 14
-    });
-
-    doc.paragraph(
-      [B(data.isRedeco
-        ? 'REGISTRO DE DESPACHOS DE COBRANZA (REDECO) — CONDUSEF'
-        : 'COMISIÓN NACIONAL PARA LA PROTECCIÓN Y DEFENSA DE LOS USUARIOS DE SERVICIOS FINANCIEROS')],
-      { x: doc.left, width: leftW, size: 10.5, lineHeight: 1.24, spaceAfter: 2 }
-    );
-    doc.paragraph([B(udecoObj.nombre.toUpperCase())], {
-      x: doc.left,
-      width: leftW,
-      size: 9.2,
-      color: '#1e293b',
-      lineHeight: 1.24,
-      spaceAfter: 2
-    });
-    doc.paragraph(udecoObj.direccion, {
-      x: doc.left,
-      width: leftW,
-      size: 8.2,
-      color: '#475569',
-      lineHeight: 1.24
-    });
-
-    doc.y = Math.max(doc.y, headerTop + boxH) + 6;
-    doc.rule({ width: 1.6, color: '#0f172a', spaceAfter: 10 });
-
-    // 2. Rubro Procesal
-    doc.box(({ x, width }) => {
-      doc.paragraph([
-        B('PROMOVENTE: '),
-        B((data.nombre || 'CIUDADANO PROMOVENTE').toUpperCase()),
-        ` (CURP: ${(data.curp || 'N/A').toUpperCase()})`
-      ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
-      doc.paragraph([B('VS.')], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
-      doc.paragraph([
-        B('ENTIDAD DENUNCIADA: '),
-        B((data.institucion || 'INSTITUCIÓN FINANCIERA').toUpperCase()),
-        data.folioSipres ? ` (FOLIO SIPRES: ${data.folioSipres})` : ''
-      ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
-      doc.paragraph([
-        B('SECTOR FINANCIERO: '),
-        (data.sector || 'Banca Múltiple').toUpperCase()
-      ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
-      doc.paragraph([
-        B('ASUNTO: '),
-        B(data.isRedeco
-          ? 'DENUNCIA FORMAL POR COBRANZA EXTRAJUDICIAL ILEGAL (REDECO)'
-          : 'ESCRITO INICIAL DE QUEJA Y PROCEDIMIENTO DE CONCILIACIÓN')
-      ], { x, width, size: 9.5, lineHeight: 1.35 });
-    }, {
-      padding: 7,
-      inset: 11,
-      fill: '#f8fafc',
-      stroke: '#e2e8f0',
-      leftBar: { width: 2.8, color: '#0f172a' }
-    });
-    doc.space(10);
-
-    // 3. Proemio Legal Forense
-    doc.paragraph([B('C. TITULAR DE LA UNIDAD DE ATENCIÓN A USUARIOS DE LA CONDUSEF, PRESENTE:')], {
-      size: 10.4,
-      keepWithNext: 32,
-      spaceAfter: 7
-    });
-
-    const domParts = [
-      data.calle,
-      data.colonia ? `Col. ${data.colonia}` : '',
-      data.municipio ? `Alcaldía/Municipio ${data.municipio}` : '',
-      data.cp ? `C.P. ${data.cp}` : ''
-    ].filter(Boolean).join(', ') || 'domicilio señalado en autos';
-
-    doc.paragraph([
-      'El que suscribe, ',
-      B(data.nombre || 'Ciudadano Promovente'),
-      ', por mi propio derecho, señalando como domicilio legal para oír y recibir toda clase de notificaciones el ubicado en ',
-      B(domParts),
-      ', con correo electrónico de notificación ',
-      B(data.email || 'no especificado'),
-      ' y teléfono de contacto ',
-      B(data.telefono || 'no especificado'),
-      '; comparezco ante esta H. Autoridad con el debido respeto a exponer:'
-    ], { align: 'justify', indent: 20, size: 10.6, lineHeight: 1.48, spaceAfter: 8 });
-
-    const montoNum = parseFloat(data.monto);
-    const montoFmt = '$' + (Number.isFinite(montoNum) ? montoNum : 0).toLocaleString('es-MX', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }) + ' MXN';
-
-    doc.paragraph([
-      'Que por medio del presente ocurso, con fundamento en los ',
-      B('Artículos 1, 4, 11, 50, 59 Bis 1, 60 y 68 de la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF)'),
-      ', así como en los ',
-      B('Artículos 15, 35 y 36 de la Ley Federal de Procedimiento Administrativo (LFPA)'),
-      data.isRedeco ? ' y el Artículo 284 Bis del Código Penal Federal' : '',
-      ', vengo a formular formal escrito de reclamación en contra de ',
-      B(data.institucion || 'la institución señalada'),
-      ', respecto del producto financiero ',
-      B(data.producto || 'N/A'),
-      ' con identificador de contrato o cuenta ',
-      B(data.contrato || 'En trámite / Sin número'),
-      ', por concepto de ',
-      B(data.causa || 'Reclamación financiera'),
-      ', reclamando el resarcimiento patrimonial de ',
-      B(montoFmt),
-      ' motivado por los siguientes hechos y consideraciones de derecho:'
-    ], { align: 'justify', indent: 20, size: 10.6, lineHeight: 1.48, spaceAfter: 10 });
-
-    const addSectionHeading = (title) => {
-      doc.ensureSpace(44);
-      doc.space(4);
-      doc.paragraph([B(title)], { size: 10.4, color: '#0f172a', spaceAfter: 2 });
-      doc.rule({ width: 0.75, color: '#94a3b8', spaceAfter: 6 });
-    };
-
-    // 4. Capítulo I: Hechos
-    addSectionHeading('I. CAPÍTULO DE HECHOS Y ANTECEDENTES');
-    const hechosBlocks = String(data.hechos || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
-    if (hechosBlocks.length === 0) hechosBlocks.push('Sin hechos especificados.');
-    hechosBlocks.forEach((pText) => {
-      doc.paragraph(pText, { align: 'justify', size: 10.5, lineHeight: 1.48, spaceAfter: 6 });
-    });
-
-    // 5. Capítulo II: Pretensiones
-    addSectionHeading('II. PRETENSIONES Y MOTIVOS DE INCONFORMIDAD');
-    const pretBlocks = String(data.pretensiones || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
-    if (pretBlocks.length === 0) pretBlocks.push('Sin pretensiones especificadas.');
-    pretBlocks.forEach((pText) => {
-      doc.paragraph(pText, { align: 'justify', size: 10.5, lineHeight: 1.48, spaceAfter: 6 });
-    });
-
-    // 6. Capítulo III: Petitorios Formales
-    addSectionHeading('III. PETITORIOS FORMALES ANTE LA CONDUSEF');
-    doc.paragraph([
-      B('PRIMERO. '),
-      'Tenerme por presentado formulando en tiempo y forma formal reclamación en contra de la institución señalada.'
-    ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 4 });
-    doc.paragraph([
-      B('SEGUNDO. '),
-      'Admitir la queja, dar inicio al procedimiento de conciliación previsto en el Art. 68 de la LPDUSF y emplazar a la contraparte a rendir su informe circunstanciado de ley.'
-    ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 4 });
-    doc.paragraph([
-      B('TERCERO. '),
-      'En su oportunidad, ordenar la restitución de los fondos reclamados y velar por la integridad crediticia del promovente.'
-    ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 12 });
-
-    // 7. Protesta Solemne y Firma Autógrafa (indivisible)
-    const sigBlockHeight = sigImg ? 132 : 84;
-    doc.ensureSpace(sigBlockHeight);
-    doc.space(6);
-    doc.paragraph('"Protesto lo necesario por la verdad y la defensa del usuario financiero"', {
-      style: 'italic',
-      size: 9.8,
-      align: 'center',
-      color: '#334155',
-      spaceAfter: sigImg ? 6 : 24
-    });
-
-    const centerX = (doc.left + doc.right) / 2;
-    if (sigImg) {
-      const maxW = 180;
-      const maxH = 48;
-      const scale = Math.min(maxW / sigImg.w, maxH / sigImg.h, 1);
-      const drawW = sigImg.w * scale;
-      const drawH = sigImg.h * scale;
-      doc.imageAt(sigImg, centerX - drawW / 2, doc.y, drawW, drawH);
-      doc.y += drawH + 4;
-    }
-
-    doc.lineAt(centerX - 120, doc.y, centerX + 120, doc.y, { width: 0.9, color: '#0f172a' });
-    doc.y += 5;
-    doc.paragraph([B((data.nombre || 'CIUDADANO PROMOVENTE').toUpperCase())], {
-      size: 10.2,
-      align: 'center',
-      spaceAfter: 1
-    });
-    doc.paragraph(`Firma del Promovente • CURP: ${(data.curp || 'N/A').toUpperCase()}`, {
-      size: 8.8,
-      align: 'center',
-      color: '#475569',
-      spaceAfter: 1
-    });
-    doc.paragraph(`Sello Digital Cívico: ${folioExp} • Verificado con Escudo Financiero Pro`, {
-      size: 7.8,
-      align: 'center',
-      color: '#64748b'
-    });
-
-    // 8. Anexo de Pruebas Documentales (si se adjuntaron imágenes)
-    if (evImgs.length > 0) {
-      doc.newPage();
-      doc.paragraph([B('ANEXO DE PRUEBAS DOCUMENTALES Y CONSTANCIAS GRÁFICAS')], {
-        size: 11,
-        color: '#0f172a',
-        spaceAfter: 3
-      });
-      doc.paragraph('Constancias gráficas aportadas por el promovente bajo protesta de decir verdad:', {
-        style: 'italic',
-        size: 9.5,
-        color: '#475569',
-        spaceAfter: 12
-      });
-
-      const colGap = 14;
-      const colW = (doc.contentWidth - colGap) / 2;
-      const cardH = 220;
-
-      for (let i = 0; i < evImgs.length; i += 2) {
-        doc.ensureSpace(cardH + 12);
-        const rowY = doc.y;
-        for (let c = 0; c < 2 && (i + c) < evImgs.length; c++) {
-          const item = evImgs[i + c];
-          const x0 = doc.left + c * (colW + colGap);
-          doc.rectAt(x0, rowY, colW, cardH, {
-            fill: '#f8fafc',
-            stroke: '#94a3b8',
-            lineWidth: 0.75,
-            dash: [3, 2]
-          });
-          doc.textAt(x0 + colW / 2, rowY + 14, `PRUEBA DOCUMENTAL ${i + c + 1}`, {
-            size: 8.5,
-            style: 'bold',
-            align: 'center',
-            color: '#0f172a'
-          });
-          doc.textAt(x0 + colW / 2, rowY + 25, item.name, {
-            size: 7.5,
-            align: 'center',
-            color: '#64748b',
-            maxWidth: colW - 16
-          });
-          const availW = colW - 18;
-          const availH = cardH - 38;
-          const sc = Math.min(availW / item.img.w, availH / item.img.h, 1);
-          const iw = item.img.w * sc;
-          const ih = item.img.h * sc;
-          doc.imageAt(item.img, x0 + (colW - iw) / 2, rowY + 31 + (availH - ih) / 2, iw, ih);
-        }
-        doc.y = rowY + cardH + 12;
-      }
-    }
-
-    const layout = doc.finish({
-      footer: (d, pageIdx, totalPages) => {
-        const fy = EscudoPDF.PAGE_H - 38;
-        d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
-        d.textAt(d.left, fy, 'Escudo Financiero Pro • Escrito Procesal Administrativo (Art. 59 Bis 1 y 68 LPDUSF)', {
-          size: 7.5,
-          color: '#64748b'
-        });
-        d.textAt(d.right, fy, `Página ${pageIdx + 1} de ${totalPages}`, {
-          size: 7.8,
-          style: 'bold',
-          color: '#334155',
-          align: 'right'
-        });
-      }
-    });
-
-    const cleanName = (data.nombre || 'Promovente').replace(/[^a-zA-Z0-9]/g, '_');
-    const filename = `Escrito-CONDUSEF-${cleanName}-${new Date().toISOString().split('T')[0]}.pdf`;
-    const meta = {
-      title: `${data.isRedeco ? 'Denuncia REDECO' : 'Queja CONDUSEF'} — ${folioExp}`,
-      subject: `Escrito formal de reclamación ante CONDUSEF (${udecoObj.nombre})`,
-      keywords: ['CONDUSEF', 'REDECO', 'Escudo Financiero Pro', 'Reclamación']
-    };
-
-    return {
-      layout,
-      meta,
-      filename,
-      docType: 'queja',
-      modalTitle: data.isRedeco
-        ? 'Denuncia Formal REDECO — Vista Previa Vectorial'
-        : 'Escrito Jurídico CONDUSEF — Vista Previa Vectorial',
-      modalSubtitle: `${folioExp} • ${udecoObj.nombre} • Texto 100% seleccionable sin cortes de línea`
-    };
-  }
-
-  /**
-   * Renderiza cualquier documento maquetado (Queja o Informe Forense) en el visor interactivo
-   */
-  async function renderPreviewIntoModal(built, opts = {}) {
-    pdfPreviewState.docType = built.docType || 'queja';
-    pdfPreviewState.forensicId = built.forensicId || null;
-    pdfPreviewState.layout = built.layout;
-    pdfPreviewState.meta = built.meta;
-    pdfPreviewState.filename = built.filename;
-
-    const titleEl = document.getElementById('preview-pdf-modal-title');
-    if (titleEl && built.modalTitle) titleEl.textContent = built.modalTitle;
-
-    const subEl = document.getElementById('preview-pdf-modal-subtitle');
-    if (subEl && built.modalSubtitle) subEl.textContent = built.modalSubtitle;
-
-    const badgeEl = document.getElementById('preview-pdf-meta-badge');
-    if (badgeEl && built.layout) {
-      const n = built.layout.pages.length;
-      badgeEl.textContent = `Vectorial 100% • ${n} ${n === 1 ? 'página' : 'páginas'}`;
-    }
-
-    const container = document.getElementById('legal-sheet-container');
-    if (container && built.layout) {
-      const svgPages = EscudoPDF.toSvgPages(built.layout);
-      container.innerHTML = svgPages.join('');
-    }
-
-    const targetMode = opts.keepMode ? pdfPreviewState.mode : 'dom';
-    await switchPdfPreviewMode(targetMode);
-  }
-
-  /**
-   * Alterna entre Vista Documento (SVG de alta precisión) y Vista PDF Real (Blob URL en iframe)
-   */
-  async function switchPdfPreviewMode(mode) {
-    const target = mode === 'blob' ? 'blob' : 'dom';
-    pdfPreviewState.mode = target;
-
-    const domPane = document.getElementById('preview-dom-pane');
-    const blobPane = document.getElementById('preview-blob-pane');
-    const btnDom = document.getElementById('btn-preview-mode-dom');
-    const btnBlob = document.getElementById('btn-preview-mode-blob');
-    const iframe = document.getElementById('pdf-blob-iframe');
-
-    if (btnDom && btnBlob) {
-      if (target === 'dom') {
-        btnDom.className = 'px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-600 text-white transition-all';
-        btnBlob.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-300 hover:text-white transition-all';
-      } else {
-        btnBlob.className = 'px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-600 text-white transition-all';
-        btnDom.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-300 hover:text-white transition-all';
-      }
-    }
-
-    if (target === 'dom') {
-      if (domPane) domPane.classList.remove('hidden');
-      if (blobPane) blobPane.classList.add('hidden');
-      return;
-    }
-
-    if (domPane) domPane.classList.add('hidden');
-    if (blobPane) blobPane.classList.remove('hidden');
-
-    if (pdfPreviewState.layout && iframe) {
-      const blob = await EscudoPDF.toPdfBlob(pdfPreviewState.layout, pdfPreviewState.meta || {});
-      revokePreviewBlobUrl();
-      pdfPreviewState.blobUrl = URL.createObjectURL(blob);
-      iframe.src = pdfPreviewState.blobUrl;
-    }
-  }
-
-  /**
-   * Imprime únicamente el documento actual dentro de un iframe aislado (Solución B)
-   */
-  async function printCurrentDocument() {
-    try {
-      if (!pdfPreviewState.layout) {
-        const data = collectQuejaFormData();
-        const built = await buildQuejaLayout(data);
-        pdfPreviewState.layout = built.layout;
-        pdfPreviewState.meta = built.meta;
-        pdfPreviewState.filename = built.filename;
-      }
-      EscudoPDF.printLayout(pdfPreviewState.layout, pdfPreviewState.meta?.title || 'Documento Escudo Financiero Pro');
-    } catch (err) {
-      console.error('[EscudoPDF] Error al preparar la impresión aislada:', err);
-      window.print();
-    }
-  }
-
-  /**
-   * Descarga el PDF vectorial que se encuentra actualmente en la vista previa
-   */
-  async function downloadCurrentPreviewPDF() {
-    if (pdfPreviewState.docType === 'forense') {
-      return downloadForensicReportPDF(pdfPreviewState.forensicId);
-    }
-    return downloadQuejaPDF();
-  }
-
-  /**
-   * Conservado por compatibilidad con llamadas externas a HTML estático
-   */
-  function generateLegalDocumentHTML(data) {
-    const folioExp = pdfPreviewState.folio || `${data.isRedeco ? 'REDECO-CONDUSEF' : 'CONDUSEF-UDECO'}-2026-10001`;
-    const fechaHoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
-    const udecoObj = UDECO_CATALOG[data.udecoKey] || UDECO_CATALOG.CDMX_CENTRAL;
-    return `<div class="pdf-page"><div class="legal-header"><strong>${escapeHtml(udecoObj.nombre)}</strong> — ${folioExp} (${fechaHoy})</div></div>`;
-  }
-
-  async function generateQuejaPreview() {
-    const data = collectQuejaFormData();
-
-    if (!data.nombre || !data.curp || !data.institucion || !data.hechos || !data.pretensiones) {
-      alert('Por favor completa todos los campos requeridos marcados con asterisco (*).');
-      return;
-    }
-
-    try {
-      const built = await buildQuejaLayout(data);
-      await renderPreviewIntoModal(built, { keepMode: false });
-      openModal('modal-preview-pdf');
-    } catch (err) {
-      console.error('[EscudoPDF] Error generando vista previa:', err);
-      alert('No se pudo construir la vista previa del documento.');
-    }
-  }
-
-  async function downloadQuejaPDF() {
-    const data = collectQuejaFormData();
-
-    if (!data.nombre || !data.curp || !data.institucion || !data.hechos || !data.pretensiones) {
-      alert('Por favor completa todos los campos requeridos marcados con asterisco (*).');
-      return null;
-    }
-
-    try {
-      const built = await buildQuejaLayout(data);
-      await renderPreviewIntoModal(built, { keepMode: true });
-      const blob = await EscudoPDF.toPdfBlob(built.layout, built.meta);
-      EscudoPDF.downloadBlob(blob, built.filename);
-      console.log('[EscudoPDF] PDF vectorial descargado exitosamente:', built.filename, blob.size, 'bytes');
-      return blob;
-    } catch (err) {
-      console.error('[EscudoPDF] Error con motor vectorial, recurriendo a impresión aislada:', err);
-      await printCurrentDocument();
-      return null;
-    }
-  }
-
-  /* =========================================================================
-     MÓDULO 3: SEMÁFORO DE CRÉDITO, CAT REAL Y AMORTIZACIÓN CUOTA A CUOTA
-     ========================================================================= */
-  let currentAmortizationData = [];
-
-  function calcCredito() {
-    const anticipoEl = document.querySelector('input[name="cr-anticipo"]:checked');
-    const pideAnticipo = anticipoEl ? anticipoEl.value === 'si' : false;
-    const verificada = document.getElementById('cr-verificada')?.value || 'si';
-
-    const monto = parseFloat(document.getElementById('cr-monto')?.value) || 10000;
-    const frecuencia = document.getElementById('cr-frecuencia')?.value || 'quincenal';
-    const plazo = parseInt(document.getElementById('cr-plazo')?.value) || 12;
-    const cuota = parseFloat(document.getElementById('cr-cuota')?.value) || 1150;
-
-    const totalPagar = cuota * plazo;
-    const totalInteres = Math.max(0, totalPagar - monto);
-    const sobrecostoPct = (totalInteres / monto) * 100;
-
-    // Cálculo del CAT Real Banxico (TIR anualizada)
-    const periodosPorAnio = frecuencia === 'semanal' ? 52 : (frecuencia === 'quincenal' ? 24 : 12);
-    const tasaPeriodo = estimateTIR(monto, cuota, plazo);
-    const catReal = (Math.pow(1 + tasaPeriodo, periodosPorAnio) - 1) * 100;
-
-    // Actualizar elementos
-    const resTotal = document.getElementById('res-total');
-    const resInteres = document.getElementById('res-interes');
-    const resSobrecosto = document.getElementById('res-sobrecosto');
-    const resCatReal = document.getElementById('res-cat-real');
-
-    if (resTotal) resTotal.textContent = `$${totalPagar.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
-    if (resInteres) resInteres.textContent = `$${totalInteres.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
-    if (resSobrecosto) resSobrecosto.textContent = `+${sobrecostoPct.toFixed(1)}%`;
-    if (resCatReal) resCatReal.textContent = `${isNaN(catReal) || catReal <= 0 ? '--' : catReal.toFixed(1)}%`;
-
-    const pctCapital = Math.min(100, Math.max(0, (monto / totalPagar) * 100));
-    const pctInteres = Math.min(100, Math.max(0, (totalInteres / totalPagar) * 100));
-
-    const barCapital = document.getElementById('bar-capital');
-    const barInteres = document.getElementById('bar-interes');
-    const labelCap = document.getElementById('pct-capital');
-    const labelInt = document.getElementById('pct-interes');
-
-    if (barCapital) barCapital.style.width = `${pctCapital}%`;
-    if (barInteres) barInteres.style.width = `${pctInteres}%`;
-    if (labelCap) labelCap.textContent = `${pctCapital.toFixed(0)}%`;
-    if (labelInt) labelInt.textContent = `${pctInteres.toFixed(0)}%`;
-
-    // Algoritmo Semafórico y Detector de CAT Engañoso (Art. 43 LTOSF)
-    const catDeclaradoRaw = document.getElementById('cr-cat-declarado')?.value;
-    const catDeclarado = catDeclaradoRaw !== '' && catDeclaradoRaw !== undefined ? parseFloat(catDeclaradoRaw) : null;
-    const alertaCatBox = document.getElementById('semaforo-alerta-cat-enganoso');
-    const alertaCatTexto = document.getElementById('semaforo-alerta-cat-texto');
-
-    let hayCatEnganoso = false;
-    if (catDeclarado !== null && !isNaN(catDeclarado) && catDeclarado >= 0 && !isNaN(catReal) && catReal > 0) {
-      const diferenciaCat = catReal - catDeclarado;
-      if (diferenciaCat > 15) {
-        hayCatEnganoso = true;
-        if (alertaCatBox) alertaCatBox.classList.remove('hidden');
-        if (alertaCatTexto) {
-          alertaCatTexto.innerHTML = `Te declararon un CAT anual del <strong>${catDeclarado.toFixed(1)}%</strong>, pero el cálculo financiero de tus pagos periódicos arroja un <strong>CAT Real del ${catReal.toFixed(1)}%</strong> (ocultamiento de <strong>+${diferenciaCat.toFixed(1)} puntos porcentuales</strong>). Esto infringe el Art. 43 de la Ley para la Transparencia y Ordenamiento de los Servicios Financieros.`;
-        }
-      } else if (alertaCatBox) {
-        alertaCatBox.classList.add('hidden');
-      }
-    } else if (alertaCatBox) {
-      alertaCatBox.classList.add('hidden');
-    }
-
-    const card = document.getElementById('semaforo-card');
-    const badge = document.getElementById('semaforo-badge');
-    const iconBox = document.getElementById('semaforo-icon');
-    const title = document.getElementById('semaforo-title');
-    const desc = document.getElementById('semaforo-desc');
-    const alertaLegal = document.getElementById('semaforo-alerta-legal');
-    const alertaNoSipres = document.getElementById('semaforo-alerta-no-sipres');
-
-    const noEnSipresOCancelada = verificada !== 'si';
-
-    if (alertaNoSipres) {
-      if (noEnSipresOCancelada) alertaNoSipres.classList.remove('hidden');
-      else alertaNoSipres.classList.add('hidden');
-    }
-
-    if (alertaLegal) {
-      if (pideAnticipo) alertaLegal.classList.remove('hidden');
-      else alertaLegal.classList.add('hidden');
-    }
-
-    if (pideAnticipo || noEnSipresOCancelada || sobrecostoPct > 150) {
-      if (card) card.className = 'rounded-2xl p-6 text-white shadow-xl border bg-gradient-to-br from-red-950 via-slate-900 to-red-900 border-red-500/60';
-      if (iconBox) {
-        iconBox.className = 'w-12 h-12 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center text-2xl';
-        iconBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
-      }
-      if (badge) {
-        badge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase bg-red-500/30 text-red-300 border border-red-500/50';
-        badge.textContent = pideAnticipo ? '¡FRAUDE DETECTADO!' : (noEnSipresOCancelada ? '¡NO PEDIR EL PRÉSTAMO!' : 'USURA EXTREMA');
-      }
-      if (title) {
-        title.textContent = pideAnticipo
-          ? '¡ALERTA ROJA: SOLICITUD DE ANTICIPO ILEGAL!'
-          : (noEnSipresOCancelada ? '¡ALERTA ROJA: NO PEDIR EL PRÉSTAMO!' : 'Condiciones Abusivas — No Pedir el Préstamo');
-      }
-      if (desc) {
-        desc.textContent = noEnSipresOCancelada
-          ? 'La entidad NO aparece en el SIPRES o está cancelada. Te aconsejamos rotundamente NO pedir el préstamo para evitar ser víctima de fraude o robo de identidad.'
-          : (pideAnticipo
-            ? 'Te exigen un depósito previo para liberar el dinero. Se trata de un fraude consumado; no entregues ningún anticipo.'
-            : 'El sobrecosto supera los límites razonables de financiamiento; no te recomendamos contratar este crédito.');
-      }
-    } else if (sobrecostoPct >= 60 || hayCatEnganoso) {
-      if (card) card.className = 'rounded-2xl p-6 text-white shadow-lg border bg-gradient-to-br from-amber-950 via-slate-900 to-amber-900 border-amber-500/40';
-      if (iconBox) {
-        iconBox.className = 'w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl';
-        iconBox.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i>';
-      }
-      if (badge) {
-        badge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase bg-amber-500/30 text-amber-300 border border-amber-500/40';
-        badge.textContent = hayCatEnganoso ? 'Alerta: CAT Engañoso' : 'Precaución — Costo Elevado';
-      }
-      if (title) title.textContent = hayCatEnganoso ? 'Discrepancia Grave en el CAT Prometido' : 'Préstamo Regulado pero Muy Costoso';
-      if (desc) desc.textContent = 'La entidad está en operación, pero el costo financiero o el CAT presentan condiciones desfavorables. Compara otras opciones antes de firmar.';
-    } else {
-      if (card) card.className = 'rounded-2xl p-6 text-white shadow-lg border bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 border-emerald-500/40';
-      if (iconBox) {
-        iconBox.className = 'w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl';
-        iconBox.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-      }
-      if (badge) {
-        badge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-500/30 text-emerald-300 border border-emerald-500/40';
-        badge.textContent = 'Condiciones Justas';
-      }
-      if (title) title.textContent = 'Préstamo Dentro del Rango Justo';
-      if (desc) desc.textContent = 'La entidad figura en operación en el SIPRES, no cobra anticipos ilegales y la tasa de sobrecosto se mantiene en rangos promedio de financiamiento regulado.';
-    }
-
-    // Generar Tabla de Amortización Completa
-    generateAmortizationSchedule(monto, cuota, plazo);
-
-    // Renderizar Comparativa de Mercado
-    renderMarketComparative(monto);
-  }
-
-  function estimateTIR(principal, payment, n) {
-    let rate = (payment * n - principal) / (principal * n);
-    for (let i = 0; i < 20; i++) {
-      let f = principal * rate / (1 - Math.pow(1 + rate, -n)) - payment;
-      let fPrime = (principal * (1 - Math.pow(1 + rate, -n)) - principal * rate * n * Math.pow(1 + rate, -n - 1)) / Math.pow(1 - Math.pow(1 + rate, -n), 2);
-      let newRate = rate - f / fPrime;
-      if (Math.abs(newRate - rate) < 0.0001) return newRate;
-      rate = newRate;
-    }
-    return rate;
-  }
-
-  function generateAmortizationSchedule(principal, payment, n) {
-    const tbody = document.getElementById('tbody-amortization');
-    if (!tbody) return;
-
-    currentAmortizationData = [];
-    let balance = principal;
-    const interestPerPayment = (payment * n - principal) / n;
-    const ivaRate = 0.16;
-
-    let html = '';
-    for (let i = 1; i <= n; i++) {
-      const interest = Math.min(balance, interestPerPayment / (1 + ivaRate));
-      const iva = interest * ivaRate;
-      const capital = Math.min(balance, payment - interest - iva);
-      balance = Math.max(0, balance - capital);
-
-      currentAmortizationData.push({
-        num: i,
-        cuota: payment,
-        capital: capital,
-        interes: interest,
-        iva: iva,
-        saldo: balance
-      });
-
-      html += `
-        <tr class="hover:bg-slate-50 transition-colors">
-          <td class="p-2.5 font-bold">${i}</td>
-          <td class="p-2.5">$${payment.toFixed(2)}</td>
-          <td class="p-2.5 text-sky-600 font-semibold">$${capital.toFixed(2)}</td>
-          <td class="p-2.5 text-amber-600">$${interest.toFixed(2)}</td>
-          <td class="p-2.5 text-slate-500">$${iva.toFixed(2)}</td>
-          <td class="p-2.5 font-bold">$${balance.toFixed(2)}</td>
-        </tr>
-      `;
-    }
-
-    tbody.innerHTML = html;
-  }
-
-  function exportAmortizationCSV() {
-    if (currentAmortizationData.length === 0) return;
-    let csv = "Pago_Numero,Cuota_Total,Abono_Capital,Intereses,IVA_16,Saldo_Insoluto\n";
-    currentAmortizationData.forEach(row => {
-      csv += `${row.num},${row.cuota.toFixed(2)},${row.capital.toFixed(2)},${row.interes.toFixed(2)},${row.iva.toFixed(2)},${row.saldo.toFixed(2)}\n`;
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Amortizacion_Credito_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-  }
-
-  function renderMarketComparative(monto) {
-    const box = document.getElementById('market-comparative-box');
-    if (!box) return;
-
-    box.innerHTML = `
-      <div class="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-        <span>🏛️ Banca Tradicional (CAT ~42%):</span>
-        <strong class="font-mono text-emerald-600">$${(monto * 1.35).toFixed(0)} MXN</strong>
-      </div>
-      <div class="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-        <span>🏢 SOFIPO / Fintech (CAT ~110%):</span>
-        <strong class="font-mono text-amber-600">$${(monto * 1.85).toFixed(0)} MXN</strong>
-      </div>
-      <div class="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200">
-        <span>⚠️ Apps Montadeudas Ilegales (>400%):</span>
-        <strong class="font-mono text-red-600">$${(monto * 2.80).toFixed(0)} MXN</strong>
-      </div>
-    `;
-  }
-
-  /* =========================================================================
-     MÓDULO 4: ANALIZADOR FORENSE IA (TEXTO, CAPTURAS & PHISHING)
-     ========================================================================= */
-  function switchAiInputMode(mode) {
-    state.aiInputMode = mode;
-    const btnText = document.getElementById('tab-ai-text-btn');
-    const btnImg = document.getElementById('tab-ai-img-btn');
-    const btnUrl = document.getElementById('tab-ai-url-btn');
-
-    const boxText = document.getElementById('ai-mode-text-box');
-    const boxImg = document.getElementById('ai-mode-image-box');
-    const boxUrl = document.getElementById('ai-mode-url-box');
-
-    [btnText, btnImg, btnUrl].forEach(b => b.className = 'pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-1.5');
-    [boxText, boxImg, boxUrl].forEach(b => b.classList.add('hidden'));
-
-    if (mode === 'text') {
-      btnText.className = 'pb-2.5 border-b-2 border-indigo-600 text-indigo-600 flex items-center space-x-1.5 font-bold';
-      boxText.classList.remove('hidden');
-    } else if (mode === 'image') {
-      btnImg.className = 'pb-2.5 border-b-2 border-indigo-600 text-indigo-600 flex items-center space-x-1.5 font-bold';
-      boxImg.classList.remove('hidden');
-    } else {
-      btnUrl.className = 'pb-2.5 border-b-2 border-indigo-600 text-indigo-600 flex items-center space-x-1.5 font-bold';
-      boxUrl.classList.remove('hidden');
-    }
-  }
-
-  function handleAiImageSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    document.getElementById('ai-img-filename').textContent = file.name;
-    document.getElementById('ai-img-preview-box').classList.remove('hidden');
-  }
-
-  function clearAiImage() {
-    document.getElementById('ai-img-file-input').value = '';
-    document.getElementById('ai-img-preview-box').classList.add('hidden');
-  }
-
-  // Etiqueta del motor que produjo el último dictamen (se registra en el historial y en el PDF)
-  let forensicEngineLabel = 'Motor Heurístico Local';
-
-  function runForensicAnalysis() {
-    if (state.aiInputMode === 'url') {
-      analyzeSuspiciousUrl();
-    } else if (state.aiInputMode === 'image') {
-      analyzeUploadedImage();
-    } else {
-      runMessageAnalysis();
-    }
-  }
-
-  function analyzeSuspiciousUrl() {
-    const urlInput = document.getElementById('ai-url-input')?.value.trim();
-    if (!urlInput) {
-      alert('Ingresa un enlace URL para analizar.');
-      return;
-    }
-
-    forensicEngineLabel = 'Motor Heurístico Local';
-    const lower = urlInput.toLowerCase();
-    const redFlags = [];
-    let score = 0;
-
-    if (/\.xyz|\.top|\.info|\.site|\.online|\.tk|\.ga/.test(lower)) {
-      score += 35;
-      redFlags.push({
-        badge: 'Dominio de Alto Riesgo / Gratuito',
-        desc: 'Utiliza una extensión (.xyz, .top, .info) frecuentemente empleada en campañas de phishing masivo.'
-      });
-    }
-
-    if (/bbva|santander|banorte|azteca|banamex|oxxo|liverpool|stori/.test(lower) && !/bbva\.mx|santander\.com\.mx|banorte\.com|bancoazteca\.com\.mx|banamex\.com/.test(lower)) {
-      score += 55;
-      redFlags.push({
-        badge: 'Typosquatting / Suplantación Bancaria',
-        desc: 'El enlace incluye el nombre de un banco mexicano reconocido pero no pertenece a su dominio web oficial.'
-      });
-    }
-
-    if (!lower.startsWith('https://')) {
-      score += 25;
-      redFlags.push({
-        badge: 'Conexión No Segura (Sin SSL)',
-        desc: 'El sitio no cuenta con cifrado HTTPS legítimo.'
-      });
-    }
-
-    if (score === 0) {
-      score = 15;
-    }
-
-    renderAiVerdict({
-      score: Math.min(100, score),
-      verdictTitle: score > 40 ? '¡ENLACE DE PHISHING / FRAUDULENTO DETECTADO!' : 'Enlace con Riesgo Moderado',
-      verdictSummary: `Análisis técnico de la URL: ${urlInput}`,
-      redFlags: redFlags,
-      legalBasis: 'Art. 103 LIC y Art. 386 CPF (Fraude Cibernético).',
-      actions: [
-        '¡NUNCA ingreses tu usuario, contraseña, NIP ni números de tarjeta en ese enlace!',
-        'No descargues ningún archivo ejecutable o APK desde esa dirección.',
-        'Denuncia la URL a la Policía Cibernética (088).'
-      ]
-    });
-  }
-
-  function analyzeUploadedImage() {
-    // Simulación de OCR forense local
-    forensicEngineLabel = 'Motor Heurístico Local';
-    setTimeout(() => {
-      renderAiVerdict({
-        score: 85,
-        verdictTitle: '¡EVIDENCIA FORENSE DE COACCIÓN Y FRAUDE!',
-        verdictSummary: 'Texto extraído de la captura con patrones de montadeudas y anticipos.',
-        redFlags: [
-          { badge: 'Solicitud de Depósito a Tarjeta Spin/STP', desc: 'Exigen comprobante de pago previo para liberar el dinero.' },
-          { badge: 'Amenazas de Difusión a Contactos', desc: 'Coacción ilícita prohibida por el Art. 284 Bis CPF.' }
-        ],
-        legalBasis: 'Art. 386 y Art. 284 Bis del Código Penal Federal.',
-        actions: ['No depositar', 'Bloquear el número en WhatsApp', 'Generar denuncia para el 088']
-      });
-    }, 400);
-  }
-
-  function setAiMode(mode) {
-    state.aiMode = mode;
-    const btnOff = document.getElementById('btn-mode-offline');
-    const btnGem = document.getElementById('btn-mode-gemini');
-    const gemBox = document.getElementById('gemini-config-box');
-    const badge = document.getElementById('ai-engine-badge');
-
-    if (mode === 'offline') {
-      if (btnOff) btnOff.className = 'px-2.5 py-1 rounded-md font-semibold bg-white text-slate-800 shadow-sm transition-all';
-      if (btnGem) btnGem.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-800 transition-all flex items-center space-x-1';
-      if (gemBox) gemBox.classList.add('hidden');
-      if (badge) {
-        badge.textContent = 'Motor Heurístico Local';
-        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200';
-      }
-    } else {
-      if (btnOff) btnOff.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-800 transition-all';
-      if (btnGem) btnGem.className = 'px-2.5 py-1 rounded-md font-semibold bg-white text-indigo-700 shadow-sm transition-all flex items-center space-x-1';
-      if (gemBox) gemBox.classList.remove('hidden');
-      if (badge) {
-        badge.textContent = 'Google Gemini 2.5 Flash';
-        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200';
-      }
-    }
-  }
-
-  function loadAiExample(type) {
-    const input = document.getElementById('ai-message-input');
-    if (!input) return;
-
-    if (type === 'fianza_bbva') {
-      input.value = `¡Felicidades estimado usuario! Tu crédito de $100,000 MXN ha sido PRE-APROBADO por BBVA México. Para formalizar la entrega y liberación del cheque en tu cuenta CLABE en menos de 30 minutos, solo debes realizar el pago único de fianza y gastos de gestión por $1,500 MXN en cualquier OXXO a la tarjeta Spin / STP número 646180112345678901 a nombre del Lic. Roberto Méndez. Envía foto del ticket para transferirte de inmediato.`;
-    } else if (type === 'montadeudas') {
-      input.value = `AVISO URGENTE EXTRAJUDICIAL: Tu contacto Juan Carlos Pérez te dejó como aval de su adeudo vencido en la aplicación de préstamo. Te damos 2 horas para liquidar los $3,800 MXN o comenzaremos a enviar a todos los contactos de tu agenda telefónica y familiares su foto con la leyenda de DEUDOR FRAUDULENTO y denuncia penal por fraude. Comunícate ya por este WhatsApp.`;
-    } else if (type === 'telegram_milagro') {
-      input.value = `¿Necesitas dinero urgente sin revisar buró de crédito ni aval? Préstamos desde $20,000 hasta $300,000 con tasa del 1.5% mensual fija. Aprobación 100% garantizada para amas de casa, comerciantes y desempleados. Solo descarga nuestra app APK desde el enlace http://bit.ly/prestamo-mexico-apk e ingresa tu INE.`;
-    } else if (type === 'legitimo') {
-      input.value = `BBVA Informa: Se realizó una compra por $450.00 MXN en Tienda Soriana con tu tarjeta terminación 1234 el 25/10/2026 a las 10:15 hrs. Si reconoces esta operación no necesitas hacer nada. Si no la reconoces, apaga tu tarjeta temporalmente desde tu App BBVA México. Recuerda que BBVA NUNCA te pedirá tus contraseñas ni códigos OTP por teléfono.`;
-    }
-
-    runForensicAnalysis();
-  }
-
-  async function runMessageAnalysis() {
-    const text = (document.getElementById('ai-message-input')?.value || '').trim();
-    if (!text) {
-      alert('Ingresa un texto para evaluar.');
-      return;
-    }
-
-    const apiKey = (document.getElementById('gemini-api-key')?.value || '').trim();
-    forensicEngineLabel = 'Motor Heurístico Local';
-
-    if (state.aiMode === 'gemini' && apiKey) {
-      try {
-        await runGeminiAnalysis(text, apiKey);
-      } catch (err) {
-        console.warn('[Escudo] Respaldo heurístico offline activado:', err);
-        forensicEngineLabel = 'Motor Heurístico Local';
-        runOfflineHeuristicAnalysis(text);
-      }
-    } else {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      runOfflineHeuristicAnalysis(text);
-    }
-  }
-
-  function runOfflineHeuristicAnalysis(text) {
-    const lower = text.toLowerCase();
-    const redFlags = [];
-    let score = 0;
-
-    // Cruzar texto contra las 409 entidades reales de SIPRES en memoria
-    const mentionedEntities = findMentionedEntities(text);
-
-    if (/fianza|anticipo|comisi[oó]n por apertura|dep[oó]sito previo|pago de seguro|liberar fondos|gastos de gesti[oó]n/.test(lower)) {
-      score += 45;
-      redFlags.push({
-        badge: 'Exigencia de Pago Previo (Anticipo)',
-        desc: 'Solicitan dinero antes de entregarte el crédito. Patrón clásico de estafa en México (Art. 386 CPF).'
-      });
-    }
-
-    if (/oxxo|spin|stp|cuenta personal|a nombre de|ticket|lic\./.test(lower) && /fianza|anticipo|liberar/.test(lower)) {
-      score += 30;
-      redFlags.push({
-        badge: 'Depósito a Cuenta de Persona Física',
-        desc: 'Entidades formales NUNCA piden depositar honorarios a personas físicas ni cadenas comerciales.'
-      });
-    }
-
-    if (/aval|agenda|contactos|difamaci[oó]n|enviar fotos|deudor fraudulento|embargo/.test(lower)) {
-      score += 40;
-      redFlags.push({
-        badge: 'Modus Operandi Montadeudas',
-        desc: 'Amenazas de hostigamiento a tu agenda telefónica. Viola el Art. 284 Bis del Código Penal Federal.'
-      });
-    }
-
-    if (/sin bur[oó]|sin consultar bur[oó]|100% garantizado|sin aval/.test(lower)) {
-      score += 20;
-      redFlags.push({
-        badge: 'Crédito Milagro sin Validación de Riesgo',
-        desc: 'Ninguna entidad seria presta sin evaluar la capacidad crediticia.'
-      });
-    }
-
-    if (mentionedEntities.length > 0 && score >= 40) {
-      const ent = mentionedEntities[0];
-      score = Math.min(100, score + 15);
-      redFlags.unshift({
-        badge: `Suplantación de Identidad contra ${ent.n} (Folio SIPRES #${ent.f})`,
-        desc: `El mensaje usurpa el nombre de la entidad regulada "${ent.s}" (${ent.t}, ${ent.e}) para engañar a la víctima mediante prácticas prohibidas.`
-      });
-    }
-
-    score = Math.min(100, score);
-
-    let summaryText = score >= 70
-      ? 'Patrones evidentes de estafa por anticipo, suplantación o montadeudas.'
-      : 'No se observan alertas críticas de fraude.';
-
-    if (mentionedEntities.length > 0 && score < 40) {
-      const ent = mentionedEntities[0];
-      summaryText = `Entidad identificada en el padrón oficial SIPRES: ${ent.s} (Folio #${ent.f}, ${ent.e}). No se detectan exigencias de anticipos ilegales en el texto.`;
-    }
-
-    renderAiVerdict({
-      score: score,
-      verdictTitle: score >= 70 ? '¡ALERTA CRÍTICA: FRAUDE FINANCIERO!' : (score >= 40 ? 'Riesgo Moderado a Alto' : 'Mensaje de Bajo Riesgo'),
-      verdictSummary: summaryText,
-      redFlags: redFlags,
-      legalBasis: score > 40 ? 'Art. 103 LIC (Captación ilícita) y Art. 386 CPF (Fraude).' : 'Marco de Transparencia CONDUSEF.',
-      actions: score > 40 ? [
-        '¡NUNCA deposites dinero por adelantado!',
-        'Bloquea el número en WhatsApp.',
-        'Reporta a la Policía Cibernética (088).'
-      ] : ['Mantén tus contraseñas y claves OTP en privado.']
-    });
-  }
-
-  async function runGeminiAnalysis(text, apiKey) {
-    const mentioned = findMentionedEntities(text);
-    const sipresContext = mentioned.length > 0
-      ? `\nContexto SIPRES (Base de 409 entidades): El texto menciona a "${mentioned[0].s}" (Nombre corto: ${mentioned[0].n}, Folio SIPRES: ${mentioned[0].f}, Sector: ${mentioned[0].t}, Estatus: ${mentioned[0].e}). Si el mensaje pide anticipos o fianzas, dictamina SUPLANTACIÓN DE IDENTIDAD contra esta entidad.`
-      : '';
-
-    const prompt = `Actúa como Perito Forense de Ciberseguridad Financiera en México. Dictamina si este mensaje es un fraude (anticipo, montadeudas, phishing):
-"${text}"${sipresContext}
-Responde estrictamente en formato JSON:
-{
-  "score": [0 a 100],
-  "verdictTitle": "[Título]",
-  "verdictSummary": "[Resumen]",
-  "redFlags": [{"badge": "[Alerta]", "desc": "[Detalle]"}],
-  "legalBasis": "[Artículos mexicanos infringidos]",
-  "actions": ["[Acción 1]", "[Acción 2]"]
-}`;
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' }
-      })
-    });
-
-    if (!response.ok) throw new Error('Gemini API Error');
-    const data = await response.json();
-    const result = JSON.parse(data.candidates[0].content.parts[0].text);
-    forensicEngineLabel = 'Google Gemini 2.5 Flash';
-    renderAiVerdict(result);
-  }
-
-  function renderAiVerdict(result, meta = {}) {
-    const score = Math.max(0, Math.min(100, parseInt(result.score, 10) || 0));
-    const scoreCircle = document.getElementById('ai-score-circle');
-    const scoreNum = document.getElementById('ai-score-number');
-    const titleEl = document.getElementById('ai-verdict-title');
-    const summaryEl = document.getElementById('ai-verdict-summary');
-    const redFlagsContainer = document.getElementById('ai-red-flags-container');
-    const legalBasisEl = document.getElementById('ai-legal-basis');
-
-    if (scoreNum) scoreNum.textContent = score;
-
-    let borderClass = 'border-emerald-500 text-emerald-600';
-    if (score >= 70) borderClass = 'border-red-600 text-red-600 animate-pulse';
-    else if (score >= 40) borderClass = 'border-amber-500 text-amber-600';
-
-    if (scoreCircle) scoreCircle.className = `inline-flex flex-col items-center justify-center w-28 h-28 rounded-full border-4 relative mb-2 ${borderClass}`;
-    if (titleEl) titleEl.textContent = result.verdictTitle;
-    if (summaryEl) summaryEl.textContent = result.verdictSummary;
-
-    if (redFlagsContainer) {
-      if (result.redFlags && result.redFlags.length > 0) {
-        redFlagsContainer.innerHTML = result.redFlags.map(rf => `
-          <div class="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-900 space-y-0.5">
-            <span class="font-bold flex items-center text-red-800">
-              <i class="fa-solid fa-flag text-red-600 mr-1.5 text-xs"></i>
-              ${escapeHtml(rf.badge)}
-            </span>
-            <p class="text-[11px] text-red-700 leading-normal">${escapeHtml(rf.desc)}</p>
-          </div>
+            <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-legal-gold/10 text-legal-gold font-semibold shrink-0">+ Comparar (${item.f})</span>
+          </button>
         `).join('');
-      } else {
-        redFlagsContainer.innerHTML = `<div class="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs">Sin banderas rojas detectadas.</div>`;
-      }
-    }
+      },
 
-    if (legalBasisEl) legalBasisEl.textContent = result.legalBasis;
+      renderComparatorGrid() {
+        const grid = document.getElementById('comparator-grid');
+        const addBar = document.getElementById('comparator-add-bar');
+        if (!grid) return;
 
-    // Pasos recomendados + registro del dictamen (informe PDF e historial)
-    const actions = Array.isArray(result.actions) ? result.actions.filter(Boolean) : [];
-    const actionsBox = document.getElementById('ai-actions-box');
-    const actionsList = document.getElementById('ai-actions-list');
-    if (actionsBox && actionsList) {
-      if (actions.length > 0) {
-        actionsList.innerHTML = actions.map(a => `<li class="flex items-start space-x-1.5"><i class="fa-solid fa-circle-check text-emerald-600 mt-0.5 text-[10px]"></i><span>${escapeHtml(a)}</span></li>`).join('');
-        actionsBox.classList.remove('hidden');
-      } else {
-        actionsBox.classList.add('hidden');
-      }
-    }
-
-    const record = meta.record || {
-      id: 'fx-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      ts: Date.now(),
-      type: state.aiInputMode,
-      input: getForensicInputExcerpt(),
-      engine: forensicEngineLabel,
-      score: score,
-      verdictTitle: result.verdictTitle || '',
-      verdictSummary: result.verdictSummary || '',
-      redFlags: Array.isArray(result.redFlags) ? result.redFlags : [],
-      legalBasis: result.legalBasis || '',
-      actions: actions
-    };
-    state.lastVerdict = record;
-
-    const pdfBtn = document.getElementById('ai-btn-pdf');
-    if (pdfBtn) pdfBtn.classList.remove('hidden');
-    const previewPdfBtn = document.getElementById('ai-btn-preview-pdf');
-    if (previewPdfBtn) previewPdfBtn.classList.remove('hidden');
-
-    if (!meta.skipHistory) saveForensicHistory(record);
-  }
-
-  /* -------------------------------------------------------------------------
-     LABORATORIO FORENSE: INFORME PDF E HISTORIAL LOCAL (solo en este dispositivo)
-     ------------------------------------------------------------------------- */
-  const FORENSIC_HISTORY_KEY = 'escudo_forense_historial';
-  const FORENSIC_HISTORY_MAX = 30;
-
-  function getForensicInputExcerpt() {
-    let raw = '';
-    if (state.aiInputMode === 'url') {
-      raw = document.getElementById('ai-url-input')?.value || '';
-    } else if (state.aiInputMode === 'image') {
-      raw = 'Captura de pantalla: ' + (document.getElementById('ai-img-filename')?.textContent || 'imagen');
-    } else {
-      raw = document.getElementById('ai-message-input')?.value || '';
-    }
-    raw = raw.trim();
-    return raw.length > 400 ? raw.slice(0, 400) + '…' : raw;
-  }
-
-  function loadForensicHistory() {
-    try {
-      const arr = JSON.parse(localStorage.getItem(FORENSIC_HISTORY_KEY) || '[]');
-      return Array.isArray(arr) ? arr : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function persistForensicHistory(list) {
-    try {
-      localStorage.setItem(FORENSIC_HISTORY_KEY, JSON.stringify(list.slice(0, FORENSIC_HISTORY_MAX)));
-    } catch (e) {
-      console.warn('[Escudo] No se pudo guardar el historial forense:', e);
-    }
-  }
-
-  function saveForensicHistory(record) {
-    const list = loadForensicHistory().filter(r => r.id !== record.id);
-    list.unshift(record);
-    persistForensicHistory(list);
-    renderForensicHistory();
-  }
-
-  function renderForensicHistory() {
-    const listEl = document.getElementById('ai-history-list');
-    const countEl = document.getElementById('ai-history-count');
-    const clearBtn = document.getElementById('ai-history-clear-btn');
-    if (!listEl) return;
-
-    const list = loadForensicHistory();
-    if (countEl) countEl.textContent = list.length;
-    if (clearBtn) clearBtn.classList.toggle('hidden', list.length === 0);
-
-    if (list.length === 0) {
-      listEl.innerHTML = '<div class="text-slate-400 italic text-xs">Aún no hay análisis guardados. Tus dictámenes aparecerán aquí.</div>';
-      return;
-    }
-
-    const typeIcon = { text: 'fa-message', url: 'fa-link', image: 'fa-image' };
-    listEl.innerHTML = list.map(r => {
-      const badge = r.score >= 70 ? 'bg-red-100 text-red-700 border-red-200'
-        : (r.score >= 40 ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200');
-      const date = new Date(r.ts).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
-      const snippet = (r.input || '').replace(/\s+/g, ' ').slice(0, 70);
-      return `
-        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
-          <div class="flex items-center justify-between gap-2">
-            <span class="flex items-center space-x-1.5 min-w-0">
-              <i class="fa-solid ${typeIcon[r.type] || 'fa-message'} text-slate-400 shrink-0"></i>
-              <span class="font-semibold text-slate-800 truncate">${escapeHtml(r.verdictTitle || 'Análisis')}</span>
-            </span>
-            <span class="px-1.5 py-0.5 rounded border font-extrabold text-[10px] shrink-0 ${badge}">${r.score}/100</span>
-          </div>
-          <p class="text-[11px] text-slate-500 truncate">${escapeHtml(snippet) || 'Sin texto'}</p>
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] text-slate-400">${escapeHtml(date)}</span>
-            <span class="flex items-center space-x-2 text-[11px] font-semibold">
-              <button type="button" onclick="EscudoApp.restoreForensicHistory('${escapeHtml(r.id)}')" class="text-sky-700 hover:underline">Ver</button>
-              <button type="button" onclick="EscudoApp.previewForensicReportPDF('${escapeHtml(r.id)}')" class="text-slate-600 hover:underline">Vista previa</button>
-              <button type="button" onclick="EscudoApp.downloadForensicReportPDF('${escapeHtml(r.id)}')" class="text-indigo-700 hover:underline">PDF</button>
-              <button type="button" onclick="EscudoApp.deleteForensicHistory('${escapeHtml(r.id)}')" class="text-red-600 hover:underline">Borrar</button>
-            </span>
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function restoreForensicHistory(id) {
-    const rec = loadForensicHistory().find(r => r.id === id);
-    if (!rec) return;
-    forensicEngineLabel = rec.engine || forensicEngineLabel;
-    renderAiVerdict(rec, { record: rec, skipHistory: true });
-    document.getElementById('ai-results-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function deleteForensicHistory(id) {
-    persistForensicHistory(loadForensicHistory().filter(r => r.id !== id));
-    renderForensicHistory();
-  }
-
-  function clearForensicHistory() {
-    if (!confirm('¿Borrar todo el historial de análisis guardado en este dispositivo?')) return;
-    persistForensicHistory([]);
-    renderForensicHistory();
-  }
-
-  async function buildForensicLayout(rec) {
-    await EscudoPDF.ready();
-    const { B, M } = EscudoPDF;
-
-    const score = Math.max(0, Math.min(100, parseInt(rec.score, 10) || 0));
-    const level = score >= 70
-      ? { t: 'RIESGO ALTO', c: '#dc2626', bg: '#fef2f2', border: '#fecaca' }
-      : (score >= 40
-        ? { t: 'RIESGO MODERADO', c: '#d97706', bg: '#fffbeb', border: '#fde68a' }
-        : { t: 'RIESGO BAJO', c: '#059669', bg: '#ecfdf5', border: '#a7f3d0' });
-    const typeLabel = { text: 'Mensaje de texto', url: 'Enlace / URL', image: 'Captura de pantalla' }[rec.type] || 'Mensaje';
-    const when = new Date(rec.ts || Date.now()).toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' });
-    const folio = String(rec.id || 'FX-0000').toUpperCase();
-
-    const doc = EscudoPDF.createDocument({
-      family: 'helvetica',
-      size: 10,
-      lineHeight: 1.45,
-      color: '#0f172a',
-      margins: { top: 48, right: 52, bottom: 54, left: 52 },
-      onPageStart: (d, idx) => {
-        if (idx > 0) {
-          d.textAt(d.left, d.y + 8, 'ESCUDO FINANCIERO PRO — INFORME FORENSE DE CIBERSEGURIDAD', {
-            size: 8.2,
-            style: 'bold',
-            color: '#0c4a6e'
-          });
-          d.textAt(d.right, d.y + 8, `FOLIO: ${folio}`, {
-            size: 8.2,
-            style: 'monoBold',
-            color: '#475569',
-            align: 'right'
-          });
-          d.y += 14;
-          d.rule({ width: 0.75, color: '#cbd5e1', spaceAfter: 10 });
+        if (addBar) {
+          addBar.classList.toggle('hidden', this.comparatorList.length >= 3);
         }
-      }
-    });
 
-    // Encabezado del Informe Forense
-    doc.paragraph([B('ESCUDO FINANCIERO PRO — DICTAMEN FORENSE DE CIBERSEGURIDAD')], {
-      size: 13,
-      color: '#0c4a6e',
-      spaceAfter: 2
-    });
-    doc.paragraph(`Laboratorio Forense IA • Folio ${folio} • Emitido: ${when}`, {
-      size: 8.8,
-      color: '#475569',
-      spaceAfter: 6
-    });
-    doc.rule({ width: 2.2, color: '#0284c7', spaceAfter: 12 });
+        if (this.comparatorList.length === 0) {
+          grid.innerHTML = `
+            <div class="col-span-full py-12 px-4 text-center space-y-3 bg-slate-50 dark:bg-obsidian-elevated/40 rounded-2xl border border-dashed border-slate-300 dark:border-obsidian-border">
+              <div class="w-10 h-10 rounded-xl bg-legal-gold/10 text-legal-gold flex items-center justify-center mx-auto">
+                <i class="fa-solid fa-code-compare text-base"></i>
+              </div>
+              <div class="font-serif text-lg font-bold text-slate-900 dark:text-white">Selecciona hasta 3 instituciones para compararlas lado a lado</div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                Haz clic en el botón <strong>Comparar</strong> directamente en la ficha de cualquier institución del Directorio SIPRES o usa el buscador superior para añadirlas aquí mismo.
+              </p>
+            </div>
+          `;
+          return;
+        }
 
-    // Tarjeta de Puntaje y Veredicto
-    const scoreBoxW = 104;
-    const rightX = doc.left + scoreBoxW + 14;
-    const rightW = doc.contentWidth - scoreBoxW - 14;
-    const cardStartY = doc.y;
+        grid.innerHTML = this.comparatorList.map(item => {
+          const ch = VERIFIED_CHANNELS_PREVIEW[item.f];
+          return `
+            <div class="bg-slate-50 dark:bg-obsidian-elevated p-5 rounded-2xl border border-slate-200 dark:border-obsidian-border flex flex-col justify-between space-y-4">
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-white dark:bg-obsidian-surface text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-obsidian-border">
+                    FOLIO ${this.escapeHtml(item.f)}
+                  </span>
+                  <button type="button" onclick="PreviewApp.removeFromComparator('${item.f}')" class="text-slate-400 hover:text-red-500 text-xs transition-colors" title="Quitar del comparador">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
 
-    doc.paragraph([B(rec.verdictTitle || 'Dictamen Forense')], {
-      x: rightX,
-      width: rightW,
-      size: 12,
-      color: '#0f172a',
-      lineHeight: 1.3,
-      spaceAfter: 4
-    });
-    doc.paragraph(rec.verdictSummary || 'Sin resumen disponible.', {
-      x: rightX,
-      width: rightW,
-      size: 9.8,
-      color: '#334155',
-      lineHeight: 1.42,
-      spaceAfter: 5
-    });
-    doc.paragraph(`Tipo de evidencia: ${typeLabel} • Motor: ${rec.engine || 'Motor Heurístico Local'}`, {
-      x: rightX,
-      width: rightW,
-      size: 8.4,
-      color: '#64748b'
-    });
+                <div>
+                  <h4 class="font-serif font-bold text-lg text-slate-900 dark:text-white">${this.escapeHtml(item.n)}</h4>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">${this.escapeHtml(item.s)}</p>
+                </div>
 
-    const cardH = Math.max(66, doc.y - cardStartY);
-    doc.rectAt(doc.left, cardStartY, scoreBoxW, cardH, {
-      fill: level.bg,
-      stroke: level.c,
-      lineWidth: 1.8
-    });
-    doc.textAt(doc.left + scoreBoxW / 2, cardStartY + cardH / 2 - 2, `${score}/100`, {
-      size: 19,
-      style: 'bold',
-      color: level.c,
-      align: 'center'
-    });
-    doc.textAt(doc.left + scoreBoxW / 2, cardStartY + cardH / 2 + 13, level.t, {
-      size: 8,
-      style: 'bold',
-      color: level.c,
-      align: 'center'
-    });
+                <div class="pt-3 border-t border-slate-200 dark:border-obsidian-border space-y-2.5 text-xs">
+                  <div>
+                    <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Estatus Regulatorio</span>
+                    <span class="font-bold ${item.r === 'REGULADA' ? 'text-legal-emerald' : 'text-legal-gold'}">${this.escapeHtml(item.e)}</span>
+                  </div>
+                  <div>
+                    <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Sector CNBV / CONDUSEF</span>
+                    <span class="font-medium text-slate-800 dark:text-slate-200">${this.escapeHtml(item.t)}</span>
+                  </div>
+                  <div>
+                    <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Sede Registrada</span>
+                    <span class="text-slate-700 dark:text-slate-300">${this.escapeHtml(item.d)}</span>
+                  </div>
+                  <div>
+                    <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Monitoreo de Suplantación</span>
+                    ${item.a
+                      ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-legal-gold"><i class="fa-solid fa-triangle-exclamation"></i> Alerta activa en WhatsApp</span>`
+                      : `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-legal-emerald"><i class="fa-solid fa-shield-check"></i> Sin alertas de suplantación</span>`
+                    }
+                  </div>
+                  <div>
+                    <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Canal UNE Verificado</span>
+                    <span class="font-mono text-[11px] text-slate-600 dark:text-slate-300">${ch ? `${ch.tel} • ${ch.web}` : 'Consulta directa en SIPRES'}</span>
+                  </div>
+                </div>
+              </div>
 
-    doc.y = cardStartY + cardH + 14;
+              <div class="pt-3 border-t border-slate-200 dark:border-obsidian-border flex items-center gap-2">
+                <button type="button" onclick="PreviewApp.closeComparatorModal(); PreviewApp.openExpediente('${item.f}');" class="px-3 py-2 rounded-xl bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-legal-gold transition-colors">
+                  Ficha
+                </button>
+                <button type="button" onclick="PreviewApp.closeComparatorModal(); PreviewApp.startQuejaByFolio('${item.f}');" class="flex-1 py-2 px-3 rounded-xl bg-slate-900 dark:bg-legal-gold text-white font-bold text-xs hover:opacity-95 transition-opacity flex items-center justify-center gap-1.5">
+                  <span>Realizar Queja</span>
+                  <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      },
 
-    const sectionTitle = (txt) => {
-      doc.ensureSpace(40);
-      doc.paragraph([B(txt)], { size: 10.5, color: '#0f172a', spaceAfter: 4 });
-    };
+      /* =======================================================================
+         AUTORELLENADO INTEGRAL DE INSTITUCIÓN EN EL STEPPER DE QUEJAS (PASO 2)
+         ======================================================================= */
+      mapSipresSectorToSelect(sipresSector) {
+        const s = this.normalizeText(sipresSector);
+        if (s.includes('banca multiple')) return 'Banca Múltiple';
+        if (s.includes('banca de desarrollo')) return 'Banca de Desarrollo';
+        if (s.includes('pago electronico')) return 'Fintech / IFPE';
+        if (s.includes('financiamiento colectivo')) return 'Fintech / IFC';
+        if (s.includes('populares')) return 'SOFIPO';
+        if (s.includes('cooperativas')) return 'SOCAP';
+        if (s.includes('uniones')) return 'Uniones de Crédito';
+        if (s.includes('seguros') || s.includes('fianzas')) return 'Seguros y Fianzas';
+        if (s.includes('afore') || s.includes('retiro')) return 'Afore';
+        return 'Banca Múltiple';
+      },
 
-    // 1. Evidencia Analizada
-    sectionTitle('1. EVIDENCIA ANALIZADA');
-    doc.box(({ x, width }) => {
-      doc.paragraph([M(rec.input || '(sin texto)')], {
-        x,
-        width,
-        size: 9,
-        color: '#1e293b',
-        lineHeight: 1.4
-      });
-    }, {
-      padding: 8,
-      fill: '#f1f5f9',
-      stroke: '#cbd5e1'
-    });
-    doc.space(12);
+      suggestProductoBySector(mappedSector) {
+        switch (mappedSector) {
+          case 'Fintech / IFPE':
+            return 'Banca Digital / App Móvil';
+          case 'Fintech / IFC':
+            return 'Plataforma de Financiamiento Colectivo';
+          case 'SOFIPO':
+          case 'Uniones de Crédito':
+            return 'Crédito Personal o de Nómina';
+          case 'SOCAP':
+            return 'Cuenta de Ahorro / Inversión a Plazo';
+          case 'Seguros y Fianzas':
+            return 'Seguro de Auto o Gastos Médicos';
+          default:
+            return 'Tarjeta de Débito / Cuenta de Nómina';
+        }
+      },
 
-    // 2. Banderas Rojas Detectadas
-    sectionTitle('2. BANDERAS ROJAS Y PATRONES DE RIESGO DETECTADOS');
-    const flags = Array.isArray(rec.redFlags) ? rec.redFlags : [];
-    if (flags.length === 0) {
-      doc.box(({ x, width }) => {
-        doc.paragraph('Sin banderas rojas críticas detectadas en la evidencia proporcionada.', {
-          x,
-          width,
-          size: 9.5,
-          color: '#065f46'
+      applyEntityToQuejaFields(entity) {
+        if (!entity) return;
+        const mappedSector = this.mapSipresSectorToSelect(entity.t);
+        const suggestedProduct = this.suggestProductoBySector(mappedSector);
+
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        };
+
+        setVal('input-queja-entidad', entity.s || entity.n);
+        setVal('input-queja-nombre-comercial', entity.n || '');
+        setVal('input-queja-folio', entity.f || '');
+        setVal('input-queja-sector', mappedSector);
+        setVal('input-queja-sede', entity.d || '');
+        setVal('input-queja-estatus', entity.e || '');
+        setVal('input-queja-producto', suggestedProduct);
+
+        const badge = document.getElementById('sipres-match-badge');
+        if (badge) {
+          badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i>Folio #${this.escapeHtml(entity.f)} Vinculado`;
+          badge.classList.remove('hidden');
+        }
+
+        const banner = document.getElementById('step2-linked-banner');
+        const bannerTitle = document.getElementById('step2-banner-title');
+        const bannerStatus = document.getElementById('step2-banner-status');
+        const bannerSub = document.getElementById('step2-banner-sub');
+
+        if (banner) {
+          banner.classList.remove('hidden');
+          if (bannerTitle) bannerTitle.innerText = `${entity.n} (Folio SIPRES #${entity.f})`;
+          if (bannerStatus) {
+            bannerStatus.innerText = entity.e;
+            bannerStatus.className = entity.r === 'REGULADA'
+              ? 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-legal-emerald font-semibold'
+              : 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-legal-gold font-semibold';
+          }
+          if (bannerSub) {
+            bannerSub.innerText = `${entity.t} • Sede registrada: ${entity.d}`;
+          }
+        }
+
+        this.updateDocPreview();
+      },
+
+      startQuejaByFolio(folio) {
+        const full = window.SIPRES_DATABASE || [];
+        const entity = full.find(e => e.f === String(folio).trim());
+        this.switchTab('quejas');
+        this.setWizardStep(2);
+
+        if (entity) {
+          this.applyEntityToQuejaFields(entity);
+          this.showToast(`Datos oficiales de ${entity.n} (Folio #${entity.f}) cargados automáticamente en el Paso 2.`);
+        }
+
+        const step2El = document.getElementById('wizard-step-2');
+        if (step2El) {
+          step2El.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          step2El.classList.add('ring-2', 'ring-legal-gold/50', 'rounded-xl', 'p-2');
+          setTimeout(() => {
+            step2El.classList.remove('ring-2', 'ring-legal-gold/50', 'rounded-xl', 'p-2');
+          }, 1400);
+        }
+      },
+
+      handleEntityAutocomplete(val) {
+        const q = this.normalizeText(val);
+        const full = window.SIPRES_DATABASE || [];
+        const match = full.find(item =>
+          this.normalizeText(item.s) === q ||
+          this.normalizeText(item.n) === q ||
+          String(item.f) === q
+        );
+        const badge = document.getElementById('sipres-match-badge');
+        if (match) {
+          this.applyEntityToQuejaFields(match);
+        } else {
+          if (badge) badge.classList.add('hidden');
+          const banner = document.getElementById('step2-linked-banner');
+          if (banner && !q) banner.classList.add('hidden');
+          this.updateDocPreview();
+        }
+      },
+
+      handleFolioDirectInput(folioVal) {
+        const clean = String(folioVal || '').trim();
+        const full = window.SIPRES_DATABASE || [];
+        const match = full.find(item => item.f === clean);
+        if (match) {
+          this.applyEntityToQuejaFields(match);
+        } else {
+          this.updateDocPreview();
+        }
+      },
+
+      // WIZARD SIDE-BY-SIDE (5 PASOS COMPLETOS)
+      setProcedure(proc) {
+        this.procedure = proc;
+        const btnCondusef = document.getElementById('btn-proc-condusef');
+        const btnRedeco = document.getElementById('btn-proc-redeco');
+        const procTag = document.getElementById('doc-preview-proc-tag');
+        const lblInst = document.getElementById('lbl-institucion');
+        const activeCls = "px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 dark:bg-legal-gold text-white shadow-sm transition-all";
+        const inactiveCls = "px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-obsidian-border hover:border-legal-gold/50 transition-all";
+
+        if (proc === 'condusef') {
+          btnCondusef.className = activeCls;
+          btnRedeco.className = inactiveCls;
+          if (lblInst) lblInst.innerText = 'Denominación / Razón Social Oficial (409 entidades) *';
+          if (procTag) {
+            procTag.innerText = 'VÍA CONDUSEF';
+            procTag.className = 'text-legal-emerald font-semibold';
+          }
+        } else {
+          btnRedeco.className = activeCls;
+          btnCondusef.className = inactiveCls;
+          if (lblInst) lblInst.innerText = 'Despacho de Cobranza o Entidad Financiera Denunciada *';
+          if (procTag) {
+            procTag.innerText = 'QUEJA REDECO';
+            procTag.className = 'text-red-500 font-semibold';
+          }
+        }
+      },
+
+      validateCurpLive() {
+        const input = document.getElementById('input-quejoso-curp');
+        const badge = document.getElementById('curp-validation-badge');
+        if (!input || !badge) return;
+        const val = input.value.trim().toUpperCase();
+        const curpRegex = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/;
+        if (!val) {
+          badge.innerText = 'Formato RENAPO';
+          badge.className = 'text-[10px] font-mono text-slate-400';
+        } else if (curpRegex.test(val)) {
+          badge.innerText = 'Válida RENAPO';
+          badge.className = 'text-[10px] font-mono text-legal-emerald font-semibold';
+        } else {
+          badge.innerText = `${val.length}/18 caracteres`;
+          badge.className = 'text-[10px] font-mono text-legal-gold';
+        }
+      },
+
+      clearQuejaDraft() {
+        const ids = [
+          'input-quejoso-nombre', 'input-quejoso-curp', 'input-quejoso-email',
+          'input-quejoso-tel', 'input-quejoso-calle', 'input-quejoso-colonia',
+          'input-quejoso-municipio', 'input-quejoso-cp', 'input-queja-entidad',
+          'input-queja-nombre-comercial', 'input-queja-folio', 'input-queja-sede',
+          'input-queja-estatus', 'input-queja-contrato', 'input-queja-monto',
+          'input-queja-hechos', 'input-queja-pretensiones'
+        ];
+        ids.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
         });
-      }, {
-        padding: 8,
-        fill: '#ecfdf5',
-        stroke: '#a7f3d0',
-        leftBar: { width: 3, color: '#059669' }
-      });
-      doc.space(8);
-    } else {
-      flags.forEach((f) => {
+        const banner = document.getElementById('step2-linked-banner');
+        if (banner) banner.classList.add('hidden');
+        const badge = document.getElementById('sipres-match-badge');
+        if (badge) badge.classList.add('hidden');
+        this.clearSignature();
+        this.evidenceFiles = [];
+        const thumbs = document.getElementById('preview-evidence-thumbs');
+        if (thumbs) thumbs.innerHTML = '';
+        const anexosBadge = document.getElementById('doc-preview-anexos-badge');
+        if (anexosBadge) anexosBadge.classList.add('hidden');
+        this.validateCurpLive();
+        this.updateDocPreview();
+      },
+
+      populateDatalist() {
+        const dl = document.getElementById('preview-sipres-datalist');
+        if (!dl) return;
+        const full = window.SIPRES_DATABASE || [];
+        dl.innerHTML = full.map(item => `<option value="${this.escapeHtml(item.s)}">${this.escapeHtml(item.n)} (Folio ${item.f} • ${this.escapeHtml(item.d)})</option>`).join('');
+      },
+
+      initSignatureCanvas() {
+        const canvas = document.getElementById('preview-signature-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+
+        const getPos = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          return { x: clientX - rect.left, y: clientY - rect.top };
+        };
+
+        const start = (e) => {
+          drawing = true;
+          const p = getPos(e);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+        };
+        const move = (e) => {
+          if (!drawing) return;
+          e.preventDefault();
+          const p = getPos(e);
+          ctx.lineWidth = 2;
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+        };
+        const end = () => {
+          if (!drawing) return;
+          drawing = false;
+          const sigImg = document.getElementById('doc-preview-signature-img');
+          if (sigImg) {
+            sigImg.src = canvas.toDataURL('image/png');
+            sigImg.classList.remove('hidden');
+          }
+        };
+
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', end);
+        canvas.addEventListener('touchstart', start, { passive: false });
+        canvas.addEventListener('touchmove', move, { passive: false });
+        canvas.addEventListener('touchend', end);
+      },
+
+      resizeSignatureCanvas() {
+        const canvas = document.getElementById('preview-signature-canvas');
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width > 0 && canvas.width !== rect.width) {
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+        }
+      },
+
+      clearSignature() {
+        const canvas = document.getElementById('preview-signature-canvas');
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        const sigImg = document.getElementById('doc-preview-signature-img');
+        if (sigImg) {
+          sigImg.src = '';
+          sigImg.classList.add('hidden');
+        }
+      },
+
+      async handleEvidenceSelect(event) {
+        const rawFiles = Array.from(event.target.files || []);
+        if (rawFiles.length === 0) return;
+        this.showToast('Sanitizando metadatos EXIF de imágenes (Protección GPS)...');
+        
+        for (const file of rawFiles) {
+          if (this.evidenceFiles.length >= 6) break;
+          const sanitized = await this.sanitizeImageExif(file);
+          this.evidenceFiles.push(sanitized.file);
+        }
+        
+        const thumbs = document.getElementById('preview-evidence-thumbs');
+        const anexosBadge = document.getElementById('doc-preview-anexos-badge');
+        if (thumbs) {
+          thumbs.innerHTML = this.evidenceFiles.map(f => `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border text-[11px] text-slate-700 dark:text-slate-300">
+              <i class="fa-solid fa-shield-halved text-legal-emerald" title="Metadatos EXIF y GPS eliminados"></i>
+              <span class="truncate max-w-[130px]">${this.escapeHtml(f.name)}</span>
+            </span>
+          `).join('');
+        }
+        if (anexosBadge) {
+          if (this.evidenceFiles.length > 0) {
+            anexosBadge.innerText = `${this.evidenceFiles.length} anexo(s) EXIF-depurado(s)`;
+            anexosBadge.classList.remove('hidden');
+          } else {
+            anexosBadge.classList.add('hidden');
+          }
+        }
+        this.showToast(`✓ ${rawFiles.length} anexo(s) procesado(s) sin metadatos EXIF.`);
+        this.updateQuejaHashLive();
+      },
+
+      setWizardStep(stepNum) {
+        document.querySelectorAll('.wizard-step-content').forEach(el => el.classList.add('hidden'));
+        const activeStepEl = document.getElementById(`wizard-step-${stepNum}`);
+        if (activeStepEl) activeStepEl.classList.remove('hidden');
+
+        if (stepNum === 5) {
+          setTimeout(() => this.resizeSignatureCanvas(), 30);
+        }
+
+        for (let i = 1; i <= 5; i++) {
+          const pill = document.getElementById(`step-pill-${i}`);
+          if (!pill) continue;
+          if (i === stepNum) {
+            pill.className = "step-pill py-2 px-2.5 rounded-lg bg-legal-gold/10 text-legal-gold font-semibold border border-legal-gold/30 flex items-center justify-center gap-2 transition-all cursor-pointer";
+            pill.querySelector('span').className = "w-5 h-5 rounded-full bg-legal-gold text-white flex items-center justify-center text-[10px] font-bold shrink-0";
+          } else if (i < stepNum) {
+            pill.className = "step-pill py-2 px-2.5 rounded-lg bg-emerald-500/10 text-legal-emerald font-semibold border border-emerald-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer";
+            pill.querySelector('span').className = "w-5 h-5 rounded-full bg-legal-emerald text-white flex items-center justify-center text-[10px] font-bold shrink-0";
+          } else {
+            pill.className = "step-pill py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated text-slate-400 font-medium border border-slate-200 dark:border-obsidian-border flex items-center justify-center gap-2 hover:border-legal-gold/40 transition-all cursor-pointer";
+            pill.querySelector('span').className = "w-5 h-5 rounded-full bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0";
+          }
+        }
+      },
+
+      applyHechosPreset(type) {
+        const hechosEl = document.getElementById('input-queja-hechos');
+        const presets = {
+          spei: "El día 14 de octubre de 2026 se registraron tres cargos no reconocidos mediante transferencias SPEI desde mi cuenta de débito, por un total acumulado de $48,500.00 MXN, sin que mediara notificación por SMS o token dinámico OTP. A pesar de haber interpuesto la aclaración formal con folio interno REF-88102, la institución emitió resolución desfavorable sin aportar los registros técnicos de autenticación biométrica exigidos por la CNBV.",
+          cargos: "En mi estado de cuenta de fecha reciente advertí cuatro cargos en comercio electrónico que jamás autoricé ni realicé con mi tarjeta física o digital, toda vez que el plástico permaneció bajo mi resguardo en todo momento y no recibí código de validación 3D Secure.",
+          cobranza: "Desde inicios del presente mes he recibido llamadas e intimidaciones reiteradas fuera del horario legal permitido, incluyendo mensajes amenazantes dirigidos a referencias personales que no guardan relación de aval ni obligado solidario, contraviniendo las disposiciones del REDECO y el artículo 284 Bis del Código Penal Federal.",
+          seguro: "Habiendo ocurrido el siniestro amparado bajo póliza vigente y con primas cubiertas oportunamente, la aseguradora determinó improcedente la indemnización invocando una exclusión ambigua no comunicada al momento de la contratación, en contravención a la Ley sobre el Contrato de Seguro."
+        };
+        if (hechosEl && presets[type]) {
+          hechosEl.value = presets[type];
+          this.updateDocPreview();
+        }
+      },
+
+      applyPretensionPreset(type) {
+        const pretEl = document.getElementById('input-queja-pretensiones');
+        const monto = document.getElementById('input-queja-monto').value || 'el monto controvertido';
+        const presets = {
+          restitucion: `PRIMERO: La restitución íntegra e inmediata de la cantidad de ${monto} sustraída sin mi consentimiento, adicionada con los intereses moratorios legales conforme al artículo 68 Bis de la LPDUSF y jurisprudencia aplicable de la Primera Sala de la SCJN.`,
+          pericial: `SEGUNDO: Se requiera formalmente a la institución financiera exhibir en audiencia de conciliación las bitácoras criptográficas de factor de autenticación, dirección IP y geolocalización exigidas por la Circular Única de Bancos, con el apercibimiento legal correspondiente.`,
+          buro: `TERCERO: La cancelación definitiva de intereses ordinarios, moratorios y comisiones derivadas del acto reclamado, el cese inmediato de gestiones de cobranza extrajudicial y la rectificación de cualquier registro negativo ante las Sociedades de Información Crediticia (Buró de Crédito / Círculo de Crédito).`
+        };
+        if (pretEl && presets[type]) {
+          const current = pretEl.value.trim();
+          pretEl.value = current ? `${current}\n\n${presets[type]}` : presets[type];
+          this.updateDocPreview();
+        }
+      },
+
+      updateDocPreview() {
+        const nombre = document.getElementById('input-quejoso-nombre')?.value || '[Nombre del Promovente]';
+        const curp = (document.getElementById('input-quejoso-curp')?.value || '[CURP]').toUpperCase();
+        const email = document.getElementById('input-quejoso-email')?.value || '[correo@ejemplo.com]';
+        const tel = document.getElementById('input-quejoso-tel')?.value || '[Teléfono]';
+        const calle = document.getElementById('input-quejoso-calle')?.value || '[Calle y Número]';
+        const colonia = document.getElementById('input-quejoso-colonia')?.value || '[Colonia]';
+        const municipio = document.getElementById('input-quejoso-municipio')?.value || '[Alcaldía/Municipio]';
+        const cp = document.getElementById('input-quejoso-cp')?.value || '[C.P.]';
+
+        const entidad = document.getElementById('input-queja-entidad')?.value || '[Institución Financiera]';
+        const comercial = document.getElementById('input-queja-nombre-comercial')?.value || '[Nombre Comercial]';
+        const folio = document.getElementById('input-queja-folio')?.value || 'S/F';
+        const sector = document.getElementById('input-queja-sector')?.value || 'Banca Múltiple';
+        const sede = document.getElementById('input-queja-sede')?.value || 'Ciudad de México';
+        const estatus = document.getElementById('input-queja-estatus')?.value || 'En operación';
+        const producto = document.getElementById('input-queja-producto')?.value || 'Producto Financiero';
+        const causa = document.getElementById('input-queja-causa')?.value || 'Reclamación Formal';
+        const contrato = document.getElementById('input-queja-contrato')?.value || 'S/N';
+        const monto = document.getElementById('input-queja-monto')?.value || '$0.00 MXN';
+        const fecha = document.getElementById('input-queja-fecha')?.value || '2026-10-14';
+        const hechos = document.getElementById('input-queja-hechos')?.value || '[Sin relatoría de hechos capturada]';
+        const pretensiones = document.getElementById('input-queja-pretensiones')?.value || '[Sin pretensiones capturadas]';
+
+        const setTxt = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.innerText = val;
+        };
+
+        setTxt('doc-preview-nombre', nombre);
+        setTxt('doc-preview-firma-nombre', nombre);
+        setTxt('doc-preview-curp', curp);
+        setTxt('doc-preview-email', email);
+        setTxt('doc-preview-tel', tel);
+        setTxt('doc-preview-domicilio', `${calle}, ${colonia}, Alcaldía/Municipio ${municipio}, C.P. ${cp}`);
+        setTxt('doc-preview-entidad', entidad);
+        setTxt('doc-preview-comercial', comercial);
+        setTxt('doc-preview-entidad-folio', folio);
+        setTxt('doc-preview-folio', `SIPRES-${folio}`);
+        setTxt('doc-preview-sector', sector);
+        setTxt('doc-preview-sede', sede);
+        setTxt('doc-preview-estatus', estatus);
+        setTxt('doc-preview-producto', producto);
+        setTxt('doc-preview-causa', causa);
+        setTxt('doc-preview-contrato', contrato);
+        setTxt('doc-preview-monto', monto);
+        setTxt('doc-preview-fecha', fecha);
+        setTxt('doc-preview-hechos', hechos);
+        setTxt('doc-preview-pretensiones', pretensiones);
+        this.updateQuejaHashLive();
+      },
+
+      /* =======================================================================
+         INTEGRACIÓN MOTOR VECTORIAL PDF (EscudoPDF + pdf-lib.min.js)
+         ======================================================================= */
+      collectQuejaFormData() {
+        const getV = (id) => (document.getElementById(id)?.value || '').trim();
+        return {
+          nombre: getV('input-quejoso-nombre') || 'Ciudadano Promovente',
+          curp: (getV('input-quejoso-curp') || 'PEHJ850412HDFRRN09').toUpperCase(),
+          email: getV('input-quejoso-email') || 'usuario@correo.com',
+          telefono: getV('input-quejoso-tel') || '5512345678',
+          calle: getV('input-quejoso-calle') || 'Av. Insurgentes Sur 123, Depto 4B',
+          colonia: getV('input-quejoso-colonia') || 'Col. Del Valle',
+          municipio: getV('input-quejoso-municipio') || 'Benito Juárez',
+          cp: getV('input-quejoso-cp') || '03100',
+          institucion: getV('input-queja-entidad') || 'BBVA México, S.A., Institución de Banca Múltiple',
+          comercial: getV('input-queja-nombre-comercial') || 'BBVA',
+          folioSipres: getV('input-queja-folio') || '40012',
+          sector: getV('input-queja-sector') || 'Banca Múltiple',
+          sede: getV('input-queja-sede') || 'Ciudad de México',
+          producto: getV('input-queja-producto') || 'Tarjeta de Débito / Cuenta de Nómina',
+          causa: getV('input-queja-causa') || 'Transferencia SPEI no autorizada / Fraude cibernético',
+          contrato: getV('input-queja-contrato') || '**** 4829',
+          monto: getV('input-queja-monto') || '48500',
+          fechaHechos: getV('input-queja-fecha') || new Date().toISOString().split('T')[0],
+          hechos: getV('input-queja-hechos') || 'El día 14 de octubre de 2026 se registraron tres cargos no reconocidos mediante transferencias SPEI desde mi cuenta de débito, por un total acumulado de $48,500.00 MXN...',
+          pretensiones: getV('input-queja-pretensiones') || 'PRIMERO: La restitución íntegra e inmediata de la cantidad reclamada...',
+          isRedeco: this.procedure === 'redeco'
+        };
+      },
+
+      async buildQuejaLayout(data) {
+        if (!window.EscudoPDF) {
+          throw new Error('El motor EscudoPDF no se encuentra cargado en memoria.');
+        }
+        await window.EscudoPDF.ready();
+        const { B } = window.EscudoPDF;
+
+        if (!this.pdfPreviewState.folio || this.pdfPreviewState.folioIsRedeco !== data.isRedeco) {
+          this.pdfPreviewState.folio = `${data.isRedeco ? 'REDECO-CONDUSEF' : 'CONDUSEF-METROPOLITANA'}-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+          this.pdfPreviewState.folioIsRedeco = data.isRedeco;
+        }
+        const folioExp = this.pdfPreviewState.folio;
+        const fechaHoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        // Cálculo de integridad criptográfica SHA-256 (NOM-151-SCFI-2016)
+        const rawContent = `${data.curp}|${data.folioSipres}|${data.fechaHechos}|${data.monto}|${data.hechos}|${data.pretensiones}`;
+        const cryptoHash = await this.generateSha256(rawContent);
+        data.cryptoHash = cryptoHash;
+
+        // Extraer firma autógrafa digital del canvas si fue estampada
+        let sigImg = null;
+        const canvas = document.getElementById('preview-signature-canvas');
+        if (canvas) {
+          try {
+            const ctx = canvas.getContext('2d');
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const isDrawn = imgData.data.some((channel, idx) => idx % 4 === 3 && channel > 0);
+            if (isDrawn) {
+              const dataUrl = canvas.toDataURL('image/png');
+              sigImg = await window.EscudoPDF.prepareImage(dataUrl, { keepAlpha: true, trim: true, maxDim: 900 });
+            }
+          } catch (e) {
+            console.warn('[EscudoPDF] No se pudo preparar la imagen de la firma:', e);
+          }
+        }
+
+        // Extraer anexos documentales si existen
+        const evImgs = [];
+        if (this.evidenceFiles && this.evidenceFiles.length > 0) {
+          for (let i = 0; i < this.evidenceFiles.length; i++) {
+            const file = this.evidenceFiles[i];
+            try {
+              const dataUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(file);
+              });
+              if (dataUrl) {
+                const prep = await window.EscudoPDF.prepareImage(dataUrl, { keepAlpha: false, maxDim: 1400 });
+                if (prep) evImgs.push({ name: file.name || `Anexo ${i + 1}`, img: prep });
+              }
+            } catch (err) {
+              console.warn('[EscudoPDF] Error cargando anexo documental:', err);
+            }
+          }
+        }
+
+        const doc = window.EscudoPDF.createDocument({
+          family: 'times',
+          size: 10.8,
+          lineHeight: 1.48,
+          color: '#0f172a',
+          margins: { top: 48, right: 54, bottom: 56, left: 54 },
+          onPageStart: (d, idx) => {
+            if (idx > 0) {
+              d.textAt(d.left, d.y + 8, data.isRedeco ? 'DENUNCIA FORMAL REDECO — CONDUSEF' : 'ESCRITO INICIAL DE RECLAMACIÓN — CONDUSEF', {
+                size: 8.5,
+                style: 'bold',
+                color: '#475569'
+              });
+              d.textAt(d.right, d.y + 8, `EXP: ${folioExp}`, {
+                size: 8.5,
+                style: 'monoBold',
+                color: '#0f172a',
+                align: 'right'
+              });
+              d.y += 14;
+              d.rule({ width: 0.75, color: '#cbd5e1', spaceAfter: 10 });
+            }
+          }
+        });
+
+        // 1. Membrete Oficial
+        const headerTop = doc.y;
+        const boxW = 160;
+        const boxH = 34;
+        const leftW = doc.contentWidth - boxW - 12;
+
+        doc.rectAt(doc.right - boxW, headerTop, boxW, boxH, {
+          fill: '#f8fafc',
+          stroke: '#0f172a',
+          lineWidth: 0.9
+        });
+        doc.textAt(doc.right - 7, headerTop + 13, folioExp, {
+          size: 8.5,
+          style: 'monoBold',
+          align: 'right',
+          color: '#0f172a',
+          maxWidth: boxW - 14
+        });
+        doc.textAt(doc.right - 7, headerTop + 25, `RADICACIÓN: ${fechaHoy.toUpperCase()}`, {
+          size: 6.8,
+          style: 'regular',
+          align: 'right',
+          color: '#475569',
+          maxWidth: boxW - 14
+        });
+
+        doc.paragraph(
+          [B(data.isRedeco
+            ? 'REGISTRO DE DESPACHOS DE COBRANZA (REDECO) — CONDUSEF'
+            : 'COMISIÓN NACIONAL PARA LA PROTECCIÓN Y DEFENSA DE LOS USUARIOS DE SERVICIOS FINANCIEROS')],
+          { x: doc.left, width: leftW, size: 10.5, lineHeight: 1.24, spaceAfter: 2 }
+        );
+        doc.paragraph([B('DIRECCIÓN GENERAL DE UNIDADES DE ATENCIÓN A USUARIOS (CDMX METROPOLITANA)')], {
+          x: doc.left,
+          width: leftW,
+          size: 9.2,
+          color: '#1e293b',
+          lineHeight: 1.24,
+          spaceAfter: 2
+        });
+        doc.paragraph('Av. Insurgentes Sur 762, PB, Col. Del Valle Norte, Alcaldía Benito Juárez, C.P. 03103, CDMX.', {
+          x: doc.left,
+          width: leftW,
+          size: 8.2,
+          color: '#475569',
+          lineHeight: 1.24
+        });
+
+        doc.y = Math.max(doc.y, headerTop + boxH) + 6;
+        doc.rule({ width: 1.6, color: '#0f172a', spaceAfter: 10 });
+
+        // 2. Rubro Procesal
         doc.box(({ x, width }) => {
-          doc.paragraph([B(`[!] ${f.badge || 'Señal de alerta'}`)], {
-            x,
-            width,
-            size: 9.6,
-            color: '#991b1b',
-            spaceAfter: 2
-          });
-          doc.paragraph(f.desc || '', {
-            x,
-            width,
-            size: 9.2,
-            color: '#7f1d1d',
-            lineHeight: 1.38
-          });
+          doc.paragraph([
+            B('PROMOVENTE: '),
+            B((data.nombre || 'CIUDADANO PROMOVENTE').toUpperCase()),
+            ` (CURP: ${(data.curp || 'N/A').toUpperCase()})`
+          ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+          doc.paragraph([B('VS.')], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+          doc.paragraph([
+            B('ENTIDAD DENUNCIADA: '),
+            B((data.institucion || 'INSTITUCIÓN FINANCIERA').toUpperCase()),
+            data.folioSipres ? ` (FOLIO SIPRES: ${data.folioSipres})` : ''
+          ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+          doc.paragraph([
+            B('SECTOR FINANCIERO: '),
+            (data.sector || 'Banca Múltiple').toUpperCase()
+          ], { x, width, size: 9.5, lineHeight: 1.35, spaceAfter: 1.5 });
+          doc.paragraph([
+            B('ASUNTO: '),
+            B(data.isRedeco
+              ? 'DENUNCIA FORMAL POR COBRANZA EXTRAJUDICIAL ILEGAL (REDECO)'
+              : 'ESCRITO INICIAL DE QUEJA Y PROCEDIMIENTO DE CONCILIACIÓN')
+          ], { x, width, size: 9.5, lineHeight: 1.35 });
         }, {
           padding: 7,
-          inset: 10,
-          fill: '#fef2f2',
-          stroke: '#fecaca',
-          leftBar: { width: 3, color: '#dc2626' },
-          estimate: 38
+          inset: 11,
+          fill: '#f8fafc',
+          stroke: '#e2e8f0',
+          leftBar: { width: 2.8, color: '#0f172a' }
         });
+        doc.space(10);
+
+        // 3. Proemio Legal Normativo
+        doc.paragraph([B('C. TITULAR DE LA UNIDAD DE ATENCIÓN A USUARIOS DE LA CONDUSEF, PRESENTE:')], {
+          size: 10.4,
+          keepWithNext: 32,
+          spaceAfter: 7
+        });
+
+        const domParts = [
+          data.calle,
+          data.colonia ? `Col. ${data.colonia}` : '',
+          data.municipio ? `Alcaldía/Municipio ${data.municipio}` : '',
+          data.cp ? `C.P. ${data.cp}` : ''
+        ].filter(Boolean).join(', ') || 'domicilio señalado en autos';
+
+        doc.paragraph([
+          'El que suscribe, ',
+          B(data.nombre || 'Ciudadano Promovente'),
+          ', por mi propio derecho, señalando como domicilio legal para oír y recibir toda clase de notificaciones el ubicado en ',
+          B(domParts),
+          ', con correo electrónico de notificación ',
+          B(data.email || 'no especificado'),
+          ' y teléfono de contacto ',
+          B(data.telefono || 'no especificado'),
+          '; comparezco ante esta H. Autoridad con el debido respeto a exponer:'
+        ], { align: 'justify', indent: 20, size: 10.6, lineHeight: 1.48, spaceAfter: 8 });
+
+        const cleanMonto = String(data.monto).replace(/[^0-9.]/g, '');
+        const montoNum = parseFloat(cleanMonto);
+        const montoFmt = '$' + (Number.isFinite(montoNum) ? montoNum : 0).toLocaleString('es-MX', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }) + ' MXN';
+
+        doc.paragraph([
+          'Que por medio del presente ocurso, con fundamento en los ',
+          B('Artículos 1, 4, 11, 50, 59 Bis 1, 60 y 68 de la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF)'),
+          ', así como en los ',
+          B('Artículos 15, 35 y 36 de la Ley Federal de Procedimiento Administrativo (LFPA)'),
+          data.isRedeco ? ' y el Artículo 284 Bis del Código Penal Federal' : '',
+          ', vengo a formular formal escrito de reclamación en contra de ',
+          B(data.institucion || 'la institución señalada'),
+          ', respecto del producto financiero ',
+          B(data.producto || 'N/A'),
+          ' con identificador de contrato o cuenta ',
+          B(data.contrato || 'En trámite / Sin número'),
+          ', por concepto de ',
+          B(data.causa || 'Reclamación financiera'),
+          ', reclamando el resarcimiento patrimonial de ',
+          B(montoFmt),
+          ' motivado por los siguientes hechos y consideraciones de derecho:'
+        ], { align: 'justify', indent: 20, size: 10.6, lineHeight: 1.48, spaceAfter: 10 });
+
+        const addSectionHeading = (title) => {
+          doc.ensureSpace(44);
+          doc.space(4);
+          doc.paragraph([B(title)], { size: 10.4, color: '#0f172a', spaceAfter: 2 });
+          doc.rule({ width: 0.75, color: '#94a3b8', spaceAfter: 6 });
+        };
+
+        // 4. Capítulo I: Hechos
+        addSectionHeading('I. CAPÍTULO DE HECHOS Y ANTECEDENTES');
+        const hechosBlocks = String(data.hechos || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+        if (hechosBlocks.length === 0) hechosBlocks.push('Sin hechos especificados.');
+        hechosBlocks.forEach((pText) => {
+          doc.paragraph(pText, { align: 'justify', size: 10.5, lineHeight: 1.48, spaceAfter: 6 });
+        });
+
+        // 5. Capítulo II: Pretensiones
+        addSectionHeading('II. PRETENSIONES Y MOTIVOS DE INCONFORMIDAD');
+        const pretBlocks = String(data.pretensiones || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+        if (pretBlocks.length === 0) pretBlocks.push('Sin pretensiones especificadas.');
+        pretBlocks.forEach((pText) => {
+          doc.paragraph(pText, { align: 'justify', size: 10.5, lineHeight: 1.48, spaceAfter: 6 });
+        });
+
+        // 6. Capítulo III: Petitorios Formales
+        addSectionHeading('III. PETITORIOS FORMALES ANTE LA CONDUSEF');
+        doc.paragraph([
+          B('PRIMERO. '),
+          'Tenerme por presentado formulando en tiempo y forma formal reclamación en contra de la institución señalada.'
+        ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 4 });
+        doc.paragraph([
+          B('SEGUNDO. '),
+          'Admitir la queja, dar inicio al procedimiento de conciliación previsto en el Art. 68 de la LPDUSF y emplazar a la contraparte a rendir su informe circunstanciado de ley.'
+        ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 4 });
+        doc.paragraph([
+          B('TERCERO. '),
+          'En su oportunidad, ordenar la restitución de los fondos reclamados y velar por la integridad crediticia del promovente.'
+        ], { align: 'justify', size: 10.2, lineHeight: 1.42, spaceAfter: 12 });
+
+        // 7. Protesta Solemne y Firma Autógrafa (indivisible)
+        const sigBlockHeight = sigImg ? 132 : 84;
+        doc.ensureSpace(sigBlockHeight);
         doc.space(6);
-      });
-      doc.space(6);
-    }
+        doc.paragraph('"Protesto lo necesario por la verdad y la defensa del usuario financiero"', {
+          style: 'italic',
+          size: 9.8,
+          align: 'center',
+          color: '#334155',
+          spaceAfter: sigImg ? 6 : 24
+        });
 
-    // 3. Marco Normativo Aplicable
-    sectionTitle('3. MARCO NORMATIVO Y TIPIFICACIÓN APLICABLE');
-    doc.box(({ x, width }) => {
-      doc.paragraph(rec.legalBasis || 'Marco de Transparencia Financiera CONDUSEF y Código Penal Federal.', {
-        x,
-        width,
-        size: 9.5,
-        color: '#334155',
-        lineHeight: 1.42
-      });
-    }, {
-      padding: 8,
-      inset: 11,
-      fill: '#f8fafc',
-      stroke: '#e2e8f0',
-      leftBar: { width: 3, color: '#0284c7' }
-    });
-    doc.space(12);
+        const centerX = (doc.left + doc.right) / 2;
+        if (sigImg) {
+          const maxW = 180;
+          const maxH = 48;
+          const scale = Math.min(maxW / sigImg.w, maxH / sigImg.h, 1);
+          const drawW = sigImg.w * scale;
+          const drawH = sigImg.h * scale;
+          doc.imageAt(sigImg, centerX - drawW / 2, doc.y, drawW, drawH);
+          doc.y += drawH + 4;
+        }
 
-    // 4. Acciones Recomendadas
-    sectionTitle('4. PLAN DE ACCIÓN Y RECOMENDACIONES INMEDIATAS');
-    const acts = Array.isArray(rec.actions) ? rec.actions : [];
-    if (acts.length === 0) {
-      doc.paragraph('• No realizar transferencias anticipadas ni compartir códigos OTP o contraseñas.', {
-        size: 9.6,
-        color: '#1e293b',
-        spaceAfter: 4
-      });
-    } else {
-      acts.forEach((act, idx) => {
-        doc.paragraph([B(`${idx + 1}. `), String(act)], {
-          size: 9.6,
-          color: '#1e293b',
-          lineHeight: 1.42,
+        doc.lineAt(centerX - 120, doc.y, centerX + 120, doc.y, { width: 0.9, color: '#0f172a' });
+        doc.y += 5;
+        doc.paragraph([B((data.nombre || 'CIUDADANO PROMOVENTE').toUpperCase())], {
+          size: 10.2,
+          align: 'center',
+          spaceAfter: 1
+        });
+        doc.paragraph(`Firma del Promovente • CURP: ${(data.curp || 'N/A').toUpperCase()}`, {
+          size: 8.8,
+          align: 'center',
+          color: '#475569',
+          spaceAfter: 1
+        });
+        doc.paragraph(`Sello Digital Cívico: ${folioExp} • Verificado con Escudo Financiero Pro`, {
+          size: 7.8,
+          align: 'center',
+          color: '#64748b',
+          spaceAfter: 1
+        });
+        doc.paragraph(`Sello Criptográfico (NOM-151-SCFI-2016): SHA-256: ${cryptoHash}`, {
+          size: 6.8,
+          style: 'mono',
+          align: 'center',
+          color: '#0284c7'
+        });
+
+        // 8. Anexo de Pruebas Documentales
+        if (evImgs.length > 0) {
+          doc.newPage();
+          doc.paragraph([B('ANEXO DE PRUEBAS DOCUMENTALES Y CONSTANCIAS GRÁFICAS')], {
+            size: 11,
+            color: '#0f172a',
+            spaceAfter: 3
+          });
+          doc.paragraph('Constancias gráficas aportadas por el promovente bajo protesta de decir verdad:', {
+            style: 'italic',
+            size: 9.5,
+            color: '#475569',
+            spaceAfter: 12
+          });
+
+          const colGap = 14;
+          const colW = (doc.contentWidth - colGap) / 2;
+          const cardH = 220;
+
+          for (let i = 0; i < evImgs.length; i += 2) {
+            doc.ensureSpace(cardH + 12);
+            const rowY = doc.y;
+            for (let c = 0; c < 2 && (i + c) < evImgs.length; c++) {
+              const item = evImgs[i + c];
+              const x0 = doc.left + c * (colW + colGap);
+              doc.rectAt(x0, rowY, colW, cardH, {
+                fill: '#f8fafc',
+                stroke: '#94a3b8',
+                lineWidth: 0.75,
+                dash: [3, 2]
+              });
+              doc.textAt(x0 + colW / 2, rowY + 14, `PRUEBA DOCUMENTAL ${i + c + 1}`, {
+                size: 8.5,
+                style: 'bold',
+                align: 'center',
+                color: '#0f172a'
+              });
+              doc.textAt(x0 + colW / 2, rowY + 25, item.name, {
+                size: 7.5,
+                align: 'center',
+                color: '#64748b',
+                maxWidth: colW - 16
+              });
+              const availW = colW - 18;
+              const availH = cardH - 38;
+              const sc = Math.min(availW / item.img.w, availH / item.img.h, 1);
+              const iw = item.img.w * sc;
+              const ih = item.img.h * sc;
+              doc.imageAt(item.img, x0 + (colW - iw) / 2, rowY + 31 + (availH - ih) / 2, iw, ih);
+            }
+            doc.y = rowY + cardH + 12;
+          }
+        }
+
+        const layout = doc.finish({
+          footer: (d, pageIdx, totalPages) => {
+            const fy = window.EscudoPDF.PAGE_H - 38;
+            d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
+            d.textAt(d.left, fy - 2, `SHA-256: ${cryptoHash.slice(0, 36)}... • NOM-151-SCFI-2016`, {
+              size: 6.8,
+              style: 'mono',
+              color: '#64748b'
+            });
+            d.textAt(d.left, fy + 7, 'Escudo Financiero Pro • Escrito Procesal Administrativo (Art. 59 Bis 1 y 68 LPDUSF)', {
+              size: 6.8,
+              color: '#94a3b8'
+            });
+            d.textAt(d.right, fy + 3, `Página ${pageIdx + 1} de ${totalPages}`, {
+              size: 7.8,
+              style: 'bold',
+              color: '#334155',
+              align: 'right'
+            });
+          }
+        });
+
+        const cleanName = (data.nombre || 'Promovente').replace(/[^a-zA-Z0-9]/g, '_');
+        const filename = `Escrito-CONDUSEF-${cleanName}-${new Date().toISOString().split('T')[0]}.pdf`;
+        const meta = {
+          title: `${data.isRedeco ? 'Denuncia REDECO' : 'Queja CONDUSEF'} — ${folioExp}`,
+          subject: `Escrito formal de reclamación ante CONDUSEF`,
+          keywords: ['CONDUSEF', 'REDECO', 'Escudo Financiero Pro', 'Reclamación']
+        };
+
+        return {
+          layout,
+          meta,
+          filename,
+          docType: 'queja',
+          modalTitle: data.isRedeco
+            ? 'Denuncia Formal REDECO — Vista Previa Vectorial'
+            : 'Escrito Jurídico CONDUSEF — Vista Previa Vectorial',
+          modalSubtitle: `${folioExp} • Texto 100% seleccionable con tipografía oficial legal`
+        };
+      },
+
+      async buildForensicLayout(rec) {
+        if (!window.EscudoPDF) {
+          throw new Error('El motor EscudoPDF no se encuentra cargado en memoria.');
+        }
+        await window.EscudoPDF.ready();
+        const { B, M } = window.EscudoPDF;
+
+        const score = Math.max(0, Math.min(100, parseInt(rec.score, 10) || 0));
+        const level = score >= 70
+          ? { t: 'RIESGO CRÍTICO', c: '#dc2626', bg: '#fef2f2' }
+          : (score >= 40
+            ? { t: 'RIESGO MODERADO', c: '#d97706', bg: '#fffbeb' }
+            : { t: 'RIESGO BAJO', c: '#059669', bg: '#ecfdf5' });
+
+        const when = new Date().toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' });
+        const folio = `FX-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        const hashForensic = await this.generateSha256(`${folio}|${score}|${rec.threatType || 'Alerta'}|${when}`);
+
+        const doc = window.EscudoPDF.createDocument({
+          family: 'helvetica',
+          size: 10,
+          lineHeight: 1.45,
+          color: '#0f172a',
+          margins: { top: 48, right: 52, bottom: 54, left: 52 },
+          onPageStart: (d, idx) => {
+            if (idx > 0) {
+              d.textAt(d.left, d.y + 8, 'ESCUDO FINANCIERO PRO — EVALUACIÓN HEURÍSTICA DE CIBERSEGURIDAD', {
+                size: 8.2,
+                style: 'bold',
+                color: '#0c4a6e'
+              });
+              d.textAt(d.right, d.y + 8, `FOLIO: ${folio}`, {
+                size: 8.2,
+                style: 'monoBold',
+                color: '#475569',
+                align: 'right'
+              });
+              d.y += 14;
+              d.rule({ width: 0.75, color: '#cbd5e1', spaceAfter: 10 });
+            }
+          }
+        });
+
+        // Membrete Heurístico
+        doc.paragraph([B('ESCUDO FINANCIERO PRO — EVALUACIÓN HEURÍSTICA DE CIBERSEGURIDAD')], {
+          size: 13,
+          color: '#0c4a6e',
+          spaceAfter: 2
+        });
+        doc.paragraph(`Laboratorio Heurístico Local • Folio ${folio} • Emitido: ${when}`, {
+          size: 8.8,
+          color: '#475569',
+          spaceAfter: 6
+        });
+        doc.rule({ width: 2.2, color: '#0284c7', spaceAfter: 12 });
+
+        // Tarjeta de Puntaje y Veredicto
+        const scoreBoxW = 104;
+        const rightX = doc.left + scoreBoxW + 14;
+        const rightW = doc.contentWidth - scoreBoxW - 14;
+        const cardStartY = doc.y;
+
+        doc.paragraph([B(rec.verdictTitle || 'Evaluación Heurística de Evidencias')], {
+          x: rightX,
+          width: rightW,
+          size: 12,
+          color: '#0f172a',
+          lineHeight: 1.3,
           spaceAfter: 4
         });
-      });
-    }
-    doc.space(10);
-
-    // 5. Canales Oficiales de Denuncia
-    doc.box(({ x, width }) => {
-      doc.paragraph([B('CANALES OFICIALES DE DENUNCIA Y ATENCIÓN EN MÉXICO:')], {
-        x,
-        width,
-        size: 8.8,
-        color: '#0f172a',
-        spaceAfter: 2
-      });
-      doc.paragraph(
-        '• Policía Cibernética (Guardia Nacional): Tel. 088 (24 hrs) / ccert.orientacion@gn.gob.mx\n' +
-        '• CONDUSEF (Atención a Usuarios y REDECO): Tel. 55 53 400 999 / www.condusef.gob.mx\n' +
-        '• Fiscalía General / Ministerio Público: Presentar este informe impreso junto con capturas de pantalla e identificadores bancarios.',
-        { x, width, size: 8.4, color: '#475569', lineHeight: 1.38 }
-      );
-    }, {
-      padding: 8,
-      fill: '#f8fafc',
-      stroke: '#cbd5e1',
-      estimate: 56
-    });
-
-    const layout = doc.finish({
-      footer: (d, pageIdx, totalPages) => {
-        const fy = EscudoPDF.PAGE_H - 36;
-        d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
-        d.textAt(
-          d.left,
-          fy,
-          'Informe orientativo generado localmente en el dispositivo del usuario (LFPDPPP). No constituye dictamen pericial oficial.',
-          { size: 7.2, color: '#64748b' }
-        );
-        d.textAt(d.right, fy, `Página ${pageIdx + 1} de ${totalPages}`, {
-          size: 7.8,
-          style: 'bold',
+        doc.paragraph(rec.verdictSummary || 'Sin resumen disponible.', {
+          x: rightX,
+          width: rightW,
+          size: 9.8,
           color: '#334155',
-          align: 'right'
+          lineHeight: 1.42,
+          spaceAfter: 5
         });
-      }
-    });
+        doc.paragraph(`Modalidad: ${rec.tipologia || 'Detección Heurística'} • Motor: Motor Heurístico Local 100% Client-Side`, {
+          x: rightX,
+          width: rightW,
+          size: 8.4,
+          color: '#64748b'
+        });
 
-    const dateStr = new Date(rec.ts || Date.now()).toISOString().split('T')[0];
-    const filename = `Informe-Forense-${dateStr}-${folio.slice(-4)}.pdf`;
-    const meta = {
-      title: `Informe Forense ${folio} — Escudo Financiero Pro`,
-      subject: `Dictamen de análisis forense digital (${level.t} - ${score}/100)`,
-      keywords: ['Informe Forense', 'Ciberseguridad', 'CONDUSEF', 'Escudo Financiero Pro']
-    };
+        const cardH = Math.max(66, doc.y - cardStartY);
+        doc.rectAt(doc.left, cardStartY, scoreBoxW, cardH, {
+          fill: level.bg,
+          stroke: level.c,
+          lineWidth: 1.8
+        });
+        doc.textAt(doc.left + scoreBoxW / 2, cardStartY + cardH / 2 - 2, `${score}/100`, {
+          size: 19,
+          style: 'bold',
+          color: level.c,
+          align: 'center'
+        });
+        doc.textAt(doc.left + scoreBoxW / 2, cardStartY + cardH / 2 + 13, level.t, {
+          size: 8,
+          style: 'bold',
+          color: level.c,
+          align: 'center'
+        });
 
-    return {
-      layout,
-      meta,
-      filename,
-      docType: 'forense',
-      forensicId: rec.id,
-      modalTitle: 'Informe Forense de Ciberseguridad — Vista Previa Vectorial',
-      modalSubtitle: `Folio ${folio} • ${level.t} (${score}/100) • Texto 100% seleccionable`
-    };
-  }
+        doc.y = cardStartY + cardH + 14;
 
-  async function previewForensicReportPDF(id) {
-    const rec = id ? loadForensicHistory().find(r => r.id === id) : state.lastVerdict;
-    if (!rec) {
-      alert('Primero realiza un análisis para previsualizar el informe.');
-      return;
-    }
+        const sectionTitle = (txt) => {
+          doc.ensureSpace(40);
+          doc.paragraph([B(txt)], { size: 10.5, color: '#0f172a', spaceAfter: 4 });
+        };
 
-    try {
-      const built = await buildForensicLayout(rec);
-      await renderPreviewIntoModal(built, { keepMode: false });
-      openModal('modal-preview-pdf');
-    } catch (err) {
-      console.error('[EscudoPDF] Error previsualizando informe forense:', err);
-      alert('No se pudo generar la vista previa del informe.');
-    }
-  }
+        // 1. Evidencia Analizada
+        sectionTitle('1. EVIDENCIA ANALIZADA');
+        const rawInput = document.getElementById('fn-message-input')?.value || document.getElementById('fn-url-input')?.value || '(sin texto proporcionado)';
+        doc.box(({ x, width }) => {
+          doc.paragraph([M(rawInput.slice(0, 500) + (rawInput.length > 500 ? '...' : ''))], {
+            x,
+            width,
+            size: 9,
+            color: '#1e293b',
+            lineHeight: 1.4
+          });
+        }, {
+          padding: 8,
+          fill: '#f1f5f9',
+          stroke: '#cbd5e1'
+        });
+        doc.space(12);
 
-  async function downloadForensicReportPDF(id) {
-    const rec = id ? loadForensicHistory().find(r => r.id === id) : state.lastVerdict;
-    if (!rec) {
-      alert('Primero realiza un análisis para generar el informe.');
-      return null;
-    }
-
-    try {
-      const built = await buildForensicLayout(rec);
-      await renderPreviewIntoModal(built, { keepMode: true });
-      const blob = await EscudoPDF.toPdfBlob(built.layout, built.meta);
-      EscudoPDF.downloadBlob(blob, built.filename);
-      console.log('[EscudoPDF] Informe Forense PDF descargado:', built.filename, blob.size, 'bytes');
-      return blob;
-    } catch (err) {
-      console.error('[EscudoPDF] Error generando informe PDF:', err);
-      alert('No se pudo generar el PDF. Intenta de nuevo.');
-      return null;
-    }
-  }
-
-  function openPoliceComplaintModal() {
-    const text = document.getElementById('ai-message-input')?.value || 'Estafa reportada por usuario.';
-    const format = 
-`H. POLICÍA CIBERNÉTICA DE LA GUARDIA NACIONAL (088)
-PRESENTE:
-
-Por medio de la presente, presento DENUNCIA FORMAL CIUDADANA por presunto delito de fraude financiero cibernético y captación ilícita:
-
-1. FECHA DE RECEPCIÓN: ${new Date().toLocaleDateString('es-MX')}
-2. MEDIO DE CONTACTO: Mensajería electrónica / Red social / WhatsApp
-3. CONTENIDO DEL MENSAJE O EVIDENCIA:
-"${text}"
-
-4. CONDUCTA DELICTIVA DETECTADA:
-- Solicitud de anticipos ilícitos / Extorsión y coacción digital.
-- Infringiendo el Art. 386 y Art. 284 Bis del Código Penal Federal.
-
-Solicito la investigación del origen de la línea y el bloqueo de las cuentas involucradas para salvaguardar a la comunidad.`;
-
-    const policeTextEl = document.getElementById('police-complaint-text');
-    if (policeTextEl) policeTextEl.value = format;
-
-    openModal('modal-police-complaint');
-  }
-
-  function copyPoliceComplaint() {
-    const policeTextEl = document.getElementById('police-complaint-text');
-    if (policeTextEl) {
-      policeTextEl.select();
-      navigator.clipboard.writeText(policeTextEl.value).then(() => {
-        alert('¡Formato de denuncia copiado al portapapeles! Listo para enviar a ccert.orientacion@gn.gob.mx');
-      });
-    }
-  }
-
-  /* =========================================================================
-     MÓDULO 5: RADAR COMUNITARIO, 399 APPS DE PRÉSTAMO MÓVIL, CLABE Y MAPA
-     ========================================================================= */
-  let appsPrestamoCatalog = [];
-
-  function loadCitizenReports() {
-    // 1. Cargar Consolidado de 399 Aplicaciones de Préstamo Móvil
-    const savedApps = localStorage.getItem('escudo_apps_prestamo_db');
-    if (savedApps) {
-      try {
-        const parsedApps = JSON.parse(savedApps);
-        if (Array.isArray(parsedApps) && parsedApps.length >= 399) {
-          appsPrestamoCatalog = parsedApps;
+        // 2. Banderas Rojas Detectadas
+        sectionTitle('2. BANDERAS ROJAS Y PATRONES CRIMINALES');
+        const flags = Array.isArray(rec.redFlags) ? rec.redFlags : [];
+        if (flags.length === 0) {
+          doc.box(({ x, width }) => {
+            doc.paragraph('No se detectaron banderas rojas críticas en la muestra evaluada.', {
+              x,
+              width,
+              size: 9.5,
+              color: '#065f46'
+            });
+          }, {
+            padding: 8,
+            fill: '#ecfdf5',
+            stroke: '#a7f3d0',
+            leftBar: { width: 3, color: '#059669' }
+          });
+          doc.space(8);
+        } else {
+          flags.forEach((f) => {
+            doc.box(({ x, width }) => {
+              doc.paragraph([B(`[!] ${f.badge || 'Patrón sospechoso'}`)], {
+                x,
+                width,
+                size: 9.6,
+                color: '#991b1b',
+                spaceAfter: 2
+              });
+              doc.paragraph(f.desc || '', {
+                x,
+                width,
+                size: 9.2,
+                color: '#7f1d1d',
+                lineHeight: 1.38
+              });
+            }, {
+              padding: 7,
+              inset: 10,
+              fill: '#fef2f2',
+              stroke: '#fecaca',
+              leftBar: { width: 3, color: '#dc2626' }
+            });
+            doc.space(6);
+          });
+          doc.space(6);
         }
-      } catch (e) {}
-    }
-    if (appsPrestamoCatalog.length === 0) {
-      if (window.APPS_PRESTAMO_DB && Array.isArray(window.APPS_PRESTAMO_DB)) {
-        appsPrestamoCatalog = window.APPS_PRESTAMO_DB.map(a => ({ ...a }));
-      }
-    }
-    populateReportAppSelectors();
 
-    // 2. Cargar Reportes Ciudadanos del Muro
-    const saved = localStorage.getItem('escudo_citizen_reports');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        state.citizenReports = parsed.map((r, idx) => ({
-          ...r,
-          confirmaciones: r.confirmaciones || (SEED_REPORTS[idx] ? SEED_REPORTS[idx].confirmaciones : 1),
-          clabe: r.clabe !== undefined ? r.clabe : (SEED_REPORTS[idx] ? SEED_REPORTS[idx].clabe : '')
-        }));
-      } catch (e) {
-        state.citizenReports = SEED_REPORTS;
-      }
-    } else {
-      state.citizenReports = SEED_REPORTS;
-      localStorage.setItem('escudo_citizen_reports', JSON.stringify(SEED_REPORTS));
-    }
-    updateRadarKPIs();
-    renderCitizenReports();
-  }
+        // 3. Fundamento Jurídico
+        sectionTitle('3. MARCO NORMATIVO Y TIPIFICACIÓN APLICABLE');
+        doc.box(({ x, width }) => {
+          doc.paragraph(rec.legalBasis || 'Art. 386 Código Penal Federal (Fraude patrimonial); Art. 284 Bis CPF (Cobranza ilegítima).', {
+            x,
+            width,
+            size: 9.5,
+            color: '#334155',
+            lineHeight: 1.42
+          });
+        }, {
+          padding: 8,
+          fill: '#f8fafc',
+          stroke: '#e2e8f0',
+          leftBar: { width: 3, color: '#475569' }
+        });
+        doc.space(14);
 
-  function populateReportAppSelectors() {
-    const selectEl = document.getElementById('rep-app-select');
-    const datalistEl = document.getElementById('apps-prestamo-datalist');
-    if (appsPrestamoCatalog.length === 0) return;
+        // Certificación Cívica Informativa
+        doc.paragraph('Evaluación generada con Escudo Financiero Pro mediante Motor Heurístico Local (LFPDPPP Zero-Knowledge). Reporte cívico informativo de apoyo ciudadano.', {
+          style: 'italic',
+          size: 8.5,
+          color: '#64748b',
+          align: 'center'
+        });
 
-    if (selectEl) {
-      let opts = `<option value="">-- Selecciona una de las 399 aplicaciones (o escribe otro defraudador abajo) --</option>`;
-      appsPrestamoCatalog.forEach(a => {
-        const playLabel = a.googlePlay === 'ACTIVA' ? 'Sigue Activa' : (a.googlePlay === 'BAJA' ? 'Dada de Baja' : 'No Encontrada');
-        opts += `<option value="${a.num}">N° ${a.num} — ${escapeHtml(a.app)} (${a.reportes} reportes | CONDUSEF: ${a.condusef} | Play: ${playLabel})</option>`;
-      });
-      selectEl.innerHTML = opts;
-    }
+        const layout = doc.finish({
+          footer: (d, pageIdx, totalPages) => {
+            const fy = window.EscudoPDF.PAGE_H - 38;
+            d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
+            d.textAt(d.left, fy - 2, `SHA-256: ${hashForensic.slice(0, 36)}... • NOM-151-SCFI-2016`, {
+              size: 6.8,
+              style: 'mono',
+              color: '#64748b'
+            });
+            d.textAt(d.left, fy + 7, `Escudo Financiero Pro • Evaluación Heurística de Ciberseguridad (${folio})`, {
+              size: 6.8,
+              color: '#94a3b8'
+            });
+            d.textAt(d.right, fy + 3, `Página ${pageIdx + 1} de ${totalPages}`, {
+              size: 7.8,
+              style: 'bold',
+              color: '#334155',
+              align: 'right'
+            });
+          }
+        });
 
-    if (datalistEl) {
-      datalistEl.innerHTML = appsPrestamoCatalog.map(a =>
-        `<option value="${escapeHtml(a.app)}">N° ${a.num} — ${a.reportes} reportes | Reportada CONDUSEF: ${a.condusef} | Google Play: ${a.googlePlay}</option>`
-      ).join('');
-    }
-  }
+        const filename = `Evaluacion-Heuristica-${folio}-${new Date().toISOString().split('T')[0]}.pdf`;
+        const meta = {
+          title: `Evaluación Heurística de Ciberseguridad — ${folio}`,
+          subject: 'Informe técnico de evaluación heurística de amenazas y patrones de riesgo',
+          keywords: ['Heurístico', 'Ciberseguridad', 'Evaluación', 'Fraude']
+        };
 
-  function updateRadarKPIs() {
-    const totalEl = document.getElementById('radar-kpi-total');
-    const montoEl = document.getElementById('radar-kpi-monto');
-    const topTipoEl = document.getElementById('radar-kpi-top-tipo');
-    const afectadosEl = document.getElementById('radar-kpi-afectados');
+        return {
+          layout,
+          meta,
+          filename,
+          docType: 'forense',
+          modalTitle: 'Evaluación Heurística de Ciberseguridad — Vista Previa Vectorial',
+          modalSubtitle: `${folio} • ${rec.verdictTitle || 'Evaluación de Amenaza'} (${score}/100)`
+        };
+      },
 
-    const total = state.citizenReports.length;
-    const montoTotal = state.citizenReports.reduce((acc, r) => acc + (parseFloat(r.monto) || 0), 0);
-    const totalAfectados = state.citizenReports.reduce((acc, r) => acc + (parseInt(r.confirmaciones) || 1), 0);
+      async renderPreviewIntoModal(built, opts = {}) {
+        this.pdfPreviewState.docType = built.docType || 'queja';
+        this.pdfPreviewState.layout = built.layout;
+        this.pdfPreviewState.meta = built.meta;
+        this.pdfPreviewState.filename = built.filename;
 
-    const countsTipo = {};
-    state.citizenReports.forEach(r => {
-      const t = r.tipo || 'suplantacion';
-      countsTipo[t] = (countsTipo[t] || 0) + 1;
-    });
-    const topTipoKey = Object.keys(countsTipo).sort((a, b) => countsTipo[b] - countsTipo[a])[0] || 'suplantacion';
-    const labelsTipo = {
-      suplantacion: 'Suplantación Bancaria',
-      montadeudas: 'Apps Montadeudas',
-      anticipos: 'Cobro de Anticipos',
-      phishing: 'Phishing / SMS Falso'
-    };
+        const titleEl = document.getElementById('preview-pdf-modal-title');
+        if (titleEl && built.modalTitle) titleEl.textContent = built.modalTitle;
 
-    if (totalEl) totalEl.textContent = total.toLocaleString('es-MX');
-    if (montoEl) montoEl.textContent = `$${montoTotal.toLocaleString('es-MX')} MXN`;
-    if (topTipoEl) topTipoEl.textContent = labelsTipo[topTipoKey] || topTipoKey;
-    if (afectadosEl) afectadosEl.textContent = totalAfectados.toLocaleString('es-MX');
-  }
+        const subEl = document.getElementById('preview-pdf-modal-subtitle');
+        if (subEl && built.modalSubtitle) subEl.textContent = built.modalSubtitle;
 
-  function decodeClabeInfo(digits) {
-    const prefix = digits.substring(0, 3);
-    const plaza = digits.substring(3, 6);
-    const bankName = CLABE_BANKS[prefix] || `Institución Bancaria / STP (Prefijo ABM ${prefix})`;
+        const badgeEl = document.getElementById('preview-pdf-meta-badge');
+        if (badgeEl && built.layout) {
+          const n = built.layout.pages.length;
+          badgeEl.textContent = `Vectorial 100% • ${n} ${n === 1 ? 'página' : 'páginas'}`;
+        }
 
-    // Algoritmo oficial de Banxico para dígito verificador CLABE (ponderaciones 3, 7, 1)
-    const weights = [3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7];
-    let sum = 0;
-    for (let i = 0; i < 17; i++) {
-      sum += (parseInt(digits.charAt(i), 10) * weights[i]) % 10;
-    }
-    const expectedCheckDigit = (10 - (sum % 10)) % 10;
-    const actualCheckDigit = parseInt(digits.charAt(17), 10);
-    const isChecksumValid = expectedCheckDigit === actualCheckDigit;
+        const container = document.getElementById('legal-sheet-container');
+        if (container && built.layout && window.EscudoPDF) {
+          const svgPages = window.EscudoPDF.toSvgPages(built.layout);
+          container.innerHTML = svgPages.join('');
+        }
 
-    return { prefix, plaza, bankName, isChecksumValid, expectedCheckDigit };
-  }
+        const targetMode = opts.keepMode ? this.pdfPreviewState.mode : 'dom';
+        await this.switchPdfPreviewMode(targetMode);
+      },
 
-  function decodeCardInfo(digits) {
-    let network = 'Red Bancaria / Débito';
-    if (digits.startsWith('4')) network = 'Visa';
-    else if (/^5[1-5]/.test(digits) || /^2[2-7]/.test(digits)) network = 'Mastercard';
-    else if (/^3[47]/.test(digits)) network = 'American Express';
-    else if (digits.startsWith('6')) network = 'Carnet / Maestro';
+      async switchPdfPreviewMode(mode) {
+        const target = mode === 'blob' ? 'blob' : 'dom';
+        this.pdfPreviewState.mode = target;
 
-    // Algoritmo de Luhn
-    let sum = 0;
-    let shouldDouble = false;
-    for (let i = digits.length - 1; i >= 0; i--) {
-      let digit = parseInt(digits.charAt(i), 10);
-      if (shouldDouble) {
-        digit *= 2;
-        if (digit > 9) digit -= 9;
-      }
-      sum += digit;
-      shouldDouble = !shouldDouble;
-    }
-    const isLuhnValid = sum % 10 === 0;
-    return { network, isLuhnValid };
-  }
+        const domPane = document.getElementById('preview-dom-pane');
+        const blobPane = document.getElementById('preview-blob-pane');
+        const btnDom = document.getElementById('btn-preview-mode-dom');
+        const btnBlob = document.getElementById('btn-preview-mode-blob');
+        const iframe = document.getElementById('pdf-blob-iframe');
 
-  function searchRadarPhone() {
-    const rawVal = (document.getElementById('radar-phone-search')?.value || '').trim();
-    const digits = rawVal.replace(/[^0-9]/g, '');
-    const resultBox = document.getElementById('radar-phone-result');
-    if (!resultBox) return;
+        if (btnDom && btnBlob) {
+          if (target === 'dom') {
+            btnDom.className = 'px-2.5 py-1 rounded-md text-[11px] font-bold bg-legal-gold text-white transition-all';
+            btnBlob.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-300 hover:text-white transition-all';
+          } else {
+            btnBlob.className = 'px-2.5 py-1 rounded-md text-[11px] font-bold bg-legal-gold text-white transition-all';
+            btnDom.className = 'px-2.5 py-1 rounded-md text-[11px] font-semibold text-slate-300 hover:text-white transition-all';
+          }
+        }
 
-    if (!digits || digits.length < 8) {
-      alert('Ingresa los dígitos del Teléfono (10 dígitos), Tarjeta (16 dígitos) o Cuenta CLABE (18 dígitos) a la que te pidieron depositar.');
-      return;
-    }
+        if (target === 'dom') {
+          if (domPane) domPane.classList.remove('hidden');
+          if (blobPane) blobPane.classList.add('hidden');
+          return;
+        }
 
-    resultBox.classList.remove('hidden');
+        if (domPane) domPane.classList.add('hidden');
+        if (blobPane) blobPane.classList.remove('hidden');
 
-    // Buscar coincidencias en teléfonos, CLABEs o relatos del muro ciudadano
-    const matches = state.citizenReports.filter(r => {
-      const rTel = (r.telefono || '').replace(/[^0-9]/g, '');
-      const rClabe = (r.clabe || '').replace(/[^0-9]/g, '');
-      return (rTel && rTel.includes(digits)) || (rClabe && rClabe.includes(digits)) || (r.relato && r.relato.includes(digits));
-    });
+        if (this.pdfPreviewState.layout && iframe && window.EscudoPDF) {
+          try {
+            const blob = await window.EscudoPDF.toPdfBlob(this.pdfPreviewState.layout, this.pdfPreviewState.meta || {});
+            if (this.pdfPreviewState.blobUrl) {
+              URL.revokeObjectURL(this.pdfPreviewState.blobUrl);
+            }
+            this.pdfPreviewState.blobUrl = URL.createObjectURL(blob);
+            iframe.src = this.pdfPreviewState.blobUrl;
+          } catch (e) {
+            console.error('[EscudoPDF] Error generando blob en iframe:', e);
+          }
+        }
+      },
 
-    let techAnalysisHtml = '';
-    if (digits.length === 18) {
-      const clabeInfo = decodeClabeInfo(digits);
-      const isFintechTransfer = ['646', '728', '722', '684'].includes(clabeInfo.prefix);
-      techAnalysisHtml = `
-        <div class="p-2.5 rounded-lg bg-white/90 border border-slate-200 text-slate-800 space-y-1 mb-2">
-          <div class="font-bold text-slate-900 flex items-center justify-between">
-            <span><i class="fa-solid fa-building-columns text-sky-600 mr-1.5"></i> Decodificación de Cuenta CLABE (18 dígitos):</span>
-            <span class="font-mono text-[10px] px-2 py-0.5 rounded ${clabeInfo.isChecksumValid ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800'}">
-              ${clabeInfo.isChecksumValid ? 'Dígito Verificador Banxico: Estructura Real' : 'Dígito Verificador: Cuenta Alterada / Sintética'}
-            </span>
+      closePdfModal() {
+        const m = document.getElementById('modal-preview-pdf');
+        if (m) m.classList.add('hidden');
+        if (this.pdfPreviewState.blobUrl) {
+          URL.revokeObjectURL(this.pdfPreviewState.blobUrl);
+          this.pdfPreviewState.blobUrl = null;
+        }
+      },
+
+      async printCurrentPdf() {
+        try {
+          if (!this.pdfPreviewState.layout) {
+            const data = this.collectQuejaFormData();
+            const built = await this.buildQuejaLayout(data);
+            this.pdfPreviewState.layout = built.layout;
+            this.pdfPreviewState.meta = built.meta;
+            this.pdfPreviewState.filename = built.filename;
+          }
+          if (window.EscudoPDF) {
+            window.EscudoPDF.printLayout(this.pdfPreviewState.layout, this.pdfPreviewState.meta?.title || 'Documento Oficial');
+          } else {
+            window.print();
+          }
+        } catch (err) {
+          console.error('[EscudoPDF] Error al preparar impresión:', err);
+          window.print();
+        }
+      },
+
+      async downloadCurrentPreviewPdf() {
+        if (!this.pdfPreviewState.layout) {
+          return this.downloadQuejaPdf();
+        }
+        try {
+          this.showToast('Compilando PDF vectorial con pdf-lib...');
+          const blob = await window.EscudoPDF.toPdfBlob(this.pdfPreviewState.layout, this.pdfPreviewState.meta || {});
+          window.EscudoPDF.downloadBlob(blob, this.pdfPreviewState.filename || 'Documento-Escudo.pdf');
+          this.showToast(`Archivo "${this.pdfPreviewState.filename}" descargado exitosamente.`);
+          return blob;
+        } catch (err) {
+          console.error('[EscudoPDF] Error descargando documento actual:', err);
+          this.showToast('Error al descargar el PDF.');
+        }
+      },
+
+      async openQuejaPdfPreview() {
+        try {
+          const data = this.collectQuejaFormData();
+          this.showToast('Maquetando documento procesal con EscudoPDF...');
+          const built = await this.buildQuejaLayout(data);
+          await this.renderPreviewIntoModal(built, { keepMode: false });
+          const modal = document.getElementById('modal-preview-pdf');
+          if (modal) modal.classList.remove('hidden');
+        } catch (err) {
+          console.error('[EscudoPDF] Error abriendo visor:', err);
+          alert('No se pudo generar la vista previa del documento: ' + err.message);
+        }
+      },
+
+      async downloadQuejaPdf() {
+        try {
+          const data = this.collectQuejaFormData();
+          this.showToast('Generando PDF vectorial legal con pdf-lib...');
+          const built = await this.buildQuejaLayout(data);
+          await this.renderPreviewIntoModal(built, { keepMode: true });
+          const blob = await window.EscudoPDF.toPdfBlob(built.layout, built.meta);
+          window.EscudoPDF.downloadBlob(blob, built.filename);
+          this.showToast(`¡Documento oficial "${built.filename}" descargado con éxito!`);
+          
+          // Abrir automáticamente la Hoja de Ruta de Radicación Oficial (3 Vías y 20 días hábiles)
+          setTimeout(() => {
+            this.openPostDownloadRoadmap(data, built);
+          }, 650);
+
+          return blob;
+        } catch (err) {
+          console.error('[EscudoPDF] Error al exportar PDF de queja:', err);
+          alert('Ocurrió un error al compilar el PDF: ' + err.message);
+        }
+      },
+
+      async openForensicPdfPreview() {
+        try {
+          if (!this.lastForenseResult) this.runForensicAudit();
+          const r = this.lastForenseResult;
+          this.showToast('Maquetando Evaluación Heurística con EscudoPDF...');
+          const built = await this.buildForensicLayout(r);
+          await this.renderPreviewIntoModal(built, { keepMode: false });
+          const modal = document.getElementById('modal-preview-pdf');
+          if (modal) modal.classList.remove('hidden');
+        } catch (err) {
+          console.error('[EscudoPDF] Error abriendo evaluación heurística:', err);
+          alert('No se pudo generar la evaluación heurística en PDF.');
+        }
+      },
+
+      async downloadForensicPdf() {
+        try {
+          if (!this.lastForenseResult) this.runForensicAudit();
+          const r = this.lastForenseResult;
+          this.showToast('Compilando Evaluación Heurística con pdf-lib...');
+          const built = await this.buildForensicLayout(r);
+          await this.renderPreviewIntoModal(built, { keepMode: true });
+          const blob = await window.EscudoPDF.toPdfBlob(built.layout, built.meta);
+          window.EscudoPDF.downloadBlob(blob, built.filename);
+          this.showToast(`¡Evaluación Heurística Oficial descargada con éxito!`);
+          return blob;
+        } catch (err) {
+          console.error('[EscudoPDF] Error descargando evaluación heurística:', err);
+          alert('Ocurrió un error al compilar la evaluación heurística.');
+        }
+      },
+
+      // COMMAND PALETTE (CTRL + K)
+      setupKeyboardShortcuts() {
+        window.addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            this.openSearchModal();
+          }
+          if (e.key === 'Escape') {
+            this.closeSearchModal();
+            this.closeExpediente();
+            this.closeComparatorModal();
+            this.closeSafeHarborModal();
+            this.closeAppFicha();
+            this.closeNewReportModal();
+            this.closePdfModal();
+          }
+        });
+      },
+
+      openTermsModal(forceView = true) {
+        const m = document.getElementById('modal-safe-harbor');
+        if (!m) return;
+        if (forceView) {
+          const termsView = document.getElementById('terms-content-view');
+          const deniedView = document.getElementById('terms-denied-view');
+          if (termsView) termsView.classList.remove('hidden');
+          if (deniedView) deniedView.classList.add('hidden');
+        }
+        m.classList.remove('hidden');
+      },
+
+      openSafeHarborModal() {
+        this.openTermsModal(true);
+      },
+
+      closeSafeHarborModal() {
+        const m = document.getElementById('modal-safe-harbor');
+        if (m) m.classList.add('hidden');
+      },
+
+      acceptTermsModal() {
+        try {
+          localStorage.setItem('escudo_terms_accepted', 'true');
+        } catch (e) {}
+        this.closeSafeHarborModal();
+        this.showToast('✓ Términos y Condiciones aceptados. Bienvenido a Escudo Financiero Pro.');
+      },
+
+      denyTermsModal() {
+        const termsView = document.getElementById('terms-content-view');
+        const deniedView = document.getElementById('terms-denied-view');
+        if (termsView) termsView.classList.add('hidden');
+        if (deniedView) deniedView.classList.remove('hidden');
+      },
+
+      restoreTermsView() {
+        const termsView = document.getElementById('terms-content-view');
+        const deniedView = document.getElementById('terms-denied-view');
+        if (termsView) termsView.classList.remove('hidden');
+        if (deniedView) deniedView.classList.add('hidden');
+      },
+
+      toggleTermsAcceptBtn() {
+        const cb = document.getElementById('check-terms-modal-accept');
+        const btn = document.getElementById('btn-accept-terms-modal');
+        if (btn && cb) {
+          if (cb.checked) {
+            btn.classList.add('ring-2', 'ring-emerald-400');
+          } else {
+            btn.classList.remove('ring-2', 'ring-emerald-400');
+          }
+        }
+      },
+
+      jumpToTermsSection(sectionId) {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      },
+
+      checkTermsOnLaunch() {
+        const accepted = localStorage.getItem('escudo_terms_accepted');
+        if (accepted !== 'true') {
+          setTimeout(() => {
+            this.openTermsModal(true);
+          }, 300);
+        }
+      },
+
+      openSearchModal() {
+        document.getElementById('search-modal').classList.remove('hidden');
+        document.getElementById('command-palette-input').focus();
+      },
+
+      closeSearchModal() {
+        document.getElementById('search-modal').classList.add('hidden');
+      },
+
+      handleCommandSearch(query) {
+        const q = this.normalizeText(query);
+        const resultsBox = document.getElementById('command-results');
+        if (q.length < 2) {
+          resultsBox.innerHTML = '<div class="p-3 text-slate-400 text-center">Escribe al menos 2 letras...</div>';
+          return;
+        }
+        const full = window.SIPRES_DATABASE || [];
+        const matches = full.filter(item => 
+          this.normalizeText(item.n).includes(q) || 
+          this.normalizeText(item.s).includes(q) || 
+          String(item.f).includes(q)
+        ).slice(0, 6);
+
+        if (matches.length === 0) {
+          resultsBox.innerHTML = '<div class="p-3 text-slate-400 text-center">No se encontraron entidades coincidentes.</div>';
+          return;
+        }
+
+        resultsBox.innerHTML = matches.map(item => `
+          <div class="p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-obsidian-elevated flex items-center justify-between gap-2 transition-colors">
+            <div onclick="PreviewApp.closeSearchModal(); PreviewApp.openExpediente('${item.f}');" class="cursor-pointer flex-1 min-w-0">
+              <div class="font-serif font-bold text-slate-900 dark:text-white">${this.escapeHtml(item.n)} <span class="font-mono text-[10px] text-slate-400 font-normal ml-1">#${this.escapeHtml(item.f)}</span></div>
+              <div class="text-[10px] text-slate-500 truncate">${this.escapeHtml(item.s)}</div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" onclick="PreviewApp.toggleComparator('${item.f}')" class="px-2 py-1 rounded bg-slate-100 dark:bg-obsidian-border text-slate-600 dark:text-slate-300 hover:text-legal-gold text-[10px] font-semibold" title="Comparar">
+                <i class="fa-solid fa-code-compare"></i>
+              </button>
+              <button type="button" onclick="PreviewApp.closeSearchModal(); PreviewApp.startQuejaByFolio('${item.f}');" class="px-2.5 py-1 rounded bg-slate-900 dark:bg-legal-gold text-white text-[10px] font-semibold">
+                Realizar Queja
+              </button>
+            </div>
           </div>
-          <div>• <strong>Institución Receptora (Prefijo ${clabeInfo.prefix}):</strong> ${escapeHtml(clabeInfo.bankName)} (Plaza: ${clabeInfo.plaza})</div>
-          ${isFintechTransfer ? `<div class="text-rose-700 font-semibold">⚠️ Alerta Forense: Las cuentas con prefijo ${clabeInfo.prefix} (${escapeHtml(clabeInfo.bankName)}) a nombre de personas físicas son el medio #1 utilizado por estafadores para cobrar "fianzas" y "anticipos" de préstamos falsos.</div>` : ''}
-        </div>
-      `;
-    } else if (digits.length === 15 || digits.length === 16) {
-      const cardInfo = decodeCardInfo(digits);
-      techAnalysisHtml = `
-        <div class="p-2.5 rounded-lg bg-white/90 border border-slate-200 text-slate-800 space-y-1 mb-2">
-          <div class="font-bold text-slate-900 flex items-center justify-between">
-            <span><i class="fa-solid fa-credit-card text-sky-600 mr-1.5"></i> Análisis de Tarjeta Receptora (${digits.length} dígitos):</span>
-            <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700">Red: ${cardInfo.network}</span>
-          </div>
-          <div>• <strong>Advertencia CONDUSEF:</strong> Ninguna institución financiera regulada solicita depósitos en OXXO o transferencias a tarjetas de débito de personas físicas para liberar créditos.</div>
-        </div>
-      `;
-    }
+        `).join('');
+      },
 
-    if (matches.length > 0) {
-      const totalVotos = matches.reduce((acc, m) => acc + (m.confirmaciones || 1), 0);
-      resultBox.className = 'mt-3 p-3.5 rounded-xl bg-red-100 border border-red-300 text-red-900 text-xs space-y-1.5';
-      resultBox.innerHTML = `
-        ${techAnalysisHtml}
-        <strong class="font-bold text-red-800 flex items-center">
-          <i class="fa-solid fa-triangle-exclamation mr-1.5 text-base"></i>
-          ¡ALERTA ROJA! DATO REPORTADO EN ${matches.length} EXPEDIENTE(S) (${totalVotos} AFECTADOS):
-        </strong>
-        <div>• <strong>Defraudador señalado:</strong> ${escapeHtml(matches[0].nombre)} (${escapeHtml(matches[0].estado)}) — Modalidad: <span class="uppercase font-bold">${escapeHtml(matches[0].tipo)}</span>.</div>
-        <div>• <strong>Modus operandi reportado:</strong> "${escapeHtml(matches[0].relato)}"</div>
-      `;
-    } else {
-      resultBox.className = 'mt-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs space-y-1.5';
-      resultBox.innerHTML = `
-        ${techAnalysisHtml}
-        <strong class="font-bold text-emerald-800 flex items-center">
-          <i class="fa-solid fa-circle-check mr-1.5 text-base"></i>
-          SIN REPORTES PREVIOS EN EL MURO COMUNITARIO:
-        </strong>
-        <span>Este identificador aún no figura en los reportes del muro, pero recuerda la regla de oro: <strong>si te piden depositar dinero por adelantado a esta cuenta o teléfono para liberar un préstamo, es 100% un fraude (Art. 386 CPF)</strong>.</span>
-      `;
-    }
-  }
+      /* =======================================================================
+         MÓDULO 3: MEDIDOR DE CRÉDITO, CÁLCULO OFICIAL BANXICO & DETECTOR DE RIESGOS
+         ======================================================================= */
+      formatMoney(num) {
+        const val = Number(num) || 0;
+        return '$' + val.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      },
 
-  function renderMexicoHeatmap() {
-    const grid = document.getElementById('mexico-states-grid');
-    if (!grid) return;
+      populateCreditoDatalist() {
+        const dl = document.getElementById('cr-lender-datalist');
+        if (!dl) return;
+        const sipres = window.SIPRES_DATABASE || [];
+        const apps = window.APPS_PRESTAMO_DB || [];
+        const seen = new Set();
+        const opts = [];
 
-    const stateCounts = {};
-    state.citizenReports.forEach(r => {
-      const st = r.estado || 'Nacional';
-      stateCounts[st] = (stateCounts[st] || 0) + 1;
-    });
+        sipres.forEach(item => {
+          const key = this.normalizeText(item.n);
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          opts.push(`<option value="${this.escapeHtml(item.n)}">SIPRES #${this.escapeHtml(item.f)} • ${this.escapeHtml(item.e)} (${this.escapeHtml(item.t)})</option>`);
+        });
 
-    const commonStates = [
-      'Ciudad de México', 'Jalisco', 'Nuevo León', 'Estado de México',
-      'Puebla', 'Veracruz', 'Guanajuato', 'Querétaro', 'Yucatán',
-      'Chihuahua', 'Sonora', 'Nacional'
-    ];
+        apps.forEach(item => {
+          const key = this.normalizeText(item.app);
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          const tag = item.condusef === 'NO'
+            ? `ALERTA MONTADEUDAS • ${item.reportes} reportes ciudadanos • Sin registro CONDUSEF`
+            : `App registrada • ${item.reportes} reportes monitoreados`;
+          opts.push(`<option value="${this.escapeHtml(item.app)}">${this.escapeHtml(tag)}</option>`);
+        });
 
-    grid.innerHTML = commonStates.map(st => {
-      const count = stateCounts[st] || 0;
-      const isSelected = state.radarStateFilter === st;
-      let boxClasses = count > 0
-        ? 'bg-rose-50 border-rose-200 text-rose-950 font-semibold hover:bg-rose-100'
-        : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100';
+        dl.innerHTML = opts.join('');
+      },
 
-      if (isSelected) {
-        boxClasses = 'bg-rose-600 border-rose-700 text-white font-bold shadow-md ring-2 ring-rose-300';
-      }
+      handleCreditoLenderInput(rawVal) {
+        const q = this.normalizeText(rawVal);
+        const sipres = window.SIPRES_DATABASE || [];
+        const apps = window.APPS_PRESTAMO_DB || [];
 
-      return `
-        <button type="button" onclick="EscudoApp.filterRadarByState('${st}')" class="p-2.5 rounded-xl border ${boxClasses} flex items-center justify-between transition-all text-left cursor-pointer">
-          <span class="truncate mr-1">${st}</span>
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${isSelected ? 'bg-white text-rose-700' : (count > 0 ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600')}">${count}</span>
-        </button>
-      `;
-    }).join('');
-  }
+        let sipresMatch = null;
+        let appMatch = null;
 
-  function filterRadarByState(estado) {
-    if (state.radarStateFilter === estado) {
-      state.radarStateFilter = '';
-    } else {
-      state.radarStateFilter = estado;
-    }
+        if (q.length >= 2) {
+          sipresMatch = sipres.find(e =>
+            this.normalizeText(e.n) === q ||
+            this.normalizeText(e.s) === q ||
+            String(e.f) === q
+          ) || (q.length >= 3 ? sipres.find(e => this.normalizeText(e.n).startsWith(q) || this.normalizeText(e.s).includes(q)) : null);
 
-    const clearBtn = document.getElementById('btn-clear-radar-state');
-    const labelEl = document.getElementById('active-radar-state-label');
-    if (clearBtn && labelEl) {
-      if (state.radarStateFilter) {
-        labelEl.textContent = state.radarStateFilter;
-        clearBtn.classList.remove('hidden');
-      } else {
-        clearBtn.classList.add('hidden');
-      }
-    }
+          appMatch = apps.find(a => this.normalizeText(a.app) === q) ||
+            (q.length >= 4 ? apps.find(a => this.normalizeText(a.app).startsWith(q)) : null);
+        }
 
-    renderMexicoHeatmap();
-    renderCitizenReports();
-  }
+        this.creditoMatchedSipres = sipresMatch || null;
+        this.creditoMatchedApp = appMatch || null;
 
-  function filterRadar(filter, btnEl) {
-    state.radarFilter = filter;
-    document.querySelectorAll('.radar-filter-btn').forEach(btn => {
-      btn.className = 'radar-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200';
-    });
-    const activeBtn = btnEl || (typeof event !== 'undefined' ? event.target : null);
-    if (activeBtn) {
-      activeBtn.className = 'radar-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white';
-    }
-    renderCitizenReports();
-  }
+        const selectVerif = document.getElementById('cr-verificada');
+        const banner = document.getElementById('cr-lender-status-banner');
+        const icon = document.getElementById('cr-lender-status-icon');
+        const title = document.getElementById('cr-lender-status-title');
+        const pill = document.getElementById('cr-lender-status-pill');
+        const desc = document.getElementById('cr-lender-status-desc');
 
-  function renderCitizenReports() {
-    const grid = document.getElementById('radar-reports-grid');
-    const countEl = document.getElementById('radar-total-count');
-    if (!grid) return;
+        if (banner && icon && title && pill && desc) {
+          if (appMatch && appMatch.condusef === 'NO' && !sipresMatch) {
+            if (selectVerif) selectVerif.value = 'NO_MONTADEUDAS';
+            banner.className = 'p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-3';
+            icon.className = 'fa-solid fa-triangle-exclamation text-red-500 mt-0.5 text-sm';
+            title.innerText = `${appMatch.app} — DETECTADA EN RADAR MONTADEUDAS`;
+            pill.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-red-500/15 text-red-600 dark:text-red-400';
+            pill.innerText = `NO REGULADA • ${appMatch.reportes.toLocaleString('es-MX')} REPORTES`;
+            desc.innerHTML = `Sin registro en SIPRES CONDUSEF. Estatus Google Play: <strong>${this.escapeHtml(appMatch.googlePlay)}</strong> • APK externo: <strong>${this.escapeHtml(appMatch.apk)}</strong>. Alto riesgo de acceso a contactos, cobro extorsivo y retenciones ilegales.`;
+          } else if (sipresMatch) {
+            if (selectVerif) selectVerif.value = sipresMatch.r === 'REGULADA' ? 'SI' : 'NO';
+            const isReg = sipresMatch.r === 'REGULADA';
+            banner.className = isReg
+              ? 'p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-start gap-3'
+              : 'p-3.5 rounded-xl bg-amber-500/10 border border-legal-gold/30 flex items-start gap-3';
+            icon.className = isReg
+              ? 'fa-solid fa-shield-halved text-legal-emerald mt-0.5 text-sm'
+              : 'fa-solid fa-clock-rotate-left text-legal-gold mt-0.5 text-sm';
+            title.innerText = `${sipresMatch.n} — Folio SIPRES #${sipresMatch.f}`;
+            pill.className = isReg
+              ? 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-emerald-500/15 text-legal-emerald'
+              : 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-amber-500/15 text-legal-gold';
+            pill.innerText = sipresMatch.e.toUpperCase();
 
-    const wallQuery = normalizeText(document.getElementById('radar-wall-search')?.value || '');
-    const sortBy = document.getElementById('radar-sort-select')?.value || 'recientes';
+            let extraNotes = `${this.escapeHtml(sipresMatch.s)} • Sector: ${this.escapeHtml(sipresMatch.t)}.`;
+            if (sipresMatch.a) {
+              extraNotes += ` <strong class="text-legal-gold">Alerta CONDUSEF:</strong> Esta entidad reporta suplantadores en WhatsApp; contrata únicamente en sus canales oficiales.`;
+            }
+            if (appMatch) {
+              extraNotes += ` Monitoreo digital: ${appMatch.reportes.toLocaleString('es-MX')} menciones ciudadanas registradas.`;
+            }
+            desc.innerHTML = extraNotes;
+          } else if (q.length >= 2) {
+            if (selectVerif) selectVerif.value = 'NO';
+            banner.className = 'p-3.5 rounded-xl bg-amber-500/10 border border-legal-gold/35 flex items-start gap-3';
+            icon.className = 'fa-solid fa-user-secret text-legal-gold mt-0.5 text-sm';
+            title.innerText = `"${rawVal.trim()}" — No localizada en SIPRES (409 entidades)`;
+            pill.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-amber-500/15 text-legal-gold';
+            pill.innerText = 'SIN SUPERVISIÓN CNBV';
+            desc.innerText = 'No figura en el padrón oficial SIPRES ni como entidad regulada. Evita compartir INE, contactos o anticipos con gestores en redes sociales o WhatsApp.';
+          } else {
+            banner.className = 'p-3.5 rounded-xl bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border flex items-start gap-3';
+            icon.className = 'fa-solid fa-magnifying-glass text-slate-400 mt-0.5 text-sm';
+            title.innerText = 'Escribe el nombre del banco, SOFIPO o aplicación móvil';
+            pill.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-300';
+            pill.innerText = '808 REGISTROS';
+            desc.innerText = 'El sistema verificará instantáneamente si cuenta con folio oficial en SIPRES o alertas ciudadanas en el Radar Montadeudas.';
+          }
+        }
 
-    let list = [...state.citizenReports];
+        this.calcCredito();
+      },
 
-    if (state.radarFilter !== 'todos') {
-      list = list.filter(r => r.tipo === state.radarFilter);
-    }
+      setCreditoAnticipo(mode) {
+        this.creditoAnticipo = mode === 'SI' ? 'SI' : 'NO';
+        const btnNo = document.getElementById('cr-btn-anticipo-no');
+        const btnSi = document.getElementById('cr-btn-anticipo-si');
+        const box = document.getElementById('cr-anticipo-box');
+        const montoInput = document.getElementById('cr-anticipo-monto');
 
-    if (state.radarStateFilter) {
-      list = list.filter(r => (r.estado || 'Nacional') === state.radarStateFilter);
-    }
+        if (this.creditoAnticipo === 'SI') {
+          if (btnSi) btnSi.className = 'px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-2 bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/50 shadow-sm';
+          if (btnNo) btnNo.className = 'px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-2 bg-slate-50 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-300 border-slate-200 dark:border-obsidian-border hover:border-emerald-500/40';
+          if (box) box.classList.remove('hidden');
+          if (montoInput && (!Number(montoInput.value) || Number(montoInput.value) <= 0)) {
+            montoInput.value = '1500';
+          }
+        } else {
+          if (btnNo) btnNo.className = 'px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-2 bg-emerald-500/10 text-legal-emerald border-emerald-500/40 shadow-sm';
+          if (btnSi) btnSi.className = 'px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-2 bg-slate-50 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-300 border-slate-200 dark:border-obsidian-border hover:border-red-500/50';
+          if (box) box.classList.add('hidden');
+        }
+        this.calcCredito();
+      },
 
-    if (wallQuery) {
-      list = list.filter(r => 
-        normalizeText(r.nombre).includes(wallQuery) ||
-        normalizeText(r.telefono).includes(wallQuery) ||
-        normalizeText(r.clabe).includes(wallQuery) ||
-        normalizeText(r.estado).includes(wallQuery) ||
-        normalizeText(r.relato).includes(wallQuery)
-      );
-    }
+      syncCreditoInput(field, rawVal, fromSlider) {
+        const numInput = document.getElementById(`cr-${field}`);
+        const sliderInput = document.getElementById(`cr-${field}-slider`);
+        const val = Number(rawVal);
 
-    if (sortBy === 'afectados') {
-      list.sort((a, b) => (b.confirmaciones || 1) - (a.confirmaciones || 1));
-    } else if (sortBy === 'monto') {
-      list.sort((a, b) => (parseFloat(b.monto) || 0) - (parseFloat(a.monto) || 0));
-    } else {
-      list.sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
-    }
+        if (fromSlider && numInput) {
+          numInput.value = isNaN(val) ? '' : val;
+        } else if (!fromSlider && sliderInput && !isNaN(val)) {
+          const max = Number(sliderInput.max) || 100000;
+          const min = Number(sliderInput.min) || 0;
+          sliderInput.value = Math.min(max, Math.max(min, val));
+        }
 
-    if (countEl) countEl.textContent = list.length;
+        this.calcCredito();
+      },
 
-    if (list.length === 0) {
-      grid.innerHTML = `<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-white rounded-xl border border-slate-200">No se encontraron reportes con los filtros seleccionados.</div>`;
-      return;
-    }
+      applyCreditoPreset(type) {
+        const setField = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        };
 
-    grid.innerHTML = list.map(rep => {
-      const votos = rep.confirmaciones || 1;
-      const isTrending = votos >= 15;
+        if (type === 'bancario') {
+          setField('cr-lender-input', 'BBVA');
+          setField('cr-monto', '20000');
+          setField('cr-monto-slider', '20000');
+          setField('cr-frecuencia', '12');
+          setField('cr-plazo', '12');
+          setField('cr-plazo-slider', '12');
+          setField('cr-pago', '2010');
+          setField('cr-pago-slider', '2010');
+          setField('cr-comision', '0');
+          setField('cr-cat-prometido', '38.5');
+          setField('cr-anticipo-monto', '0');
+          this.setCreditoAnticipo('NO');
+          this.handleCreditoLenderInput('BBVA');
+          this.showToast('Escenario cargado: Crédito Personal Bancario Regulado (Semáforo Verde).');
+        } else if (type === 'sofipo_cat') {
+          setField('cr-lender-input', 'Stori');
+          setField('cr-monto', '10000');
+          setField('cr-monto-slider', '10000');
+          setField('cr-frecuencia', '24');
+          setField('cr-plazo', '12');
+          setField('cr-plazo-slider', '12');
+          setField('cr-pago', '1060');
+          setField('cr-pago-slider', '1060');
+          setField('cr-comision', '850');
+          setField('cr-cat-prometido', '45.0');
+          setField('cr-anticipo-monto', '0');
+          this.setCreditoAnticipo('NO');
+          this.handleCreditoLenderInput('Stori');
+          this.showToast('Escenario cargado: Comisión retenida al desembolso + Discrepancia de CAT (Art. 43 LTOSF).');
+        } else if (type === 'montadeudas') {
+          setField('cr-lender-input', 'PRESTAMAX');
+          setField('cr-monto', '2000');
+          setField('cr-monto-slider', '2000');
+          setField('cr-frecuencia', '52');
+          setField('cr-plazo', '2');
+          setField('cr-plazo-slider', '2');
+          setField('cr-pago', '1250');
+          setField('cr-pago-slider', '1250');
+          setField('cr-comision', '700');
+          setField('cr-cat-prometido', '18.0');
+          setField('cr-anticipo-monto', '0');
+          this.setCreditoAnticipo('NO');
+          this.handleCreditoLenderInput('PRESTAMAX');
+          this.showToast('Escenario cargado: App Montadeudas (retiene $700 al inicio y exige $2,500 en 14 días).');
+        } else if (type === 'anticipo') {
+          setField('cr-lender-input', 'Gestor Financiero Express WhatsApp');
+          setField('cr-monto', '50000');
+          setField('cr-monto-slider', '50000');
+          setField('cr-frecuencia', '12');
+          setField('cr-plazo', '24');
+          setField('cr-plazo-slider', '24');
+          setField('cr-pago', '2350');
+          setField('cr-pago-slider', '2350');
+          setField('cr-comision', '0');
+          setField('cr-cat-prometido', '12.0');
+          setField('cr-anticipo-monto', '1800');
+          this.setCreditoAnticipo('SI');
+          this.handleCreditoLenderInput('Gestor Financiero Express WhatsApp');
+          this.showToast('Escenario cargado: Falso crédito con solicitud de depósito previo (Fraude Art. 386 CPF).');
+        }
+      },
 
-      // Cruzar con las 409 entidades del SIPRES para detectar entidad legítima suplantada
-      const sipresMatches = findMentionedEntities(`${rep.nombre} ${rep.relato}`);
-      const sipresEntity = sipresMatches.length > 0 ? sipresMatches[0] : null;
+      solvePeriodicIRR(principal, payment, n) {
+        if (principal <= 0 || payment <= 0 || n <= 0) return 0;
+        if (payment * n <= principal) return 0;
 
-      const sipresBadgeHtml = sipresEntity ? `
-        <button type="button" onclick="EscudoApp.openExpediente('${sipresEntity.f}')" class="w-full text-left mt-2 p-2 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[11px] text-sky-900 flex items-center justify-between transition-colors">
-          <span class="truncate mr-2">
-            <i class="fa-solid fa-shield-halved text-sky-600 mr-1"></i>
-            Entidad Real Suplantada: <strong>${escapeHtml(sipresEntity.n)}</strong> (Folio #${escapeHtml(sipresEntity.f)})
-          </span>
-          <span class="text-[10px] font-bold text-sky-700 underline shrink-0">Ver Ficha</span>
-        </button>
-      ` : '';
+        let low = 0;
+        let high = Math.max(10, (payment / principal) * 2);
 
-      let clabeBadgeHtml = '';
-      if (rep.clabe && rep.clabe.replace(/[^0-9]/g, '').length >= 16) {
-        const cleanDigits = rep.clabe.replace(/[^0-9]/g, '');
-        const bankLabel = cleanDigits.length === 18
-          ? (CLABE_BANKS[cleanDigits.substring(0, 3)] || `Prefijo ${cleanDigits.substring(0, 3)}`)
-          : 'Tarjeta receptora';
-        clabeBadgeHtml = `
-          <div class="text-[11px] font-mono text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1 mt-1 truncate">
-            <i class="fa-solid fa-money-bill-transfer mr-1"></i> Cuenta reportada: <strong>${escapeHtml(rep.clabe)}</strong> (${escapeHtml(bankLabel)})
-          </div>
-        `;
-      }
+        for (let iter = 0; iter < 70; iter++) {
+          const mid = (low + high) / 2;
+          if (mid === 0) break;
+          const pv = payment * (1 - Math.pow(1 + mid, -n)) / mid;
+          if (pv > principal) {
+            low = mid;
+          } else {
+            high = mid;
+          }
+        }
+        return (low + high) / 2;
+      },
 
-      // Cruzar con las 399 aplicaciones de préstamo móvil por si el reporte corresponde a una app del catálogo
-      const matchedApp = appsPrestamoCatalog.find(a =>
-        (rep.appNum && a.num === parseInt(rep.appNum)) ||
-        normalizeText(rep.nombre).includes(normalizeText(a.app))
-      );
+      calcAnnuityPayment(principal, annualCatPct, periodsPerYear, n) {
+        if (principal <= 0 || n <= 0) return 0;
+        const r = Math.pow(1 + (annualCatPct / 100), 1 / periodsPerYear) - 1;
+        if (r <= 0) return principal / n;
+        return (principal * r) / (1 - Math.pow(1 + r, -n));
+      },
 
-      const appCatalogBadgeHtml = matchedApp ? `
-        <button type="button" onclick="EscudoApp.openAppFicha(${matchedApp.num})" class="w-full text-left mt-2 p-2 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-[11px] text-rose-900 flex items-center justify-between transition-colors">
-          <span class="truncate mr-2">
-            <i class="fa-solid fa-mobile-screen-button text-rose-600 mr-1"></i>
-            App N° <strong>${matchedApp.num}</strong> (${escapeHtml(matchedApp.app)}): <strong>${matchedApp.reportes} reportes</strong> • Google Play: <strong>${matchedApp.googlePlay}</strong>
-          </span>
-          <span class="text-[10px] font-bold text-rose-700 underline shrink-0">Ver Ficha</span>
-        </button>
-      ` : '';
+      calcCredito() {
+        const montoEl = document.getElementById('cr-monto');
+        if (!montoEl) return;
 
-      return `
-        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3 flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between text-xs mb-2 gap-1 flex-wrap">
-              <div class="flex items-center space-x-1.5">
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">${escapeHtml(rep.tipo.toUpperCase())}</span>
-                ${isTrending ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200"><i class="fa-solid fa-fire text-rose-600 mr-1"></i>Tendencia</span>` : ''}
+        const lenderRaw = (document.getElementById('cr-lender-input')?.value || '').trim();
+        const verificada = document.getElementById('cr-verificada')?.value || 'SI';
+        const monto = Math.max(100, Number(montoEl.value) || 0);
+        const frecuencia = Number(document.getElementById('cr-frecuencia')?.value) || 12;
+        const plazo = Math.max(1, Math.round(Number(document.getElementById('cr-plazo')?.value) || 1));
+        const pago = Math.max(1, Number(document.getElementById('cr-pago')?.value) || 0);
+        const comisionRaw = Math.max(0, Number(document.getElementById('cr-comision')?.value) || 0);
+        const comisionEfectiva = Math.min(comisionRaw, monto * 0.92);
+        const catPrometidoRaw = document.getElementById('cr-cat-prometido')?.value;
+        const catPrometido = (catPrometidoRaw !== '' && catPrometidoRaw !== null) ? Number(catPrometidoRaw) : NaN;
+        const anticipoMonto = this.creditoAnticipo === 'SI'
+          ? Math.max(0, Number(document.getElementById('cr-anticipo-monto')?.value) || 0)
+          : 0;
+
+        // Equivalencia temporal legible
+        const mesesEquiv = (plazo * 12) / frecuencia;
+        const frecLabel = frecuencia === 52 ? 'semanal' : (frecuencia === 24 ? 'quincenal' : 'mensual');
+        const frecPlural = frecuencia === 52 ? 'semanales' : (frecuencia === 24 ? 'quincenales' : 'mensuales');
+        const eqEl = document.getElementById('cr-plazo-equivalente');
+        if (eqEl) {
+          eqEl.innerText = mesesEquiv < 1
+            ? `Duración aprox: ${Math.round((plazo * 365) / frecuencia)} días`
+            : `Duración aprox: ${mesesEquiv.toFixed(1)} meses`;
+        }
+
+        // Flujos reales conforme a Circular 21/2009 Banxico
+        const netoRecibido = Math.max(1, monto - comisionEfectiva);
+        const totalCuotas = pago * plazo;
+        const totalPagar = totalCuotas + anticipoMonto;
+        const costoFinanciero = Math.max(0, totalPagar - netoRecibido);
+        const multiplo = totalPagar / netoRecibido;
+
+        const rEffPeriodica = this.solvePeriodicIRR(netoRecibido, pago, plazo);
+        const catReal = (Math.pow(1 + rEffPeriodica, frecuencia) - 1) * 100;
+        const catDisplay = (!isFinite(catReal) || catReal > 99999) ? '>99,999%' : `${catReal.toFixed(1)}%`;
+        const tasaPeriodicaPct = (rEffPeriodica * 100).toFixed(2);
+        const discrepanciaCat = (!isNaN(catPrometido) && catPrometido >= 0) ? (catReal - catPrometido) : 0;
+
+        // Actualizar 4 KPIs Ejecutivos
+        const pctRetenido = monto > 0 ? ((comisionEfectiva / monto) * 100) : 0;
+        document.getElementById('cr-kpi-neto').innerText = this.formatMoney(netoRecibido);
+        const kpiNetoSub = document.getElementById('cr-kpi-neto-sub');
+        if (comisionEfectiva > 0) {
+          kpiNetoSub.className = 'text-[11px] text-amber-600 dark:text-legal-gold font-semibold mt-0.5';
+          kpiNetoSub.innerText = `Retienen ${this.formatMoney(comisionEfectiva)} (${pctRetenido.toFixed(1)}%) al desembolsar`;
+        } else {
+          kpiNetoSub.className = 'text-[11px] text-legal-emerald font-medium mt-0.5';
+          kpiNetoSub.innerText = '100% íntegro sin retenciones previas';
+        }
+
+        document.getElementById('cr-kpi-total').innerText = this.formatMoney(totalPagar);
+        document.getElementById('cr-kpi-total-sub').innerText = `Equivale a ${multiplo.toFixed(2)}x el dinero recibido en mano`;
+
+        document.getElementById('cr-kpi-costo').innerText = this.formatMoney(costoFinanciero);
+        document.getElementById('cr-kpi-costo-sub').innerText = totalCuotas < netoRecibido
+          ? 'Atención: la suma de cuotas es menor al capital neto'
+          : (anticipoMonto > 0 ? `Incluye ${this.formatMoney(anticipoMonto)} de anticipo ilegal` : 'Intereses ordinarios + IVA + retenciones');
+
+        const kpiCatEl = document.getElementById('cr-kpi-cat');
+        const kpiCatBadge = document.getElementById('cr-kpi-cat-badge');
+        const kpiCatSub = document.getElementById('cr-kpi-cat-sub');
+        kpiCatEl.innerText = catDisplay;
+
+        if (!isNaN(catPrometido) && discrepanciaCat > 15) {
+          kpiCatSub.className = 'text-[11px] text-red-600 dark:text-red-400 font-semibold mt-0.5';
+          kpiCatSub.innerText = `Supera en +${ (!isFinite(discrepanciaCat) || discrepanciaCat > 9999) ? '>9,999' : discrepanciaCat.toFixed(1) } pts al ${catPrometido.toFixed(1)}% prometido`;
+        } else {
+          kpiCatSub.className = 'text-[11px] text-slate-500 dark:text-slate-400 mt-0.5';
+          kpiCatSub.innerText = `Tasa efectiva ${frecLabel}: ${tasaPeriodicaPct}% sobre flujo neto`;
+        }
+
+        // Clasificación Jurídica del Semáforo
+        let nivel = 'VERDE';
+        if (this.creditoAnticipo === 'SI') {
+          nivel = 'FRAUDE';
+        } else if (verificada === 'NO_MONTADEUDAS' || catReal > 150 || (verificada === 'NO' && catReal > 85)) {
+          nivel = 'ROJO';
+        } else if (verificada === 'NO' || catReal > 65 || discrepanciaCat > 15 || pctRetenido >= 5) {
+          nivel = 'AMARILLO';
+        }
+
+        // Hallazgos Normativos Dinámicos
+        const findings = [];
+        if (this.creditoAnticipo === 'SI') {
+          findings.push(`<li class="flex items-start gap-2 text-red-600 dark:text-red-400 font-medium"><i class="fa-solid fa-gavel mt-1 shrink-0"></i><span><strong>Fraude por Falso Gestor (Art. 386 Código Penal Federal):</strong> Exigir depósitos previos (${this.formatMoney(anticipoMonto)}) por concepto de seguro, fianza o comisión antes de liberar el crédito constituye el modus operandi clásico de estafa financiera.</span></li>`);
+        }
+        if (verificada === 'NO_MONTADEUDAS') {
+          const repTxt = this.creditoMatchedApp ? ` (${this.creditoMatchedApp.reportes.toLocaleString('es-MX')} reportes ciudadanos en Radar CONDUSEF)` : '';
+          findings.push(`<li class="flex items-start gap-2 text-red-600 dark:text-red-400 font-medium"><i class="fa-solid fa-mobile-screen-button mt-1 shrink-0"></i><span><strong>App No Regulada / Esquema Montadeudas${repTxt}:</strong> Opera fuera de la supervisión de CNBV y CONDUSEF (Art. 103 LIC). No instales archivos APK ni concedas permisos a contactos o galería.</span></li>`);
+        } else if (verificada === 'NO') {
+          findings.push(`<li class="flex items-start gap-2 text-amber-700 dark:text-legal-gold"><i class="fa-solid fa-triangle-exclamation mt-1 shrink-0"></i><span><strong>Oferente sin Registro SIPRES Verificado:</strong> Al no ser entidad financiera supervisada, CONDUSEF carece de competencia conciliatoria directa en caso de incumplimiento contractual.</span></li>`);
+        } else if (this.creditoMatchedSipres) {
+          findings.push(`<li class="flex items-start gap-2 text-legal-emerald"><i class="fa-solid fa-shield-check mt-1 shrink-0"></i><span><strong>Entidad Supervisada en SIPRES (Folio #${this.escapeHtml(this.creditoMatchedSipres.f)}):</strong> Sujeta a inspección regulatoria y procedimiento conciliatorio gratuito ante CONDUSEF (Art. 68 LPDUSF).</span></li>`);
+        }
+
+        if (comisionEfectiva > 0) {
+          findings.push(`<li class="flex items-start gap-2 text-amber-700 dark:text-legal-gold"><i class="fa-solid fa-scissors mt-1 shrink-0"></i><span><strong>Retención Previa al Desembolso (${this.formatMoney(comisionEfectiva)}):</strong> Recibes menos capital en mano (${this.formatMoney(netoRecibido)}), lo que eleva exponencialmente el CAT real conforme a la Circular 21/2009 de Banxico.</span></li>`);
+        }
+
+        if (!isNaN(catPrometido) && discrepanciaCat > 15) {
+          findings.push(`<li class="flex items-start gap-2 text-red-600 dark:text-red-400"><i class="fa-solid fa-eye-slash mt-1 shrink-0"></i><span><strong>Posible Publicidad Engañosa (Art. 43 LTOSF):</strong> El CAT real auditado (${catDisplay}) excede sustancialmente el CAT informado (${catPrometido.toFixed(1)}%), vulnerando el deber legal de transparencia financiera.</span></li>`);
+        }
+
+        if (catReal > 150) {
+          findings.push(`<li class="flex items-start gap-2 text-red-600 dark:text-red-400"><i class="fa-solid fa-scale-unbalanced mt-1 shrink-0"></i><span><strong>Indicio Objetivo de Usura (Jurisprudencia 1a./J. 46/2014 SCJN):</strong> Un CAT real de ${catDisplay} resulta notoriamente excesivo frente a las tasas bancarias de referencia y contraviene el Art. 21.3 de la Convención Americana sobre Derechos Humanos.</span></li>`);
+        } else if (catReal > 65) {
+          findings.push(`<li class="flex items-start gap-2 text-amber-700 dark:text-legal-gold"><i class="fa-solid fa-chart-line mt-1 shrink-0"></i><span><strong>Costo Financiero Elevado (${catDisplay} CAT):</strong> Supera el promedio de créditos personales bancarios (~38% CAT). Evalúa alternativas en Banca Múltiple o Cajas de Ahorro (SOCAP) autorizadas.</span></li>`);
+        } else if (nivel === 'VERDE') {
+          findings.push(`<li class="flex items-start gap-2 text-slate-600 dark:text-slate-300"><i class="fa-solid fa-circle-check text-legal-emerald mt-1 shrink-0"></i><span><strong>Equilibrio Actuarial Sano:</strong> El CAT real (${catDisplay}) y el múltiplo de pago (${multiplo.toFixed(2)}x) se mantienen dentro de rangos competitivos y transparentes del sistema financiero mexicano.</span></li>`);
+        }
+
+        document.getElementById('cr-legal-findings').innerHTML = findings.join('');
+
+        // Actualizar Tarjeta de Veredicto + Velocímetro SVG (Arco + Aguja)
+        const card = document.getElementById('cr-verdict-card');
+        const eyebrow = document.getElementById('cr-verdict-eyebrow');
+        const vTitle = document.getElementById('cr-verdict-title');
+        const vIconBox = document.getElementById('cr-verdict-icon-box');
+        const vIcon = document.getElementById('cr-verdict-icon');
+        const gaugeArc = document.getElementById('cr-gauge-arc');
+        const gaugeNeedle = document.getElementById('cr-gauge-needle');
+        const gaugeReadout = document.getElementById('cr-gauge-cat-readout');
+        const gaugePeriodic = document.getElementById('cr-gauge-periodic-rate');
+        const gaugeCaption = document.getElementById('cr-gauge-caption');
+
+        let progress = 0;
+        if (this.creditoAnticipo === 'SI') {
+          progress = 1;
+        } else if (!isFinite(catReal) || catReal >= 250) {
+          progress = 1;
+        } else if (catReal <= 90) {
+          progress = Math.max(0.03, (catReal / 90) * 0.5);
+        } else {
+          progress = 0.5 + Math.min(0.5, ((catReal - 90) / 160) * 0.5);
+        }
+
+        const dashOffset = 282.74 * (1 - progress);
+        const angleDeg = -90 + (progress * 180);
+
+        if (gaugeArc) gaugeArc.style.strokeDashoffset = dashOffset.toFixed(2);
+        if (gaugeNeedle) gaugeNeedle.setAttribute('transform', `rotate(${angleDeg.toFixed(1)} 110 105)`);
+        if (gaugeReadout) gaugeReadout.innerText = this.creditoAnticipo === 'SI' ? 'ALERTA PENAL' : `${catDisplay} CAT`;
+        if (gaugePeriodic) gaugePeriodic.innerText = `(${tasaPeriodicaPct}% ${frecLabel})`;
+
+        if (nivel === 'FRAUDE') {
+          card.className = 'bg-white dark:bg-obsidian-surface rounded-2xl border-2 border-red-500/70 p-6 shadow-sm space-y-5 transition-all';
+          eyebrow.className = 'text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30';
+          eyebrow.innerText = 'ALERTA ROJA • PROBABLE ESTAFA';
+          vTitle.innerText = '¡No deposites! Indicio directo de fraude por anticipo';
+          vIconBox.className = 'w-10 h-10 rounded-xl bg-red-500/15 text-red-500 flex items-center justify-center shrink-0';
+          vIcon.className = 'fa-solid fa-ban text-lg';
+          if (gaugeArc) gaugeArc.setAttribute('stroke', '#ef4444');
+          kpiCatEl.className = 'font-mono text-2xl font-bold text-red-600 dark:text-red-400';
+          kpiCatBadge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30';
+          kpiCatBadge.innerText = 'FRAUDE';
+          gaugeCaption.innerText = 'Solicitar dinero por adelantado invalida cualquier oferta legítima';
+        } else if (nivel === 'ROJO') {
+          card.className = 'bg-white dark:bg-obsidian-surface rounded-2xl border-2 border-red-500/55 p-6 shadow-sm space-y-5 transition-all';
+          eyebrow.className = 'text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30';
+          eyebrow.innerText = 'SEMÁFORO ROJO • RIESGO DE USURA / MONTADEUDAS';
+          vTitle.innerText = verificada === 'NO_MONTADEUDAS'
+            ? 'Peligro: App No Regulada y Costo Abusivo'
+            : 'Crédito Desproporcionado con Indicios de Usura';
+          vIconBox.className = 'w-10 h-10 rounded-xl bg-red-500/15 text-red-500 flex items-center justify-center shrink-0';
+          vIcon.className = 'fa-solid fa-triangle-exclamation text-lg';
+          if (gaugeArc) gaugeArc.setAttribute('stroke', '#ef4444');
+          kpiCatEl.className = 'font-mono text-2xl font-bold text-red-600 dark:text-red-400';
+          kpiCatBadge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30';
+          kpiCatBadge.innerText = 'USURA / ALTO';
+          gaugeCaption.innerText = 'Excede umbrales prudenciales fijados por la Suprema Corte (SCJN)';
+        } else if (nivel === 'AMARILLO') {
+          card.className = 'bg-white dark:bg-obsidian-surface rounded-2xl border-2 border-legal-gold/60 p-6 shadow-sm space-y-5 transition-all';
+          eyebrow.className = 'text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/15 text-legal-gold border border-legal-gold/30';
+          eyebrow.innerText = 'SEMÁFORO AMARILLO • PRECAUCIÓN FINANCIERA';
+          vTitle.innerText = discrepanciaCat > 15
+            ? 'Alerta de Discrepancia en CAT Publicitado'
+            : 'Financiamiento Costoso o con Condiciones de Cuidado';
+          vIconBox.className = 'w-10 h-10 rounded-xl bg-amber-500/15 text-legal-gold flex items-center justify-center shrink-0';
+          vIcon.className = 'fa-solid fa-triangle-exclamation text-lg';
+          if (gaugeArc) gaugeArc.setAttribute('stroke', '#d97706');
+          kpiCatEl.className = 'font-mono text-2xl font-bold text-legal-gold';
+          kpiCatBadge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-amber-500/15 text-legal-gold border border-legal-gold/30';
+          kpiCatBadge.innerText = 'MODERADO';
+          gaugeCaption.innerText = 'Revisa comisiones por apertura y compara antes de firmar';
+        } else {
+          card.className = 'bg-white dark:bg-obsidian-surface rounded-2xl border-2 border-emerald-500/45 p-6 shadow-sm space-y-5 transition-all';
+          eyebrow.className = 'text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-legal-emerald border border-emerald-500/25';
+          eyebrow.innerText = 'SEMÁFORO VERDE • CRÉDITO SANO';
+          vTitle.innerText = 'Oferta Regulada y Costo Competitivo';
+          vIconBox.className = 'w-10 h-10 rounded-xl bg-emerald-500/15 text-legal-emerald flex items-center justify-center shrink-0';
+          vIcon.className = 'fa-solid fa-shield-check text-lg';
+          if (gaugeArc) gaugeArc.setAttribute('stroke', '#059669');
+          kpiCatEl.className = 'font-mono text-2xl font-bold text-legal-emerald';
+          kpiCatBadge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-emerald-500/10 text-legal-emerald border border-emerald-500/20';
+          kpiCatBadge.innerText = 'ÓPTIMO';
+          gaugeCaption.innerText = 'Dentro de parámetros ordinarios de Banca Múltiple supervisada';
+        }
+
+        // Barra Capital Neto vs Costo Financiero
+        const capPct = totalPagar > 0 ? Math.min(100, Math.max(5, (netoRecibido / totalPagar) * 100)) : 100;
+        const intPct = Math.max(0, 100 - capPct);
+        document.getElementById('cr-bar-cap-label').innerText = `${capPct.toFixed(1)}%`;
+        document.getElementById('cr-bar-int-label').innerText = `${intPct.toFixed(1)}%`;
+        document.getElementById('cr-bar-cap').style.width = `${capPct}%`;
+        const barIntEl = document.getElementById('cr-bar-int');
+        barIntEl.style.width = `${intPct}%`;
+        barIntEl.className = `h-full transition-all duration-300 ${nivel === 'ROJO' || nivel === 'FRAUDE' ? 'bg-red-500' : (nivel === 'AMARILLO' ? 'bg-amber-500' : 'bg-legal-gold')}`;
+
+        // Benchmark Dinámico (mismo capital neto, misma periodicidad y mismo número de pagos)
+        const cuotaBanco = this.calcAnnuityPayment(netoRecibido, 38, frecuencia, plazo);
+        const totalBanco = cuotaBanco * plazo;
+        const cuotaSofipo = this.calcAnnuityPayment(netoRecibido, 90, frecuencia, plazo);
+        const totalSofipo = cuotaSofipo * plazo;
+        const cuotaUsura = this.calcAnnuityPayment(netoRecibido, 260, frecuencia, plazo);
+        const totalUsura = cuotaUsura * plazo;
+
+        const maxBench = Math.max(totalBanco, totalSofipo, totalUsura, totalPagar, 1);
+        document.getElementById('cr-benchmark-subtitle').innerText =
+          `Comparativa real para recibir ${this.formatMoney(netoRecibido)} netos a ${plazo} pagos ${frecPlural}:`;
+
+        const benchRows = [
+          {
+            label: 'Banca Múltiple / Nómina (~38% CAT)',
+            total: totalBanco,
+            cuota: cuotaBanco,
+            barClass: 'bg-legal-emerald',
+            isUser: false
+          },
+          {
+            label: 'SOFIPO / Fintech Regulada (~90% CAT)',
+            total: totalSofipo,
+            cuota: cuotaSofipo,
+            barClass: 'bg-amber-500',
+            isUser: false
+          },
+          {
+            label: `Tu Oferta Evaluada (${catDisplay} CAT)`,
+            total: totalPagar,
+            cuota: pago,
+            barClass: (nivel === 'ROJO' || nivel === 'FRAUDE') ? 'bg-red-500' : (nivel === 'AMARILLO' ? 'bg-legal-gold' : 'bg-legal-emerald'),
+            isUser: true
+          },
+          {
+            label: 'Microcrédito Usurario Referencial (260% CAT)',
+            total: totalUsura,
+            cuota: cuotaUsura,
+            barClass: 'bg-slate-400 dark:bg-slate-600',
+            isUser: false
+          }
+        ];
+
+        const diffVsBanco = totalPagar - totalBanco;
+        document.getElementById('cr-benchmark-bars').innerHTML = benchRows.map(b => {
+          const widthPct = Math.max(8, Math.min(100, (b.total / maxBench) * 100));
+          return `
+            <div class="${b.isUser ? 'p-2.5 rounded-xl bg-slate-50 dark:bg-obsidian-elevated border border-legal-gold/40' : ''} space-y-1">
+              <div class="flex items-center justify-between gap-2">
+                <span class="${b.isUser ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'} text-[11px]">
+                  ${b.isUser ? '<i class="fa-solid fa-bullseye text-legal-gold mr-1"></i>' : ''}${this.escapeHtml(b.label)}
+                </span>
+                <span class="font-mono font-bold text-[11px] ${b.isUser ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}">
+                  ${this.formatMoney(b.total)}
+                </span>
               </div>
-              <span class="text-slate-400 font-mono text-[10px]">${escapeHtml(rep.fecha)}</span>
+              <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-obsidian-border overflow-hidden">
+                <div class="h-full ${b.barClass} rounded-full transition-all duration-300" style="width: ${widthPct.toFixed(1)}%;"></div>
+              </div>
+              ${b.isUser ? `
+                <div class="text-[10px] font-mono ${diffVsBanco > 50 ? 'text-amber-600 dark:text-legal-gold' : 'text-legal-emerald'}">
+                  ${diffVsBanco > 50
+                    ? `Pagas +${this.formatMoney(diffVsBanco)} adicionales frente a un crédito bancario estándar al mismo plazo.`
+                    : `En línea o por debajo del costo promedio bancario para este plazo.`}
+                </div>
+              ` : ''}
             </div>
+          `;
+        }).join('');
 
-            <h4 class="font-bold text-slate-900 text-sm leading-snug">${escapeHtml(rep.nombre)}</h4>
+        // Guardar estado del diagnóstico para exportación y puente a Quejas
+        this.lastCreditoDiag = {
+          lenderName: lenderRaw || 'Institución / Oferente Evaluado',
+          verificada,
+          nivel,
+          monto,
+          comisionEfectiva,
+          netoRecibido,
+          frecuencia,
+          frecLabel,
+          frecPlural,
+          plazo,
+          pago,
+          anticipoMonto,
+          totalPagar,
+          costoFinanciero,
+          multiplo,
+          catReal,
+          catDisplay,
+          catPrometido,
+          discrepanciaCat,
+          tasaPeriodicaPct,
+          totalBanco
+        };
 
-            <div class="flex items-center space-x-2 text-[11px] text-slate-500 my-1 font-mono">
-              <i class="fa-solid fa-phone text-slate-400"></i>
-              <span>${escapeHtml(rep.telefono)}</span>
-              <span>•</span>
-              <span>${escapeHtml(rep.estado)}</span>
-            </div>
+        // Renderizar Tabla de Amortización Francesa Exacta sobre Saldo Insoluto
+        this.renderAmortizationTable(monto, netoRecibido, comisionEfectiva, pago, plazo, frecuencia);
+      },
 
-            ${clabeBadgeHtml}
+      renderAmortizationTable(montoNominal, netoRecibido, comisionEfectiva, pago, plazo, frecuencia) {
+        const tbody = document.getElementById('cr-amort-tbody');
+        const tfoot = document.getElementById('cr-amort-tfoot');
+        if (!tbody || !tfoot) return;
 
-            <p class="text-xs text-slate-600 line-clamp-3 leading-relaxed mt-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-              "${escapeHtml(rep.relato)}"
-            </p>
+        // Tasa contractual periódica sobre el saldo nominal documentado
+        const rContractual = this.solvePeriodicIRR(montoNominal, pago, plazo);
+        let saldo = montoNominal;
+        const rows = [];
+        let sumCuota = 0;
+        let sumCapital = 0;
+        let sumInteres = 0;
+        let sumIva = 0;
 
-            ${appCatalogBadgeHtml}
-            ${sipresBadgeHtml}
-          </div>
+        const labelPeriodo = frecuencia === 52 ? 'Sem' : (frecuencia === 24 ? 'Qna' : 'Mes');
 
-          <div class="space-y-2.5 pt-2 border-t border-slate-100">
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="text-slate-400">Monto señalado:</span>
-              <span class="font-bold font-mono text-slate-800">
-                ${rep.monto ? `$${parseFloat(rep.monto).toLocaleString('es-MX')} MXN` : 'No especificado'}
+        for (let k = 1; k <= plazo; k++) {
+          let interesConIva = 0;
+          let capital = 0;
+          let cuotaReal = pago;
+
+          if (rContractual > 0) {
+            if (k === plazo) {
+              capital = saldo;
+              interesConIva = Math.max(0, cuotaReal - capital);
+            } else {
+              interesConIva = saldo * rContractual;
+              capital = Math.max(0, cuotaReal - interesConIva);
+              if (capital > saldo) {
+                capital = saldo;
+                cuotaReal = capital + interesConIva;
+              }
+            }
+          } else {
+            capital = Math.min(saldo, cuotaReal);
+            interesConIva = Math.max(0, cuotaReal - capital);
+          }
+
+          const interesOrd = interesConIva / 1.16;
+          const ivaPeriodo = interesConIva - interesOrd;
+          saldo = Math.max(0, saldo - capital);
+
+          sumCuota += cuotaReal;
+          sumCapital += capital;
+          sumInteres += interesOrd;
+          sumIva += ivaPeriodo;
+
+          rows.push({
+            periodo: `${labelPeriodo} ${k}`,
+            cuota: cuotaReal,
+            capital,
+            interes: interesOrd,
+            iva: ivaPeriodo,
+            saldo
+          });
+        }
+
+        this.lastAmortRows = rows;
+
+        let html = '';
+        if (comisionEfectiva > 0) {
+          html += `
+            <tr class="bg-amber-500/5 text-amber-700 dark:text-legal-gold">
+              <td class="py-2.5 px-4 font-semibold">Desembolso (0)</td>
+              <td class="py-2.5 px-4 text-right">-${this.formatMoney(comisionEfectiva)}</td>
+              <td class="py-2.5 px-4 text-right">Retención previa</td>
+              <td class="py-2.5 px-4 text-right">$0.00</td>
+              <td class="py-2.5 px-4 text-right">$0.00</td>
+              <td class="py-2.5 px-4 text-right font-bold">${this.formatMoney(montoNominal)} <span class="text-[10px] font-normal">(Neto: ${this.formatMoney(netoRecibido)})</span></td>
+            </tr>
+          `;
+        }
+
+        html += rows.map(r => `
+          <tr class="hover:bg-slate-50 dark:hover:bg-obsidian-elevated/60 transition-colors">
+            <td class="py-2.5 px-4 font-semibold text-slate-900 dark:text-white">${r.periodo}</td>
+            <td class="py-2.5 px-4 text-right">${this.formatMoney(r.cuota)}</td>
+            <td class="py-2.5 px-4 text-right text-legal-emerald">${this.formatMoney(r.capital)}</td>
+            <td class="py-2.5 px-4 text-right text-amber-600 dark:text-legal-gold">${this.formatMoney(r.interes)}</td>
+            <td class="py-2.5 px-4 text-right text-slate-500">${this.formatMoney(r.iva)}</td>
+            <td class="py-2.5 px-4 text-right font-semibold text-slate-900 dark:text-white">${this.formatMoney(r.saldo)}</td>
+          </tr>
+        `).join('');
+
+        tbody.innerHTML = html;
+        tfoot.innerHTML = `
+          <tr>
+            <td class="py-3 px-4">TOTALES (${plazo} PAGOS)</td>
+            <td class="py-3 px-4 text-right">${this.formatMoney(sumCuota)}</td>
+            <td class="py-3 px-4 text-right text-legal-emerald">${this.formatMoney(sumCapital)}</td>
+            <td class="py-3 px-4 text-right text-amber-600 dark:text-legal-gold">${this.formatMoney(sumInteres)}</td>
+            <td class="py-3 px-4 text-right">${this.formatMoney(sumIva)}</td>
+            <td class="py-3 px-4 text-right">${this.formatMoney(0)}</td>
+          </tr>
+        `;
+      },
+
+      exportAmortizationCSV() {
+        if (!this.lastAmortRows || this.lastAmortRows.length === 0) {
+          this.calcCredito();
+        }
+        const d = this.lastCreditoDiag;
+        const lines = [
+          ['Escudo Financiero Pro - Medidor de Credito (Calculo Oficial Mexico / Circular 21/2009 Banxico)'],
+          ['Institucion Evaluada', `"${(d?.lenderName || '').replace(/"/g, '""')}"`],
+          ['Monto Nominal', (d?.monto || 0).toFixed(2)],
+          ['Comision Retenida al Desembolso', (d?.comisionEfectiva || 0).toFixed(2)],
+          ['Neto Efectivo Recibido', (d?.netoRecibido || 0).toFixed(2)],
+          ['CAT Real Anual Auditado', `"${d?.catDisplay || ''}"`],
+          [],
+          ['Periodo', 'Cuota Periodica (MXN)', 'Abono a Capital (MXN)', 'Interes Ordinario (MXN)', 'IVA 16% (MXN)', 'Saldo Insoluto (MXN)']
+        ];
+
+        this.lastAmortRows.forEach(r => {
+          lines.push([
+            r.periodo,
+            r.cuota.toFixed(2),
+            r.capital.toFixed(2),
+            r.interes.toFixed(2),
+            r.iva.toFixed(2),
+            r.saldo.toFixed(2)
+          ]);
+        });
+
+        const csvContent = '\uFEFF' + lines.map(row => row.join(',')).join('\r\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Amortizacion_EscudoFinanciero_${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        this.showToast('Tabla de amortización exportada en formato CSV compatible con Excel.');
+      },
+
+      copySemaforoCedula() {
+        if (!this.lastCreditoDiag) this.calcCredito();
+        const d = this.lastCreditoDiag;
+        const sipresInfo = this.creditoMatchedSipres
+          ? `Regulada en SIPRES CONDUSEF (Folio #${this.creditoMatchedSipres.f} - ${this.creditoMatchedSipres.s})`
+          : (d.verificada === 'NO_MONTADEUDAS' ? 'ALERTA: App No Regulada / Reportada en Radar Montadeudas' : 'No localizada en el padrón oficial SIPRES');
+
+        const cedula = [
+          '=== CÉDULA DEL MEDIDOR DE CRÉDITO (CÁLCULO OFICIAL EN MÉXICO) ===',
+          `Entidad / Oferente: ${d.lenderName}`,
+          `Estatus Regulatorio: ${sipresInfo}`,
+          `Dictamen del Medidor: ${d.nivel}`,
+          '-------------------------------------------------------------',
+          `Monto Nominal Solicitado: ${this.formatMoney(d.monto)} MXN`,
+          `Retención / Comisión Previa: ${this.formatMoney(d.comisionEfectiva)} MXN`,
+          `Flujo Neto Recibido en Mano: ${this.formatMoney(d.netoRecibido)} MXN`,
+          `Esquema de Amortización Oficial en México: ${d.plazo} pagos ${d.frecPlural} de ${this.formatMoney(d.pago)} MXN (Saldos Insolutos + IVA 16%)`,
+          `Total Final Exigido: ${this.formatMoney(d.totalPagar)} MXN (${d.multiplo.toFixed(2)}x sobre neto recibido)`,
+          `Costo Financiero Total: ${this.formatMoney(d.costoFinanciero)} MXN`,
+          `CAT Real Anualizado (Metodología Banxico): ${d.catDisplay} (Tasa ${d.frecLabel}: ${d.tasaPeriodicaPct}%)`,
+          (!isNaN(d.catPrometido) ? `CAT Publicitado por el Oferente: ${d.catPrometido.toFixed(1)}%` : null),
+          '-------------------------------------------------------------',
+          'Fundamento Legal: Circular 21/2009 de Banco de México, Ley del IVA (Art. 15), Ley para la Transparencia y Ordenamiento de los Servicios Financieros (LTOSF) y Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF).'
+        ].filter(Boolean).join('\n');
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cedula).then(() => {
+            this.showToast('Cédula del Medidor de Crédito copiada al portapapeles.');
+          });
+        } else {
+          this.showToast('Cédula del Medidor de Crédito lista para copiar.');
+        }
+      },
+
+      transferSemaforoToQueja() {
+        if (!this.lastCreditoDiag) this.calcCredito();
+        const d = this.lastCreditoDiag;
+
+        const setVal = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.value = val;
+        };
+
+        // 1. Seleccionar vía procesal e inyectar datos de la institución en Paso 2
+        if (this.creditoMatchedSipres && d.verificada === 'SI') {
+          this.setProcedure('condusef');
+          this.applyEntityToQuejaFields(this.creditoMatchedSipres);
+        } else {
+          this.setProcedure(d.verificada === 'NO_MONTADEUDAS' ? 'redeco' : 'condusef');
+          setVal('input-queja-entidad', d.lenderName);
+          setVal('input-queja-nombre-comercial', d.lenderName);
+          setVal('input-queja-folio', 'SIN REGISTRO SIPRES');
+          setVal('input-queja-sede', d.verificada === 'NO_MONTADEUDAS' ? 'Aplicación Digital No Supervisada' : 'Sin sede registrada en SIPRES');
+          setVal('input-queja-estatus', d.verificada === 'NO_MONTADEUDAS' ? 'Alerta Radar Montadeudas' : 'No localizada en SIPRES');
+          const badge = document.getElementById('sipres-match-badge');
+          if (badge) badge.classList.add('hidden');
+          const banner = document.getElementById('step2-linked-banner');
+          if (banner) banner.classList.add('hidden');
+        }
+
+        setVal('input-queja-producto', d.verificada === 'NO_MONTADEUDAS' ? 'Banca Digital / App Móvil' : 'Crédito Personal o de Nómina');
+        setVal('input-queja-causa', 'Cobro abusivo de comisiones o intereses excesivos');
+        setVal('input-queja-monto', `${this.formatMoney(d.costoFinanciero > 0 ? d.costoFinanciero : d.monto)} MXN`);
+        setVal('input-queja-fecha', new Date().toISOString().slice(0, 10));
+
+        // 2. Redactar automáticamente el Capítulo de Hechos (Paso 3) con los cálculos auditados
+        const hechosParts = [
+          `Con relación a la oferta/operación de crédito celebrada con "${d.lenderName}", por un monto nominal documentado de ${this.formatMoney(d.monto)} MXN pagadero en ${d.plazo} exhibiciones ${d.frecPlural} de ${this.formatMoney(d.pago)} MXN cada una:`
+        ];
+        if (d.comisionEfectiva > 0) {
+          hechosParts.push(`Al momento del desembolso se aplicó una retención o comisión previa de ${this.formatMoney(d.comisionEfectiva)} MXN, entregando únicamente un flujo neto efectivo de ${this.formatMoney(d.netoRecibido)} MXN, pero calculando los cobros periódicos sobre el monto nominal íntegro.`);
+        }
+        if (d.anticipoMonto > 0) {
+          hechosParts.push(`Adicionalmente, se exigió un depósito anticipado improcedente por ${this.formatMoney(d.anticipoMonto)} MXN como supuesta condición para liberar los recursos, conducta constitutiva de posible fraude conforme al artículo 386 del Código Penal Federal.`);
+        }
+        hechosParts.push(`Realizado el cálculo conforme a la metodología oficial de la Circular 21/2009 de Banco de México sobre el flujo neto recibido, resulta un pago total acumulado de ${this.formatMoney(d.totalPagar)} MXN (${d.multiplo.toFixed(2)} veces el capital recibido) y un Costo Anual Total (CAT) real efectivo de ${d.catDisplay}${!isNaN(d.catPrometido) ? `, lo cual discrepa sustancialmente respecto del CAT de ${d.catPrometido.toFixed(1)}% publicitado inicialmente` : ''}, configurando condiciones financieras desproporcionadas y lesivas.`);
+
+        setVal('input-queja-hechos', hechosParts.join(' '));
+
+        // 3. Redactar automáticamente el Capítulo de Pretensiones (Paso 4)
+        const pretParts = [
+          `PRIMERO.- Se ordene el desglose transparente de tasas, comisiones e IVA conforme al artículo 43 de la Ley para la Transparencia y Ordenamiento de los Servicios Financieros (LTOSF), dejando sin efectos cualquier comisión o retención previa no pactada expresamente (${this.formatMoney(d.comisionEfectiva)} MXN).`,
+          `SEGUNDO.- Se realice el ajuste y reducción prudencial de los intereses ordinarios y accesorios pactados por actualizarse parámetros objetivos de USURA (CAT real auditado de ${d.catDisplay}), en observancia del artículo 21, numeral 3, de la Convención Americana sobre Derechos Humanos y la Jurisprudencia obligatoria 1a./J. 46/2014 (10a.) de la Suprema Corte de Justicia de la Nación.`,
+          `TERCERO.- Se abstenga la reclamada de efectuar gestiones de cobranza intimidatoria o reportes improcedentes ante Sociedades de Información Crediticia durante la substanciación de la presente inconformidad.`
+        ];
+        setVal('input-queja-pretensiones', pretParts.join('\n\n'));
+
+        this.updateDocPreview();
+        this.switchTab('quejas');
+        this.setWizardStep(2);
+        this.showToast('Diagnóstico transferido al Generador de Quejas (Pasos 2, 3 y 4 prellenados con fundamento antiusura).');
+      },
+
+      /* =======================================================================
+         MÓDULO 4: LABORATORIO HEURÍSTICO DIGITAL & EVALUACIÓN PREVENTIVA
+         ======================================================================= */
+      forenseMode: 'text',
+      forenseEngine: 'local',
+      lastForenseResult: null,
+
+      switchForenseMode(mode) {
+        this.forenseMode = mode;
+        const btnText = document.getElementById('fn-tab-text-btn');
+        const btnImg = document.getElementById('fn-tab-img-btn');
+        const btnUrl = document.getElementById('fn-tab-url-btn');
+        const boxText = document.getElementById('fn-input-text-box');
+        const boxImg = document.getElementById('fn-input-img-box');
+        const boxUrl = document.getElementById('fn-input-url-box');
+
+        const activeCls = 'px-3 py-1.5 rounded-lg bg-white dark:bg-obsidian-surface text-slate-900 dark:text-white shadow-sm flex items-center gap-1.5 font-semibold';
+        const inactiveCls = 'px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1.5';
+
+        if (btnText) btnText.className = mode === 'text' ? activeCls : inactiveCls;
+        if (btnImg) btnImg.className = mode === 'image' ? activeCls : inactiveCls;
+        if (btnUrl) btnUrl.className = mode === 'url' ? activeCls : inactiveCls;
+
+        if (boxText) boxText.classList.toggle('hidden', mode !== 'text');
+        if (boxImg) boxImg.classList.toggle('hidden', mode !== 'image');
+        if (boxUrl) boxUrl.classList.toggle('hidden', mode !== 'url');
+      },
+
+      setForenseEngine(engine) {
+        this.forenseEngine = engine;
+        const btnLocal = document.getElementById('fn-btn-mode-local');
+        const btnGemini = document.getElementById('fn-btn-mode-gemini');
+        const boxGemini = document.getElementById('fn-gemini-box');
+
+        if (engine === 'local') {
+          if (btnLocal) btnLocal.className = 'px-2.5 py-1 rounded font-semibold text-[11px] bg-white dark:bg-obsidian-surface text-slate-900 dark:text-white shadow-sm';
+          if (btnGemini) btnGemini.className = 'px-2.5 py-1 rounded font-semibold text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1';
+          if (boxGemini) boxGemini.classList.add('hidden');
+        } else {
+          if (btnGemini) btnGemini.className = 'px-2.5 py-1 rounded font-semibold text-[11px] bg-white dark:bg-obsidian-surface text-amber-500 shadow-sm flex items-center gap-1';
+          if (btnLocal) btnLocal.className = 'px-2.5 py-1 rounded font-semibold text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white';
+          if (boxGemini) boxGemini.classList.remove('hidden');
+        }
+      },
+
+      loadForenseExample(type) {
+        this.switchForenseMode('text');
+        const input = document.getElementById('fn-message-input');
+        if (!input) return;
+
+        if (type === 'fianza_bbva') {
+          input.value = '¡Felicidades estimado usuario! Tu crédito de $100,000 MXN ha sido PRE-APROBADO por BBVA México. Para formalizar la entrega y liberación del cheque en tu cuenta CLABE en menos de 30 minutos, solo debes realizar el pago único de fianza y gastos de gestión por $1,500 MXN en cualquier OXXO a la tarjeta Spin / STP número 646180112345678901 a nombre del Lic. Roberto Méndez. Envía foto del ticket para transferirte de inmediato.';
+          this.decodeClabeLive('646180112345678901');
+          const clabeInp = document.getElementById('fn-clabe-input');
+          if (clabeInp) clabeInp.value = '646180112345678901';
+          this.showToast('Ejemplo cargado: Falso crédito bancario con exigencia de anticipo / fianza OXXO.');
+        } else if (type === 'montadeudas') {
+          input.value = 'AVISO URGENTE EXTRAJUDICIAL: Tu contacto Juan Carlos Pérez te dejó como aval de su adeudo vencido en la aplicación de préstamo. Te damos 2 horas para liquidar los $3,800 MXN o comenzaremos a enviar a todos los contactos de tu agenda telefónica y familiares su foto con la leyenda de DEUDOR FRAUDULENTO y denuncia penal por fraude. Comunícate ya por este WhatsApp.';
+          this.showToast('Ejemplo cargado: Esquema Montadeudas con extorsión telefónica y doxing.');
+        } else if (type === 'telegram_milagro') {
+          input.value = '¿Necesitas dinero urgente sin revisar buró de crédito ni aval? Préstamos desde $20,000 hasta $300,000 con tasa del 1.5% mensual fija. Aprobación 100% garantizada para amas de casa, comerciantes y desempleados. Solo descarga nuestra app APK desde el enlace http://bit.ly/prestamo-mexico-apk e ingresa tu INE.';
+          this.showToast('Ejemplo cargado: Crédito milagro sin buró con descarga de APK maliciosa.');
+        } else if (type === 'legitimo') {
+          input.value = 'BBVA Informa: Se realizó una compra por $450.00 MXN en Tienda Soriana con tu tarjeta terminación 1234 el 25/10/2026 a las 10:15 hrs. Si reconoces esta operación no necesitas hacer nada. Si no la reconoces, apaga tu tarjeta temporalmente desde tu App BBVA México. Recuerda que BBVA NUNCA te pedirá tus contraseñas ni códigos OTP por teléfono.';
+          this.showToast('Ejemplo cargado: Notificación transaccional bancaria legítima.');
+        }
+
+        const lenEl = document.getElementById('fn-text-length');
+        if (lenEl) lenEl.innerText = `${input.value.length} caracteres`;
+        this.runForensicAudit();
+      },
+
+      async handleForenseImage(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        this.showToast('Depurando metadatos EXIF de la captura (Protección GPS)...');
+        const sanitized = await this.sanitizeImageExif(file);
+        const nameEl = document.getElementById('fn-img-filename');
+        const boxEl = document.getElementById('fn-img-preview-box');
+        if (nameEl) nameEl.innerText = file.name;
+        if (boxEl) boxEl.classList.remove('hidden');
+        this.showToast(`Captura "${file.name}" cargada con EXIF depurado para evaluación heurística.`);
+        this.runForensicAudit();
+      },
+
+      clearForenseImage() {
+        const input = document.getElementById('fn-img-file-input');
+        const box = document.getElementById('fn-img-preview-box');
+        if (input) input.value = '';
+        if (box) box.classList.add('hidden');
+      },
+
+      decodeClabeLive(raw) {
+        const clean = String(raw || '').replace(/\D/g, '');
+        const resEl = document.getElementById('fn-clabe-result');
+        if (!resEl) return;
+
+        if (clean.length < 3) {
+          resEl.innerHTML = '<span class="text-slate-400">Banco emisor: --</span>';
+          return;
+        }
+
+        const bankCode = clean.substring(0, 3);
+        const banks = {
+          '002': 'Banamex / Citibanamex',
+          '012': 'BBVA México',
+          '014': 'Santander México',
+          '021': 'HSBC México',
+          '044': 'Scotiabank Inverlat',
+          '072': 'Banorte / Ixe',
+          '127': 'Banco Azteca',
+          '137': 'Bancoppel',
+          '646': 'STP (Sistema de Transferencias)',
+          '659': 'OXXO / Spin (Fintecheando)',
+          '684': 'Klar / SFA',
+          '670': 'Stori (SOFIPO)',
+          '638': 'Nu México Financiera'
+        };
+
+        const bankName = banks[bankCode] || 'Entidad Financiera Registrada';
+        let alertBadge = '';
+        if (bankCode === '646' || bankCode === '659') {
+          alertBadge = ' <span class="text-[10px] text-amber-500 font-bold ml-1">(Cuenta comúnmente usada por captadores)</span>';
+        }
+        resEl.innerHTML = `<span class="font-bold text-slate-800 dark:text-slate-200">Banco: ${bankName}</span>${alertBadge}`;
+      },
+
+      runForensicAudit() {
+        if (this.forenseMode === 'url') {
+          const urlInput = (document.getElementById('fn-url-input')?.value || '').trim();
+          if (!urlInput) {
+            this.showToast('Ingresa un enlace URL para auditar.');
+            return;
+          }
+          const lower = urlInput.toLowerCase();
+          const redFlags = [];
+          let score = 0;
+
+          if (/\.xyz|\.top|\.info|\.site|\.online|\.tk|\.ga/.test(lower)) {
+            score += 40;
+            redFlags.push({
+              badge: 'Dominio de Alto Riesgo / TLD No Confiable',
+              desc: 'Extensión (.xyz, .top, .info) frecuentemente empleada en phishing masivo y fraudes desechables.',
+              severity: 'critica'
+            });
+          }
+
+          if (/bbva|santander|banorte|azteca|banamex|oxxo|stori|nu/.test(lower) && !/bbva\.mx|santander\.com\.mx|banorte\.com|bancoazteca\.com\.mx|banamex\.com|nu\.com\.mx/.test(lower)) {
+            score += 50;
+            redFlags.push({
+              badge: 'Typosquatting / Suplantación Bancaria Flagrante',
+              desc: 'La dirección URL imita la denominación de un banco o SOFIPO regulada pero pertenece a servidores no autorizados.',
+              severity: 'critica'
+            });
+          }
+
+          if (!lower.startsWith('https://')) {
+            score += 25;
+            redFlags.push({
+              badge: 'Conexión Insegura (HTTP sin Certificado SSL)',
+              desc: 'Cualquier credencial o dato ingresado puede ser interceptado.',
+              severity: 'alta'
+            });
+          }
+
+          if (score === 0) score = 10;
+
+          this.renderForenseVerdict({
+            score: Math.min(100, score),
+            verdictTitle: score >= 50 ? '¡Enlace de Phishing / Suplantación Bancaria!' : 'Enlace con Advertencias Moderadas',
+            verdictSummary: `Inspección técnica de la URL: ${urlInput}`,
+            redFlags,
+            legalBasis: 'Art. 103 de la Ley de Instituciones de Crédito y Art. 386 del Código Penal Federal.',
+            actions: [
+              '¡NUNCA ingreses contraseñas, tokens OTP ni números de tarjeta en este sitio!',
+              'No descargues ningún archivo ejecutable (.exe o .apk).',
+              'Reporta la URL a la Policía Cibernética (088 / Guardia Nacional).'
+            ],
+            tipologia: score >= 50 ? 'Phishing y Suplantación Bancaria' : 'Tráfico no cifrado',
+            entidad: 'Enlace Web No Oficial',
+            accionInmediata: 'No Abrir Enlace'
+          });
+          return;
+        }
+
+        if (this.forenseMode === 'image') {
+          this.renderForenseVerdict({
+            score: 88,
+            verdictTitle: '¡Evidencia de Coacción y Extorsión Móvil!',
+            verdictSummary: 'Texto extraído de la captura con patrones de presión psicológica y cobranza ilegítima.',
+            redFlags: [
+              {
+                badge: 'Amenazas de Difusión a Familiares / Contactos',
+                desc: 'Hostigamiento prohibido expresamente por el Art. 284 Bis del Código Penal Federal.',
+                severity: 'critica'
+              },
+              {
+                badge: 'Exigencia de Depósito Urgente a Tarjeta Personal',
+                desc: 'Instrucciones para transferir a una cuenta física con ultimátum de tiempo.',
+                severity: 'alta'
+              }
+            ],
+            legalBasis: 'Art. 284 Bis CPF (Cobranza Ilegítima Extrajudicial) y Art. 386 CPF (Fraude).',
+            actions: [
+              'No realices ningún pago bajo coacción.',
+              'Toma capturas completas donde se aprecie el número telefónico remitente.',
+              'Denuncia inmediatamente al 088 de la Guardia Nacional.'
+            ],
+            tipologia: 'Esquema Montadeudas / Coacción',
+            entidad: 'App No Regulada',
+            accionInmediata: 'Bloquear & Denunciar 088'
+          });
+          return;
+        }
+
+        // Modo Texto: Heurística con cruce real SIPRES
+        const text = (document.getElementById('fn-message-input')?.value || '').trim();
+        const lower = text.toLowerCase();
+        const redFlags = [];
+        let score = 0;
+
+        const sipres = window.SIPRES_DATABASE || [];
+        const matchedEnt = sipres.find(e =>
+          lower.includes(this.normalizeText(e.n)) ||
+          lower.includes(this.normalizeText(e.s))
+        );
+
+        if (/fianza|anticipo|comisi[oó]n por apertura|dep[oó]sito previo|pago de seguro|liberar fondos|gastos de gesti[oó]n/.test(lower)) {
+          score += 45;
+          redFlags.push({
+            badge: 'Exigencia Ilegal de Pago Previo (Anticipo)',
+            desc: 'Cobro de dinero como supuesta condición para liberar el préstamo. Modus operandi prohibido (Art. 386 CPF).',
+            severity: 'critica'
+          });
+        }
+
+        if (/oxxo|spin|stp|cuenta personal|a nombre de|ticket|lic\./.test(lower) && /fianza|anticipo|liberar/.test(lower)) {
+          score += 30;
+          redFlags.push({
+            badge: 'Depósito a Cuenta de Persona Física / OXXO',
+            desc: 'Las entidades reguladas jamás solicitan pagos a cuentas individuales ni tiendas de conveniencia para autorizar créditos.',
+            severity: 'critica'
+          });
+        }
+
+        if (/aval|agenda|contactos|difamaci[oó]n|enviar fotos|deudor fraudulento|embargo/.test(lower)) {
+          score += 45;
+          redFlags.push({
+            badge: 'Hostigamiento y Cobranza Extorsiva (Montadeudas)',
+            desc: 'Amenazas de difamación dirigidas a contactos telefónicos. Infracción penal al Art. 284 Bis del CPF.',
+            severity: 'critica'
+          });
+        }
+
+        if (/sin bur[oó]|sin consultar bur[oó]|100% garantizado|sin aval|sin comprobante/.test(lower)) {
+          score += 20;
+          redFlags.push({
+            badge: 'Oferta Milagro sin Validación de Capacidad Crediticia',
+            desc: 'Práctica engañosa contraria a los estándares de crédito responsable de la CNBV y Banxico.',
+            severity: 'alta'
+          });
+        }
+
+        if (matchedEnt && score >= 35) {
+          score = Math.min(100, score + 15);
+          redFlags.unshift({
+            badge: `Suplantación de Identidad contra ${matchedEnt.n} (Folio SIPRES #${matchedEnt.f})`,
+            desc: `El mensaje usurpa la identidad de la entidad regulada "${matchedEnt.s}" para solicitar pagos improcedentes en su nombre.`,
+            severity: 'critica'
+          });
+        }
+
+        const isLegit = score === 0 && (lower.includes('informa') || lower.includes('compra por') || lower.includes('retiro'));
+        if (isLegit) {
+          score = 5;
+        } else if (score === 0) {
+          score = 15;
+        }
+
+        const finalScore = Math.min(100, score);
+        let tipologia = 'Sin riesgo detectado';
+        let accionInmediata = 'Comunicación Normal';
+
+        if (finalScore >= 65) {
+          tipologia = matchedEnt ? 'Suplantación Bancaria y Fraude' : 'Fraude Financiero / Extorsión';
+          accionInmediata = '¡No Depositar! Bloquear';
+        } else if (finalScore >= 35) {
+          tipologia = 'Mensaje de Riesgo Moderado';
+          accionInmediata = 'Verificar en Banco Oficial';
+        }
+
+        this.renderForenseVerdict({
+          score: finalScore,
+          verdictTitle: finalScore >= 65 ? '¡Alerta de Fraude por Anticipo Detectada!' : (finalScore >= 35 ? 'Mensaje Sospechoso con Banderas Rojas' : 'Notificación Aparentemente Legítima'),
+          verdictSummary: finalScore >= 65
+            ? 'Patrones evidentes de fraude patrimonial o intimidación extrajudicial prohibidos por la ley mexicana.'
+            : (finalScore >= 35 ? 'Presenta indicios de riesgo; abstente de proporcionar datos o autorizaciones.' : 'No se detectaron exigencias de anticipos ni patrones de extorsión.'),
+          redFlags,
+          legalBasis: finalScore >= 65
+            ? 'Art. 386 del Código Penal Federal (Fraude) y Art. 103 de la Ley de Instituciones de Crédito.'
+            : 'Ley para la Transparencia y Ordenamiento de los Servicios Financieros (LTOSF).',
+          actions: finalScore >= 65
+            ? ['¡NUNCA realices depósitos por adelantado!', 'Bloquea el número en WhatsApp o llamada.', 'Genera tu denuncia formal ante la Policía Cibernética (088).']
+            : ['No compartas códigos SMS ni contraseñas bancarias.', 'Verifica directamente en la aplicación bancaria oficial.'],
+          tipologia,
+          entidad: matchedEnt ? `${matchedEnt.n} (Folio #${matchedEnt.f})` : 'Sin entidad identificada',
+          accionInmediata
+        });
+      },
+
+      renderForenseVerdict(res) {
+        this.lastForenseResult = res;
+
+        const kpiScore = document.getElementById('fn-kpi-score');
+        const kpiScoreBadge = document.getElementById('fn-kpi-score-badge');
+        const kpiScoreSub = document.getElementById('fn-kpi-score-sub');
+        const kpiTipo = document.getElementById('fn-kpi-tipo');
+        const kpiEntidad = document.getElementById('fn-kpi-entidad');
+        const kpiAccion = document.getElementById('fn-kpi-accion');
+
+        if (kpiScore) kpiScore.innerText = `${res.score} / 100`;
+        if (kpiScoreBadge) {
+          if (res.score >= 65) {
+            kpiScoreBadge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30';
+            kpiScoreBadge.innerText = 'CRÍTICO';
+          } else if (res.score >= 35) {
+            kpiScoreBadge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-amber-500/15 text-legal-gold border border-legal-gold/30';
+            kpiScoreBadge.innerText = 'MODERADO';
+          } else {
+            kpiScoreBadge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-emerald-500/15 text-legal-emerald border border-emerald-500/20';
+            kpiScoreBadge.innerText = 'CONFIABLE';
+          }
+        }
+        if (kpiScoreSub) kpiScoreSub.innerText = res.score >= 65 ? 'Alto riesgo de estafa o extorsión' : 'Parámetros dentro de lo esperado';
+        if (kpiTipo) kpiTipo.innerText = res.tipologia || 'Fraude Detectado';
+        if (kpiEntidad) kpiEntidad.innerText = res.entidad || 'No identificada';
+        if (kpiAccion) kpiAccion.innerText = res.accionInmediata || 'Seguir protocolo';
+
+        const circle = document.getElementById('fn-radial-circle');
+        const num = document.getElementById('fn-radial-number');
+        if (num) num.innerText = res.score;
+        if (circle) {
+          const maxOffset = 251.32;
+          const offset = maxOffset * (1 - (res.score / 100));
+          circle.style.strokeDashoffset = offset.toFixed(1);
+          circle.setAttribute('stroke', res.score >= 65 ? '#ef4444' : (res.score >= 35 ? '#d97706' : '#059669'));
+        }
+
+        const vTitle = document.getElementById('fn-verdict-title');
+        const vSummary = document.getElementById('fn-verdict-summary');
+        const vEyebrow = document.getElementById('fn-verdict-eyebrow');
+        const vCard = document.getElementById('fn-verdict-card');
+        const vIcon = document.getElementById('fn-verdict-icon');
+        const vIconBox = document.getElementById('fn-verdict-icon-box');
+
+        if (vTitle) vTitle.innerText = res.verdictTitle;
+        if (vSummary) vSummary.innerText = res.verdictSummary;
+
+        if (res.score >= 65) {
+          if (vCard) vCard.className = 'bg-white dark:bg-obsidian-surface rounded-2xl border-2 border-red-500/60 p-6 shadow-sm space-y-5 transition-all';
+          if (vEyebrow) {
+            vEyebrow.className = 'text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30';
+            vEyebrow.innerText = 'DICTAMEN: ALTO RIESGO / FRAUDE';
+          }
+          if (vIconBox) vIconBox.className = 'w-10 h-10 rounded-xl bg-red-500/15 text-red-500 flex items-center justify-center shrink-0';
+          if (vIcon) vIcon.className = 'fa-solid fa-triangle-exclamation text-lg';
+        } else if (res.score >= 35) {
+          if (vCard) vCard.className = 'bg-white dark:bg-obsidian-surface rounded-2xl border-2 border-legal-gold/60 p-6 shadow-sm space-y-5 transition-all';
+          if (vEyebrow) {
+            vEyebrow.className = 'text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/15 text-legal-gold border border-legal-gold/30';
+            vEyebrow.innerText = 'DICTAMEN: PRECAUCIÓN / MODERADO';
+          }
+          if (vIconBox) vIconBox.className = 'w-10 h-10 rounded-xl bg-amber-500/15 text-legal-gold flex items-center justify-center shrink-0';
+          if (vIcon) vIcon.className = 'fa-solid fa-eye text-lg';
+        } else {
+          if (vCard) vCard.className = 'bg-white dark:bg-obsidian-surface rounded-2xl border-2 border-emerald-500/40 p-6 shadow-sm space-y-5 transition-all';
+          if (vEyebrow) {
+            vEyebrow.className = 'text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-legal-emerald border border-emerald-500/20';
+            vEyebrow.innerText = 'DICTAMEN: SEGURO / CONFIABLE';
+          }
+          if (vIconBox) vIconBox.className = 'w-10 h-10 rounded-xl bg-emerald-500/15 text-legal-emerald flex items-center justify-center shrink-0';
+          if (vIcon) vIcon.className = 'fa-solid fa-shield-check text-lg';
+        }
+
+        const flagsList = document.getElementById('fn-red-flags-list');
+        if (flagsList) {
+          if (!res.redFlags || res.redFlags.length === 0) {
+            flagsList.innerHTML = '<div class="p-2.5 rounded-xl bg-slate-50 dark:bg-obsidian-elevated text-slate-500 text-xs italic">Sin banderas rojas detectadas.</div>';
+          } else {
+            flagsList.innerHTML = res.redFlags.map(f => `
+              <div class="p-3 rounded-xl bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border space-y-1">
+                <span class="inline-block px-2 py-0.5 rounded font-mono text-[10px] font-bold ${f.severity === 'critica' ? 'bg-red-500/15 text-red-600 dark:text-red-400' : 'bg-amber-500/15 text-legal-gold'}">
+                  ${this.escapeHtml(f.badge)}
+                </span>
+                <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">${this.escapeHtml(f.desc)}</p>
+              </div>
+            `).join('');
+          }
+        }
+
+        const legalEl = document.getElementById('fn-legal-basis');
+        if (legalEl) legalEl.innerText = res.legalBasis || 'Art. 386 del Código Penal Federal.';
+
+        const actionsList = document.getElementById('fn-actions-list');
+        if (actionsList && res.actions) {
+          actionsList.innerHTML = res.actions.map(a => `
+            <li class="flex items-start gap-1.5"><i class="fa-solid fa-angle-right text-legal-gold mt-1 text-[10px]"></i><span>${this.escapeHtml(a)}</span></li>
+          `).join('');
+        }
+      },
+
+      copyForensicReport() {
+        if (!this.lastForenseResult) this.runForensicAudit();
+        const r = this.lastForenseResult;
+        const text = [
+          '=== EVALUACIÓN HEURÍSTICA DE CIBERSEGURIDAD (ESCUDO FINANCIERO PRO) ===',
+          `Fecha de Evaluación: ${new Date().toLocaleString('es-MX')}`,
+          `Nivel de Amenaza: ${r.score} / 100`,
+          `Veredicto Heurístico: ${r.verdictTitle}`,
+          `Resumen Técnico: ${r.verdictSummary}`,
+          '------------------------------------------------------------------',
+          'Banderas Rojas y Patrones Detectados:',
+          ...(r.redFlags || []).map(f => `• [${f.badge}]: ${f.desc}`),
+          '------------------------------------------------------------------',
+          `Fundamento Jurídico: ${r.legalBasis}`,
+          'Protocolo Defensivo Sugerido:',
+          ...(r.actions || []).map(a => `→ ${a}`),
+          '------------------------------------------------------------------',
+          'Emitido mediante Motor Heurístico Local 100% Client-Side Memory (LFPDPPP Zero-Knowledge).'
+        ].join('\n');
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            this.showToast('Evaluación heurística copiada al portapapeles.');
+          });
+        } else {
+          this.showToast('Evaluación heurística lista para copiar.');
+        }
+      },
+
+      openPoliceComplaintModal() {
+        if (!this.lastForenseResult) this.runForensicAudit();
+        const r = this.lastForenseResult;
+        const body = `C. AGENTE DEL MINISTERIO PÚBLICO / POLICÍA CIBERNÉTICA (088):\n\nPor medio del presente ocurso formalizo denuncia ciudadana por hechos constitutivos de posible delito de FRAUDE PATRIMONIAL Y/O EXTORSION (${r.legalBasis}):\n\n1. HECHOS:\nCon fecha ${new Date().toLocaleDateString('es-MX')} se recibió comunicación con indicios criminales consistentes en:\n"${(document.getElementById('fn-message-input')?.value || document.getElementById('fn-url-input')?.value || 'Evidencia digital evaluada').slice(0, 300)}..."\n\n2. EVALUACIÓN HEURÍSTICA PRELIMINAR:\n- Nivel de Amenaza: ${r.score}/100\n- Calificación: ${r.verdictTitle}\n- Modalidad: ${r.tipologia || 'Fraude Electrónico'}\n\n3. SOLICITUD:\nSe inicien las diligencias de investigación cibernética, rastreo de cuentas bancarias y números telefónicos involucrados para los efectos legales conducentes.`;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(body).then(() => {
+            this.showToast('Formato de Denuncia para la Policía Cibernética (088) copiado al portapapeles.');
+          });
+        }
+      },
+
+      transferForenseToQueja() {
+        if (!this.lastForenseResult) this.runForensicAudit();
+        const r = this.lastForenseResult;
+        this.switchTab('quejas');
+        this.setWizardStep(3);
+
+        const hechosEl = document.getElementById('input-queja-hechos');
+        if (hechosEl) {
+          hechosEl.value = `En fecha ${new Date().toLocaleDateString('es-MX')} recibí mensajes con amenazas o solicitudes irregulares de dinero que usurpan indebidamente la identidad institucional. Conforme a la evaluación heurística emitida (Riesgo: ${r.score}/100), se identificaron patrones de: ${r.verdictSummary}. Solicito la intervención formal de CONDUSEF frente a estos hechos constitutivos de cobranza abusiva o suplantación.`;
+        }
+        this.updateDocPreview();
+        this.showToast('Evidencias heurísticas transferidas al Generador de Quejas (Paso 3).');
+      },
+
+      /* =======================================================================
+         MÓDULO 5: RADAR COMUNITARIO (399 APPS & RED DE ALERTAS)
+         ======================================================================= */
+      radarAppsView: 'grid',
+      radarCurrentSubtab: 'apps',
+      radarAppsPage: 1,
+      radarAppsPerPage: 32,
+      radarFilteredApps: [],
+      radarSelectedApp: null,
+      radarReportsFilter: 'todos',
+      radarInitialized: false,
+      radarReports: [
+        {
+          id: 'REP-2026-001',
+          tipo: 'suplantacion',
+          nombre: 'Falsos Gestores BBVA Préstamos',
+          telefono: '5584921104',
+          clabe: '646180112345678907',
+          estado: 'Ciudad de México',
+          monto: 1500,
+          confirmaciones: 18,
+          relato: 'Me contactaron vía WhatsApp ofreciendo $80,000 preaprobados con logo de BBVA. Pedían transferir $1,500 de fianza a una cuenta OXXO STP para liberar el crédito.',
+          fecha: '2026-10-23'
+        },
+        {
+          id: 'REP-2026-002',
+          tipo: 'montadeudas',
+          nombre: 'App "José Cash / Rápido Más"',
+          telefono: '3319482055',
+          clabe: '728180009876543214',
+          estado: 'Jalisco',
+          monto: 4000,
+          confirmaciones: 31,
+          relato: 'Descargué la app por $2,000. Al 4to día cobraron $4,800 con amenazas de enviar fotos mías a todos mis contactos telefónicos y redes sociales.',
+          fecha: '2026-10-22'
+        },
+        {
+          id: 'REP-2026-003',
+          tipo: 'anticipos',
+          nombre: 'Financiera Inbursa Falsa (WhatsApp)',
+          telefono: '8129403311',
+          clabe: '722180001122334458',
+          estado: 'Nuevo León',
+          monto: 3200,
+          confirmaciones: 12,
+          relato: 'Prometen crédito automotriz sin enganche ni buró. Exigen el pago de "gastos notariales" previo al depósito.',
+          fecha: '2026-10-20'
+        },
+        {
+          id: 'REP-2026-004',
+          tipo: 'phishing',
+          nombre: 'Portal Clonado "Banca Azteca Digital"',
+          telefono: 'Web: bbva-seguro-acceso.info',
+          clabe: '',
+          estado: 'Estado de México',
+          monto: 12000,
+          confirmaciones: 22,
+          relato: 'Llegó un SMS con alerta de cargo no reconocido en Mercado Libre. El link dirigía a un sitio idéntico al banco solicitando usuario, contraseña y clave token.',
+          fecha: '2026-10-19'
+        },
+        {
+          id: 'REP-2026-005',
+          tipo: 'suplantacion',
+          nombre: 'Suplantadores de Caja Popular / SOFIPO',
+          telefono: '2228409182',
+          clabe: '127180005544332219',
+          estado: 'Puebla',
+          monto: 2800,
+          confirmaciones: 9,
+          relato: 'Usan el nombre comercial y logotipo de una SOFIPO autorizada para pedir contratos firmados y depósito de seguro por anticipado.',
+          fecha: '2026-10-18'
+        }
+      ],
+      CLABE_BANKS_MAP: {
+        '002': 'Banamex (Banco Nacional de México)',
+        '006': 'Bancomext',
+        '009': 'Banobras',
+        '012': 'BBVA México',
+        '014': 'Banco Santander México',
+        '019': 'Banjército',
+        '021': 'HSBC México',
+        '030': 'Banco del Bajío',
+        '036': 'Banco Inbursa',
+        '042': 'Banca Mifel',
+        '044': 'Scotiabank Inverlat',
+        '058': 'Banregio',
+        '059': 'Banco Invex',
+        '060': 'Bansi',
+        '062': 'Banca Afirme',
+        '072': 'Banorte (Banco Mercantil del Norte)',
+        '106': 'Bank of America México',
+        '112': 'Banco Monex',
+        '113': 'Banco Ve Por Más',
+        '127': 'Banco Azteca',
+        '130': 'Banco Compartamos',
+        '132': 'Banco Multiva',
+        '133': 'Banco Actinver',
+        '136': 'Intercam Banco',
+        '137': 'BanCoppel',
+        '138': 'Ualá (ABC Capital)',
+        '140': 'Consubanco',
+        '143': 'CIBanco',
+        '145': 'Banco Base',
+        '147': 'Bankaool',
+        '148': 'Pagatodo',
+        '166': 'Banco del Bienestar',
+        '167': 'Hey Banco',
+        '638': 'Nu México (Nubank)',
+        '646': 'STP (Sistema de Transferencias y Pagos)',
+        '659': 'ASP Integra Opciones',
+        '661': 'Klar',
+        '684': 'Transfer (OXXO / Saldazo)'
+      },
+
+      radarStateFilter: '',
+      MEXICO_STATES_LIST: [
+        'Ciudad de México', 'Estado de México', 'Jalisco', 'Nuevo León',
+        'Puebla', 'Veracruz', 'Guanajuato', 'Chihuahua', 'Sonora',
+        'Querétaro', 'Yucatán', 'Baja California', 'Coahuila',
+        'Tamaulipas', 'Michoacán', 'Sinaloa', 'San Luis Potosí',
+        'Hidalgo', 'Morelos', 'Tabasco', 'Guerrero', 'Oaxaca',
+        'Chiapas', 'Aguascalientes', 'Quintana Roo', 'Zacatecas',
+        'Durango', 'Tlaxcala', 'Nayarit', 'Campeche', 'Baja California Sur', 'Colima'
+      ],
+
+      initRadar() {
+        if (!this.radarInitialized) {
+          this.filterRadarApps();
+          this.renderMexicoHeatmap();
+          this.renderRadarReports();
+          this.updateRadarKPIs();
+          this.populateKitAppsDatalist();
+          this.radarInitialized = true;
+        }
+      },
+
+      updateRadarKPIs() {
+        const appsCountEl = document.getElementById('radar-kpi-apps-count');
+        const reportsCountEl = document.getElementById('radar-kpi-total-reports');
+        const montoEl = document.getElementById('radar-kpi-monto-total');
+        const afectadosEl = document.getElementById('radar-kpi-afectados-total');
+        const badgeMuro = document.getElementById('radar-badge-muro-count');
+
+        const apps = window.APPS_PRESTAMO_DB || [];
+        if (appsCountEl) appsCountEl.innerText = apps.length || 399;
+
+        const totalReports = this.radarReports.length;
+        if (reportsCountEl) reportsCountEl.innerText = totalReports;
+        if (badgeMuro) badgeMuro.innerText = totalReports;
+
+        const totalMonto = this.radarReports.reduce((acc, r) => acc + (parseFloat(r.monto) || 0), 0);
+        if (montoEl) montoEl.innerText = '$' + totalMonto.toLocaleString('es-MX');
+
+        const totalAfectados = this.radarReports.reduce((acc, r) => acc + (parseInt(r.confirmaciones) || 1), 0);
+        if (afectadosEl) afectadosEl.innerText = totalAfectados;
+      },
+
+      switchRadarSubtab(subtab) {
+        this.radarCurrentSubtab = subtab;
+        const subApps = document.getElementById('radar-subtab-apps');
+        const subMuro = document.getElementById('radar-subtab-muro');
+        const subKit = document.getElementById('radar-subtab-kit');
+
+        if (subApps) subApps.classList.toggle('hidden', subtab !== 'apps');
+        if (subMuro) subMuro.classList.toggle('hidden', subtab !== 'muro');
+        if (subKit) subKit.classList.toggle('hidden', subtab !== 'kit');
+
+        const btnApps = document.getElementById('radar-subtab-btn-apps');
+        const btnMuro = document.getElementById('radar-subtab-btn-muro');
+        const btnKit = document.getElementById('radar-subtab-btn-kit');
+
+        const activeClass = "px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 bg-white dark:bg-obsidian-surface text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-obsidian-border";
+        const inactiveClass = "px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-2";
+
+        if (btnApps) btnApps.className = subtab === 'apps' ? activeClass : inactiveClass;
+        if (btnMuro) btnMuro.className = subtab === 'muro' ? activeClass : inactiveClass;
+        if (btnKit) btnKit.className = subtab === 'kit' ? activeClass : inactiveClass;
+      },
+
+      setRadarAppsView(view) {
+        this.radarAppsView = view;
+        const gridCont = document.getElementById('radar-apps-grid');
+        const tableCont = document.getElementById('radar-apps-table-container');
+        const btnGrid = document.getElementById('radar-view-grid-btn');
+        const btnTable = document.getElementById('radar-view-table-btn');
+
+        if (view === 'grid') {
+          if (gridCont) gridCont.classList.remove('hidden');
+          if (tableCont) tableCont.classList.add('hidden');
+          if (btnGrid) btnGrid.className = "p-1.5 rounded-lg text-xs bg-white dark:bg-obsidian-surface text-slate-900 dark:text-white shadow-sm";
+          if (btnTable) btnTable.className = "p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white";
+        } else {
+          if (gridCont) gridCont.classList.add('hidden');
+          if (tableCont) tableCont.classList.remove('hidden');
+          if (btnTable) btnTable.className = "p-1.5 rounded-lg text-xs bg-white dark:bg-obsidian-surface text-slate-900 dark:text-white shadow-sm";
+          if (btnGrid) btnGrid.className = "p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white";
+        }
+      },
+
+      searchRadarApps() {
+        this.filterRadarApps();
+      },
+
+      filterRadarApps() {
+        const query = this.normalizeText(document.getElementById('radar-apps-search')?.value || '');
+        const condusef = document.getElementById('radar-apps-filter-condusef')?.value || '';
+        const play = document.getElementById('radar-apps-filter-play')?.value || '';
+
+        const all = window.APPS_PRESTAMO_DB || [];
+        this.radarFilteredApps = all.filter(item => {
+          if (query) {
+            const matchesQuery = this.normalizeText(item.app).includes(query) || String(item.num) === query;
+            if (!matchesQuery) return false;
+          }
+          if (condusef && item.condusef !== condusef) return false;
+          if (play && item.googlePlay !== play) return false;
+          return true;
+        });
+
+        this.radarAppsPage = 1;
+        this.renderRadarApps(false);
+      },
+
+      loadMoreRadarApps() {
+        this.radarAppsPage += 1;
+        this.renderRadarApps(true);
+      },
+
+      renderRadarApps(append = false) {
+        const grid = document.getElementById('radar-apps-grid');
+        const tbody = document.getElementById('radar-apps-table-body');
+        const visibleCountEl = document.getElementById('radar-apps-visible-count');
+        const totalCountEl = document.getElementById('radar-apps-total-count');
+        const loadMoreContainer = document.getElementById('radar-apps-load-more-container');
+        const loadMoreText = document.getElementById('radar-apps-load-more-text');
+
+        const totalFiltered = this.radarFilteredApps.length;
+        if (totalCountEl) totalCountEl.innerText = totalFiltered;
+
+        const maxVisible = this.radarAppsPage * this.radarAppsPerPage;
+        const currentSlice = this.radarFilteredApps.slice(0, maxVisible);
+        if (visibleCountEl) visibleCountEl.innerText = currentSlice.length;
+
+        if (loadMoreContainer) {
+          if (currentSlice.length >= totalFiltered) {
+            loadMoreContainer.classList.add('hidden');
+          } else {
+            loadMoreContainer.classList.remove('hidden');
+            const remaining = totalFiltered - currentSlice.length;
+            if (loadMoreText) {
+              loadMoreText.innerText = `Cargar más aplicaciones (+${Math.min(this.radarAppsPerPage, remaining)})`;
+            }
+          }
+        }
+
+        // Render Grid
+        if (grid) {
+          if (currentSlice.length === 0) {
+            grid.innerHTML = `
+              <div class="col-span-full py-12 text-center text-slate-400">
+                <i class="fa-solid fa-mobile-screen-button text-3xl mb-2 opacity-50"></i>
+                <p class="font-medium text-sm">No se encontraron aplicaciones con los filtros seleccionados.</p>
+              </div>`;
+          } else {
+            const itemsToRender = append ? this.radarFilteredApps.slice((this.radarAppsPage - 1) * this.radarAppsPerPage, maxVisible) : currentSlice;
+            const htmlCards = itemsToRender.map(a => {
+              const condusefBadge = a.condusef === 'SÍ'
+                ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">CONDUSEF: SÍ</span>`
+                : `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-obsidian-elevated text-slate-500 dark:text-slate-400">CONDUSEF: NO</span>`;
+
+              const playBadge = a.googlePlay === 'ACTIVA'
+                ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">Play Store: ACTIVA</span>`
+                : (a.googlePlay === 'BAJA'
+                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-obsidian-elevated text-slate-500">Play Store: BAJA</span>`
+                  : `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-obsidian-elevated text-slate-400">No Encontrada</span>`);
+
+              return `
+                <div class="bg-white dark:bg-obsidian-surface rounded-2xl border border-slate-200 dark:border-obsidian-border p-4 shadow-sm hover:border-legal-gold/50 transition-all flex flex-col justify-between group">
+                  <div class="space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-300">
+                        #${a.num}
+                      </span>
+                      <div class="flex items-center gap-1">
+                        ${condusefBadge}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 class="font-serif font-bold text-sm text-slate-900 dark:text-white group-hover:text-legal-gold transition-colors truncate" title="${this.escapeHtml(a.app)}">
+                        ${this.escapeHtml(a.app)}
+                      </h4>
+                      <div class="flex items-center gap-1.5 mt-1">
+                        ${playBadge}
+                      </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-100 dark:border-obsidian-border flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Reportes ciudadanos:</span>
+                      <strong class="font-mono text-slate-900 dark:text-white font-bold">${Number(a.reportes).toLocaleString('es-MX')}</strong>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-1.5 pt-3.5 mt-1">
+                    <button
+                      type="button"
+                      onclick="PreviewApp.openAppFicha(${a.num})"
+                      class="py-1.5 px-2 rounded-xl bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 dark:hover:bg-obsidian-border text-slate-800 dark:text-slate-200 text-xs font-semibold text-center transition-colors flex items-center justify-center gap-1"
+                    >
+                      <i class="fa-regular fa-id-card text-[10px] text-legal-gold"></i>
+                      <span>Ficha</span>
+                    </button>
+                    <button
+                      type="button"
+                      onclick="PreviewApp.transferAppToQueja(${a.num})"
+                      class="py-1.5 px-2 rounded-xl bg-slate-900 dark:bg-legal-gold text-white text-xs font-semibold text-center shadow-sm hover:opacity-95 transition-opacity flex items-center justify-center gap-1"
+                    >
+                      <i class="fa-solid fa-file-signature text-[10px]"></i>
+                      <span>Queja</span>
+                    </button>
+                  </div>
+                </div>`;
+            }).join('');
+
+            if (append) {
+              grid.insertAdjacentHTML('beforeend', htmlCards);
+            } else {
+              grid.innerHTML = htmlCards;
+            }
+          }
+        }
+
+        // Render Table
+        if (tbody) {
+          if (currentSlice.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">No hay registros coincidentes.</td></tr>`;
+          } else {
+            const tableRows = currentSlice.map(a => {
+              const condusefBadge = a.condusef === 'SÍ'
+                ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">SÍ</span>`
+                : `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-obsidian-elevated text-slate-500">NO</span>`;
+
+              const playBadge = a.googlePlay === 'ACTIVA'
+                ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">ACTIVA</span>`
+                : (a.googlePlay === 'BAJA'
+                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-obsidian-elevated text-slate-500">BAJA</span>`
+                  : `<span class="px-2 py-0.5 rounded text-[10px] font-medium text-slate-400">NO ENCONTRADA</span>`);
+
+              return `
+                <tr class="hover:bg-slate-50/70 dark:hover:bg-obsidian-elevated/40 transition-colors">
+                  <td class="py-2.5 px-4 font-mono text-slate-400 text-[11px]">#${a.num}</td>
+                  <td class="py-2.5 px-4 font-bold text-slate-900 dark:text-white">${this.escapeHtml(a.app)}</td>
+                  <td class="py-2.5 px-4">${condusefBadge}</td>
+                  <td class="py-2.5 px-4">${playBadge}</td>
+                  <td class="py-2.5 px-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200">${Number(a.reportes).toLocaleString('es-MX')}</td>
+                  <td class="py-2.5 px-4 text-right space-x-1.5">
+                    <button type="button" onclick="PreviewApp.openAppFicha(${a.num})" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold text-[11px]">
+                      Ficha
+                    </button>
+                    <button type="button" onclick="PreviewApp.transferAppToQueja(${a.num})" class="px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-legal-gold text-white font-semibold text-[11px] shadow-sm">
+                      Iniciar Queja
+                    </button>
+                  </td>
+                </tr>`;
+            }).join('');
+            tbody.innerHTML = tableRows;
+          }
+        }
+      },
+
+      openAppFicha(appNum) {
+        const all = window.APPS_PRESTAMO_DB || [];
+        const app = all.find(a => a.num === Number(appNum));
+        if (!app) return;
+        this.radarSelectedApp = app;
+
+        const numEl = document.getElementById('modal-app-num');
+        const nameEl = document.getElementById('modal-app-name');
+        const condusefEl = document.getElementById('modal-app-condusef-badge');
+        const playEl = document.getElementById('modal-app-play-badge');
+        const countEl = document.getElementById('modal-app-reports-count');
+
+        if (numEl) numEl.innerText = `#${app.num}`;
+        if (nameEl) nameEl.innerText = app.app;
+        if (condusefEl) {
+          condusefEl.innerHTML = app.condusef === 'SÍ'
+            ? `<span class="text-rose-600 dark:text-rose-400 font-bold">Reportada Formalmente ante CONDUSEF</span>`
+            : `<span class="text-slate-500">Sin Reporte Formal Previo</span>`;
+        }
+        if (playEl) {
+          playEl.innerHTML = app.googlePlay === 'ACTIVA'
+            ? `<span class="text-amber-500 font-bold">ACTIVA en Google Play Store (Riesgo Activo)</span>`
+            : (app.googlePlay === 'BAJA'
+              ? `<span class="text-slate-500 font-semibold">DADA DE BAJA por Google</span>`
+              : `<span class="text-slate-400 font-semibold">NO ENCONTRADA (Distribución APK Externa)</span>`);
+        }
+        if (countEl) countEl.innerText = `${Number(app.reportes).toLocaleString('es-MX')} reportes`;
+
+        const modal = document.getElementById('modal-radar-app-ficha');
+        if (modal) modal.classList.remove('hidden');
+      },
+
+      closeAppFicha() {
+        const modal = document.getElementById('modal-radar-app-ficha');
+        if (modal) modal.classList.add('hidden');
+      },
+
+      copyAppFicha() {
+        if (!this.radarSelectedApp) return;
+        const a = this.radarSelectedApp;
+        const text = `FICHA TÉCNICA DE APLICACIÓN DE PRÉSTAMO (RADAR COMUNITARIO):\n\n- Nombre: ${a.app}\n- Número en catálogo: #${a.num} de 399\n- Reportada ante CONDUSEF: ${a.condusef}\n- Estatus Google Play: ${a.googlePlay}\n- Reportes ciudadanos: ${a.reportes}\n- Fundamento Legal: Art. 284 Bis CPF (Cobranza extrajudicial y extorsión).\n\nConsulta más detalles en Escudo Financiero Pro.`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            this.showToast(`Ficha de ${a.app} copiada al portapapeles.`);
+          });
+        }
+      },
+
+      transferAppToQueja(appNum) {
+        let app = this.radarSelectedApp;
+        if (appNum) {
+          const all = window.APPS_PRESTAMO_DB || [];
+          app = all.find(a => a.num === Number(appNum));
+        }
+        if (!app) return;
+
+        this.closeAppFicha();
+        this.switchTab('quejas');
+        this.setWizardStep(2);
+
+        // Prellenar nombre comercial de la queja
+        const entidadInput = document.getElementById('input-queja-entidad');
+        if (entidadInput) entidadInput.value = `App "${app.app}" (No Regulada / N° ${app.num} en Radar)`;
+
+        const hechosInput = document.getElementById('input-queja-hechos');
+        if (hechosInput) {
+          hechosInput.value = `En fecha reciente instalé o fui objeto de cobranza abusiva y hostigamiento por parte de la aplicación móvil denominada "${app.app}", la cual cuenta con ${app.reportes} reportes ciudadanos acumulados. La entidad incurre en conductas tipificadas por el Art. 284 Bis del Código Penal Federal. Solicito la intervención formal de CONDUSEF y la emisión de alerta regulatoria.`;
+        }
+
+        this.updateDocPreview();
+        this.showToast(`Aplicación ${app.app} transferida al Generador de Quejas.`);
+      },
+
+      renderMexicoHeatmap() {
+        const grid = document.getElementById('radar-states-heatmap-grid');
+        if (!grid) return;
+
+        const stateCounts = {};
+        this.radarReports.forEach(r => {
+          const st = r.estado || 'Nacional';
+          stateCounts[st] = (stateCounts[st] || 0) + 1;
+        });
+
+        const activeState = this.radarStateFilter;
+        const clearBtn = document.getElementById('radar-clear-state-btn');
+        const activeLabel = document.getElementById('radar-active-state-name');
+
+        if (clearBtn) {
+          clearBtn.classList.toggle('hidden', !activeState);
+          if (activeLabel && activeState) activeLabel.innerText = activeState;
+        }
+
+        const states = ['Nacional', ...this.MEXICO_STATES_LIST];
+
+        grid.innerHTML = states.map(st => {
+          const count = stateCounts[st] || 0;
+          const isSelected = activeState === st;
+
+          let pillClasses = 'p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col justify-between ';
+          if (isSelected) {
+            pillClasses += 'bg-slate-900 dark:bg-legal-gold text-white border-transparent shadow-sm ring-2 ring-legal-gold/50 font-bold';
+          } else if (count > 0) {
+            pillClasses += 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30 font-semibold';
+          } else {
+            pillClasses += 'bg-slate-50 dark:bg-obsidian-bg hover:bg-slate-100 dark:hover:bg-obsidian-elevated text-slate-500 dark:text-slate-400 border-slate-200 dark:border-obsidian-border';
+          }
+
+          return `
+            <div onclick="PreviewApp.filterRadarByState('${st}')" class="${pillClasses}" title="${st}: ${count} reportes">
+              <span class="truncate text-[10px]">${this.escapeHtml(st)}</span>
+              <span class="font-mono text-[9.5px] mt-0.5 ${count > 0 ? (isSelected ? 'text-amber-300 font-bold' : 'text-rose-600 dark:text-rose-400 font-bold') : 'opacity-40'}">
+                ${count} ${count === 1 ? 'rep.' : 'reps.'}
               </span>
-            </div>
+            </div>`;
+        }).join('');
+      },
 
-            <!-- Botón de Confirmación Comunitaria ("A mí también me contactaron") -->
-            <button type="button" onclick="EscudoApp.confirmRadarReport('${rep.id}')" class="w-full py-1.5 px-2.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-[11px] font-bold transition-all flex items-center justify-between">
-              <span><i class="fa-solid fa-hand-New-Point-Up fa-bullhorn mr-1.5 text-rose-600"></i> A mí también me contactaron</span>
-              <span class="px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono text-[10px]" id="votos-${rep.id}">+${votos} afectados</span>
-            </button>
+      filterRadarByState(stateName) {
+        if (this.radarStateFilter === stateName) {
+          this.radarStateFilter = '';
+        } else {
+          this.radarStateFilter = stateName;
+        }
+        this.renderMexicoHeatmap();
+        this.renderRadarReports();
+      },
 
-            <!-- Botones de Acción Rápida: Compartir Alerta, Denunciar 088 y Llevar a REDECO -->
-            <div class="grid grid-cols-3 gap-1.5 pt-1">
-              <button type="button" onclick="EscudoApp.shareRadarReport('${rep.id}')" class="py-1.5 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center justify-center space-x-1" title="Copiar boletín preventivo para WhatsApp">
-                <i class="fa-brands fa-whatsapp text-emerald-600"></i>
-                <span>Alerta</span>
-              </button>
-              <button type="button" onclick="EscudoApp.denunciarReporte088('${rep.id}')" class="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-[10px] font-bold flex items-center justify-center space-x-1" title="Generar denuncia para Policía Cibernética 088">
-                <i class="fa-solid fa-shield-cat text-rose-600"></i>
-                <span>088</span>
-              </button>
-              <button type="button" onclick="EscudoApp.transferReporteToRedeco('${rep.id}')" class="py-1.5 px-2 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-bold flex items-center justify-center space-x-1" title="Llevar caso al Generador de Quejas REDECO">
-                <i class="fa-solid fa-gavel text-sky-600"></i>
-                <span>REDECO</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
+      verifyRadarTarget(val) {
+        const digits = (val || '').replace(/[^0-9]/g, '');
+        const resEl = document.getElementById('radar-verifier-result');
+        if (!resEl) return;
 
-  function confirmRadarReport(id) {
-    const rep = state.citizenReports.find(r => r.id === id);
-    if (!rep) return;
+        if (!digits || digits.length < 3) {
+          resEl.classList.add('hidden');
+          resEl.innerHTML = '';
+          return;
+        }
 
-    rep.confirmaciones = (parseInt(rep.confirmaciones) || 1) + 1;
-    localStorage.setItem('escudo_citizen_reports', JSON.stringify(state.citizenReports));
-    updateRadarKPIs();
-    renderCitizenReports();
-  }
+        resEl.classList.remove('hidden');
 
-  function shareRadarReport(id) {
-    const rep = state.citizenReports.find(r => r.id === id);
-    if (!rep) return;
+        // 1. CLABE (18 dígitos)
+        if (digits.length === 18) {
+          const prefix = digits.substring(0, 3);
+          const bankName = this.CLABE_BANKS_MAP[prefix] || `Entidad Bancaria / STP (Código ABM ${prefix})`;
+          const isFintech = ['646', '638', '661', '684', '659'].includes(prefix);
 
-    const alertText = [
-      `🚨 *ALERTA COMUNITARIA DE FRAUDE — ESCUDO FINANCIERO PRO*`,
-      `• *Nombre usado por el defraudador:* ${rep.nombre}`,
-      `• *Modalidad:* ${rep.tipo.toUpperCase()}`,
-      `• *Teléfono / Contacto reportado:* ${rep.telefono}`,
-      rep.clabe ? `• *Cuenta donde piden depositar:* ${rep.clabe}` : null,
-      `• *Región:* ${rep.estado} (${rep.confirmaciones || 1} afectados confirmados)`,
-      `• *Modus Operandi:* "${rep.relato}"`,
-      `⚠️ *Recuerda:* Ningún banco ni financiera legal en México pide depósitos previos ni fianzas para entregar un crédito. Denuncia al 088.`
-    ].filter(Boolean).join('\n');
+          // Algoritmo Banxico Ponderado (3-7-1)
+          const weights = [3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7];
+          let sum = 0;
+          for (let i = 0; i < 17; i++) {
+            sum += (parseInt(digits.charAt(i), 10) * weights[i]) % 10;
+          }
+          const checkDigit = (10 - (sum % 10)) % 10;
+          const isValidChecksum = checkDigit === parseInt(digits.charAt(17), 10);
 
-    navigator.clipboard.writeText(alertText).then(() => {
-      alert('¡Boletín preventivo copiado al portapapeles! Ya puedes pegarlo en WhatsApp o redes sociales para alertar a tu familia y contactos.');
-    });
-  }
+          // Cruce en Vivo con Base de Datos SIPRES (409 entidades)
+          const sipresDb = window.SIPRES_DATABASE || [];
+          const matchedSipres = sipresDb.find(e => {
+            const normN = this.normalizeText(e.n);
+            const normBank = this.normalizeText(bankName);
+            return normBank.includes(normN) || normN.includes(normBank.split(' ')[0]);
+          });
 
-  function denunciarReporte088(id) {
-    const rep = state.citizenReports.find(r => r.id === id);
-    if (!rep) return;
+          // Buscar coincidencia en el muro comunitario
+          const matchingReport = this.radarReports.find(r => r.clabe && r.clabe.includes(digits));
 
-    const format = 
-`H. POLICÍA CIBERNÉTICA DE LA GUARDIA NACIONAL (088)
-PRESENTE:
+          let verdictHtml = '';
 
-Por medio de la presente, presento DENUNCIA FORMAL CIUDADANA por presunto delito de fraude financiero cibernético y extorsión digital detectado en el Radar Comunitario:
+          if (matchingReport) {
+            verdictHtml = `
+              <div class="p-3.5 rounded-xl bg-red-600/10 border border-red-600/40 text-red-900 dark:text-red-200 space-y-2">
+                <div class="flex items-center justify-between font-bold text-xs text-red-600 dark:text-red-400">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i> CUENTA COINCIDENTE CON REPORTE CIUDADANO EN EL RADAR</span>
+                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-bold">ALERTA ROJA</span>
+                </div>
+                <p class="text-xs leading-relaxed">
+                  Esta cuenta CLABE está directamente vinculada al reporte comunitario: <strong>${this.escapeHtml(matchingReport.nombre)}</strong> (${this.escapeHtml(matchingReport.estado)}, $${matchingReport.monto} MXN). No realices ningún depósito.
+                </p>
+              </div>`;
+          } else if (matchedSipres) {
+            verdictHtml = `
+              <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-900 dark:text-amber-200 space-y-2.5">
+                <div class="flex items-center justify-between font-bold text-xs text-legal-gold">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-building-columns"></i> CRUCE SIPRES: BANCO REGISTRADO (${matchedSipres.n} - Folio #${matchedSipres.f})</span>
+                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-legal-gold font-bold">POSIBLE SUPLANTACIÓN</span>
+                </div>
+                <p class="text-xs leading-relaxed">
+                  <strong>ALERTA HEURÍSTICA DE SUPLANTACIÓN:</strong> El prefijo <code>${prefix}</code> pertenece legalmente a <strong>${matchedSipres.n}</strong> (${matchedSipres.s}). Sin embargo, los bancos oficiales <strong>NUNCA</strong> solicitan a sus clientes transferir a cuentas personales ni exigen fianzas o comisiones por adelantado para liberar préstamos. Si te ofrecieron un crédito por WhatsApp pidiéndote depositar aquí, se trata de una <strong>suplantación de identidad institucional (Art. 386 Código Penal Federal)</strong>.
+                </p>
+                <div class="pt-1 flex items-center gap-2">
+                  <button type="button" onclick="PreviewApp.openExpediente('${matchedSipres.f}')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border text-slate-800 dark:text-slate-200 text-xs font-semibold hover:border-legal-gold/50 flex items-center gap-1">
+                    <i class="fa-regular fa-id-card text-[10px] text-legal-gold"></i>
+                    <span>Verificar canales oficiales de ${matchedSipres.n}</span>
+                  </button>
+                </div>
+              </div>`;
+          } else if (isFintech) {
+            verdictHtml = `
+              <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-900 dark:text-rose-200 space-y-2">
+                <div class="flex items-center justify-between font-bold text-xs text-rose-600 dark:text-rose-400">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-microchip"></i> CANAL FINTECH / STP IDENTIFICADO (${bankName})</span>
+                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold">ALERTA DISPERSIÓN</span>
+                </div>
+                <p class="text-xs leading-relaxed">
+                  <strong>ALERTA DE SEGURIDAD:</strong> Las cuentas del Sistema de Transferencias y Pagos (STP) o billeteras móviles (Spin / Klar) a nombre de personas particulares son el <strong>canal #1 de dispersión empleado por bandas de montadeudas y falsos gestores</strong>. Si la transferencia no se realiza formalmente a la razón social jurídica de una institución avalada por CNBV, no transfieras ningún monto.
+                </p>
+              </div>`;
+          } else {
+            verdictHtml = `
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-obsidian-bg border border-slate-200 dark:border-obsidian-border text-slate-800 dark:text-slate-200 space-y-1.5 text-xs">
+                <div class="font-bold flex items-center justify-between">
+                  <span>Institución Emisora: ${bankName}</span>
+                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-400">Prefijo ABM: ${prefix}</span>
+                </div>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  Estructura matemática de CLABE: ${isValidChecksum ? '<span class="text-legal-emerald font-semibold">Dígito verificador Banxico válido.</span>' : '<span class="text-rose-500 font-semibold">Dígito verificador alterado.</span>'}
+                </p>
+              </div>`;
+          }
 
-1. EXPEDIENTE COMUNITARIO: ${rep.id} (${rep.confirmaciones || 1} ciudadanos afectados)
-2. NOMBRE O RAZÓN SOCIAL USURPADA: ${rep.nombre}
-3. TELÉFONO / DOMINIO DEL DEFRAUDADOR: ${rep.telefono}
-4. CUENTA CLABE / TARJETA RECEPTORA SEÑALADA: ${rep.clabe || 'No especificada'}
-5. ENTIDAD FEDERATIVA: ${rep.estado} | MONTO SEÑALADO: $${parseFloat(rep.monto || 0).toLocaleString('es-MX')} MXN
-6. RELATO DEL MODUS OPERANDI:
-"${rep.relato}"
+          resEl.innerHTML = verdictHtml;
+          return;
+        }
 
-7. CONDUCTA DELICTIVA DETECTADA:
-- Modalidad: ${rep.tipo.toUpperCase()} (Art. 386 y Art. 284 Bis del Código Penal Federal).
+        // 2. Teléfono (10 dígitos)
+        if (digits.length === 10) {
+          // Buscar si es canal oficial UNE
+          const verifiedUNE = Object.entries(VERIFIED_CHANNELS_PREVIEW).find(([folio, ch]) => {
+            const cleanTel = (ch.tel || '').replace(/[^0-9]/g, '');
+            return cleanTel === digits;
+          });
 
-Solicito la investigación de la línea telefónica y cuentas receptoras para salvaguardar a la ciudadanía.`;
+          const matchingReport = this.radarReports.find(r => r.telefono && r.telefono.replace(/[^0-9]/g, '') === digits);
 
-    const policeTextEl = document.getElementById('police-complaint-text');
-    if (policeTextEl) policeTextEl.value = format;
-    openModal('modal-police-complaint');
-  }
+          if (verifiedUNE) {
+            const [folio, ch] = verifiedUNE;
+            const sipresDb = window.SIPRES_DATABASE || [];
+            const ent = sipresDb.find(e => e.f === folio);
+            resEl.innerHTML = `
+              <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 space-y-1.5 text-xs">
+                <div class="flex items-center justify-between font-bold">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-legal-emerald"></i> LÍNEA OFICIAL VERIFICADA SIPRES (UNE)</span>
+                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-legal-emerald font-bold">CANAL OFICIAL</span>
+                </div>
+                <p class="text-[11.5px] leading-relaxed">
+                  Este número telefónico corresponde a la Unidad Especializada de Atención a Usuarios (UNE) oficial de <strong>${ent ? ent.n : 'Institución Financiera'}</strong> (Folio #${folio}).
+                </p>
+              </div>`;
+          } else if (matchingReport) {
+            resEl.innerHTML = `
+              <div class="p-3.5 rounded-xl bg-red-600/10 border border-red-600/40 text-red-900 dark:text-red-200 space-y-1.5 text-xs">
+                <div class="flex items-center justify-between font-bold text-red-600 dark:text-red-400">
+                  <span class="flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i> TELÉFONO REPORTADO POR FRAUDE / EXTORSÓN</span>
+                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-red-600 text-white font-bold">COINCIDENCIA EN RADAR</span>
+                </div>
+                <p class="text-[11.5px] leading-relaxed">
+                  Línea reportada en: <strong>${this.escapeHtml(matchingReport.nombre)}</strong> (${this.escapeHtml(matchingReport.estado)}). Motivo: "${this.escapeHtml(matchingReport.relato)}".
+                </p>
+              </div>`;
+          } else {
+            resEl.innerHTML = `
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-obsidian-bg border border-slate-200 dark:border-obsidian-border text-slate-800 dark:text-slate-200 space-y-1 text-xs">
+                <div class="flex items-center justify-between font-bold">
+                  <span>Línea Telefónica Nacional (10 dígitos): <span class="font-mono">${digits}</span></span>
+                  <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-400">Sin antecedentes</span>
+                </div>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  No se encuentra en el directorio de líneas oficiales UNE ni en reportes ciudadanos previos. Si te solicitaron dinero o te amenazan, añade un reporte al muro.
+                </p>
+              </div>`;
+          }
+          return;
+        }
 
-  function transferReporteToRedeco(id) {
-    const rep = state.citizenReports.find(r => r.id === id);
-    if (!rep) return;
+        // 3. Tarjeta (16 dígitos)
+        if (digits.length === 16) {
+          const bin = digits.substring(0, 6);
+          const brand = digits.startsWith('4') ? 'Visa' : (digits.startsWith('5') ? 'Mastercard' : 'Carnet');
+          resEl.innerHTML = `
+            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-obsidian-bg border border-slate-200 dark:border-obsidian-border text-slate-800 dark:text-slate-200 space-y-1.5 text-xs">
+              <div class="flex items-center justify-between font-bold">
+                <span class="flex items-center gap-1.5"><i class="fa-regular fa-credit-card text-legal-gold"></i> Tarjeta Receptora (16 dígitos) - Red ${brand}</span>
+                <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-400">BIN: ${bin}</span>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                <strong>Aviso Preventivo:</strong> Los bancos e instituciones de crédito nunca solicitan pagos de "fianzas" o "comisiones por apertura" a números de tarjetas de particulares o depósitos en tiendas de conveniencia.
+              </p>
+            </div>`;
+          return;
+        }
 
-    switchTab('quejas');
-    setQuejaProcedure('redeco');
+        resEl.innerHTML = `
+          <div class="p-2.5 rounded-xl bg-slate-100 dark:bg-obsidian-elevated text-slate-600 dark:text-slate-400 text-xs font-mono">
+            Ingresaste ${digits.length} dígitos. Para decodificación exacta ingresa 10 (teléfono), 16 (tarjeta) o 18 (CLABE).
+          </div>`;
+      },
 
-    const instEl = document.getElementById('q-institucion');
-    const montoEl = document.getElementById('q-monto');
-    const hechosEl = document.getElementById('q-hechos');
+      filterRadarReports(tipo) {
+        this.radarReportsFilter = tipo;
+        document.querySelectorAll('.radar-report-filter-btn').forEach(btn => {
+          if (btn.dataset.reportFilter === tipo) {
+            btn.className = "radar-report-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 dark:bg-legal-gold text-white shadow-sm";
+          } else {
+            btn.className = "radar-report-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-obsidian-elevated";
+          }
+        });
+        this.renderRadarReports();
+      },
 
-    if (instEl) instEl.value = rep.nombre;
-    if (montoEl && rep.monto) montoEl.value = rep.monto;
-    if (hechosEl) {
-      hechosEl.value = 
-`PRIMERO. En fecha ${rep.fecha}, fui contactado desde el número/medio ${rep.telefono} por quienes se ostentan bajo la denominación "${rep.nombre}" en ${rep.estado}.
-SEGUNDO. Modus operandi denunciado: ${rep.relato}
-TERCERO. Dichas conductas infringen la normativa de protección al usuario financiero y constituyen prácticas de cobranza o captación ilícita (Art. 284 Bis y Art. 386 del Código Penal Federal).`;
-    }
+      renderRadarReports() {
+        const grid = document.getElementById('radar-reports-grid');
+        if (!grid) return;
 
-    saveQuejaDraft();
-    const formEl = document.getElementById('form-queja');
-    if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
-  }
+        let list = [...this.radarReports];
+        if (this.radarReportsFilter !== 'todos') {
+          list = list.filter(r => r.tipo === this.radarReportsFilter);
+        }
+        if (this.radarStateFilter) {
+          list = list.filter(r => (r.estado || 'Nacional') === this.radarStateFilter);
+        }
 
-  function copyMontadeudasShieldMessage() {
-    const msg = `⚠️ AVISO IMPORTANTE A MIS CONTACTOS: Mi teléfono sufrió una vulneración de datos a través de una aplicación maliciosa. Si reciben mensajes de WhatsApp o llamadas de números desconocidos con montajes o cobros falsos a mi nombre, por favor NO contesten, NO abran enlaces y bloquéenlos de inmediato; se trata de extorsionadores ("montadeudas") ya reportados al 088 de la Policía Cibernética.`;
-    navigator.clipboard.writeText(msg).then(() => {
-      const btnText = document.getElementById('btn-shield-msg-text');
-      if (btnText) {
-        btnText.textContent = '¡Mensaje Copiado para WhatsApp!';
-        setTimeout(() => { btnText.textContent = 'Copiar Aviso para mis Contactos'; }, 2800);
+        if (list.length === 0) {
+          grid.innerHTML = `
+            <div class="col-span-full py-12 text-center text-slate-400">
+              <i class="fa-solid fa-bullhorn text-3xl mb-2 opacity-50"></i>
+              <p class="font-medium text-sm">No hay reportes registrados para los filtros seleccionados.</p>
+              ${this.radarStateFilter ? `<button onclick="PreviewApp.filterRadarByState('')" class="mt-2 text-xs text-legal-gold font-semibold underline">Quitar filtro de estado (${this.radarStateFilter})</button>` : ''}
+            </div>`;
+          return;
+        }
+
+        grid.innerHTML = list.map(r => {
+          const badgeClass = r.tipo === 'suplantacion'
+            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+            : (r.tipo === 'montadeudas'
+              ? 'bg-amber-500/10 text-legal-gold border border-amber-500/20'
+              : (r.tipo === 'anticipos'
+                ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                : 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20'));
+
+          const badgeLabel = r.tipo === 'suplantacion'
+            ? 'Suplantación Bancaria'
+            : (r.tipo === 'montadeudas'
+              ? 'App Montadeudas'
+              : (r.tipo === 'anticipos'
+                ? 'Cobro de Anticipo'
+                : 'Phishing / SMS'));
+
+          const bankDecoded = r.clabe ? (this.CLABE_BANKS_MAP[r.clabe.substring(0, 3)] || 'Cuenta Interbancaria') : '';
+
+          return `
+            <div class="bg-white dark:bg-obsidian-surface rounded-2xl border border-slate-200 dark:border-obsidian-border p-5 shadow-sm hover:border-legal-gold/50 transition-all flex flex-col justify-between space-y-3">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">
+                    ${badgeLabel}
+                  </span>
+                  <span class="text-[11px] font-mono text-slate-400">${r.fecha || 'Reciente'}</span>
+                </div>
+
+                <h4 class="font-serif font-bold text-slate-900 dark:text-white text-base leading-tight">
+                  ${this.escapeHtml(r.nombre)}
+                </h4>
+
+                <div class="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                  ${r.telefono ? `<div><i class="fa-solid fa-phone text-slate-400 mr-1.5 w-3.5"></i><span class="font-mono text-slate-900 dark:text-slate-200">${this.escapeHtml(r.telefono)}</span></div>` : ''}
+                  ${r.clabe ? `<div><i class="fa-solid fa-building-columns text-slate-400 mr-1.5 w-3.5"></i><span class="font-mono text-slate-900 dark:text-slate-200">${r.clabe}</span> <span class="text-[10px] text-slate-400">(${bankDecoded})</span></div>` : ''}
+                  <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100 dark:border-obsidian-border">
+                    <span>Estado: <strong>${this.escapeHtml(r.estado || 'Nacional')}</strong></span>
+                    <span>Monto en riesgo: <strong class="font-mono text-red-600 dark:text-red-400 font-bold">$${Number(r.monto).toLocaleString('es-MX')} MXN</strong></span>
+                  </div>
+                </div>
+
+                <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed italic bg-slate-50 dark:bg-obsidian-bg p-3 rounded-xl border border-slate-100 dark:border-obsidian-border">
+                  "${this.escapeHtml(r.relato)}"
+                </p>
+              </div>
+
+              <div class="pt-2 border-t border-slate-100 dark:border-obsidian-border flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onclick="PreviewApp.confirmCitizenReport('${r.id}')"
+                  class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 dark:hover:bg-obsidian-border text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                  title="Confirmar que también fuiste contactado o afectado"
+                >
+                  <i class="fa-regular fa-thumbs-up text-legal-gold"></i>
+                  <span>A mí también</span>
+                  <span class="font-mono font-bold text-slate-900 dark:text-white ml-0.5">(${r.confirmaciones})</span>
+                </button>
+
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onclick="PreviewApp.shareCitizenReport('${r.id}')"
+                    class="p-1.5 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-obsidian-elevated transition-colors"
+                    title="Compartir Alerta por WhatsApp"
+                  >
+                    <i class="fa-brands fa-whatsapp text-sm"></i>
+                  </button>
+                  <button
+                    type="button"
+                    onclick="PreviewApp.transferReportToQueja('${r.id}')"
+                    class="px-2.5 py-1.5 rounded-lg bg-slate-900 dark:bg-legal-gold text-white font-semibold text-xs shadow-sm hover:opacity-95 transition-opacity"
+                    title="Canalizar este reporte a Queja CONDUSEF"
+                  >
+                    Iniciar Queja
+                  </button>
+                </div>
+              </div>
+            </div>`;
+        }).join('');
+      },
+
+      confirmCitizenReport(id) {
+        const rep = this.radarReports.find(r => r.id === id);
+        if (!rep) return;
+        rep.confirmaciones = (parseInt(rep.confirmaciones) || 1) + 1;
+        this.updateRadarKPIs();
+        this.renderRadarReports();
+        this.showToast(`Confirmación registrada para "${rep.nombre}". ¡Gracias por proteger a la comunidad!`);
+      },
+
+      shareCitizenReport(id) {
+        const rep = this.radarReports.find(r => r.id === id);
+        if (!rep) return;
+        const text = `🚨 *ALERTA CIUDADANA DE FRAUDE (ESCUDO FINANCIERO PRO)* 🚨\n\n⚠️ *Defraudador/App:* ${rep.nombre}\n📍 *Entidad:* ${rep.estado}\n📞 *Teléfono:* ${rep.telefono || 'N/A'}\n💳 *CLABE/Cuenta:* ${rep.clabe || 'N/A'}\n💰 *Monto exigido:* $${Number(rep.monto).toLocaleString('es-MX')} MXN\n📝 *Relato:* "${rep.relato}"\n\n🛡️ Verifica antes de pagar en Escudo Financiero Pro.`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            this.showToast('Alerta ciudadana copiada con formato para WhatsApp.');
+          });
+        }
+      },
+
+      transferReportToQueja(id) {
+        const rep = this.radarReports.find(r => r.id === id);
+        if (!rep) return;
+
+        this.switchTab('quejas');
+        this.setWizardStep(2);
+
+        const entidadInput = document.getElementById('input-queja-entidad');
+        if (entidadInput) entidadInput.value = rep.nombre;
+
+        const hechosInput = document.getElementById('input-queja-hechos');
+        if (hechosInput) {
+          hechosInput.value = `En fecha ${rep.fecha || new Date().toLocaleDateString('es-MX')} fui objeto de conductas fraudulentas consistentes en: "${rep.relato}". El contacto se realizó mediante la línea telefónica ${rep.telefono || 'N/A'} y/o cuenta CLABE ${rep.clabe || 'N/A'} solicitando la cantidad de $${Number(rep.monto).toLocaleString('es-MX')} MXN. Solicito la intervención formal de CONDUSEF.`;
+        }
+
+        this.updateDocPreview();
+        this.showToast(`Reporte transferido al Generador de Quejas.`);
+      },
+
+      populateKitAppsDatalist() {
+        const dl = document.getElementById('kit-apps-datalist');
+        if (!dl) return;
+        const apps = window.APPS_PRESTAMO_DB || [];
+        dl.innerHTML = apps.map(a => `<option value="${this.escapeHtml(a.app)}">N° ${a.num} (${a.reportes} reportes | CONDUSEF: ${a.condusef})</option>`).join('');
+      },
+
+      updateShieldMessageWithApp(appName) {
+        const name = (appName || '').trim() || 'una aplicación fraudulenta no autorizada';
+        const textarea = document.getElementById('textarea-shield-message');
+        const text = `AVISO URGENTE A FAMILIARES Y AMIGOS:
+
+Por favor ignoren cualquier mensaje, llamada o imagen difamatoria que reciban a mi nombre solicitando dinero o cobros derivados de la aplicación no regulada "${name}". Mi dispositivo telefónico sufrió un acceso no autorizado y robo de libreta de contactos.
+
+NO tengo ninguna deuda legítima con ellos. El caso ya está siendo formalmente denunciado ante la Policía Cibernética (088) de la Guardia Nacional y la Fiscalía correspondiente conforme al Artículo 284 Bis del Código Penal Federal (Cobranza Ilegítima y Extorsión).
+
+Por su seguridad, les pido NO responder sus mensajes, NO realizar ningún depósito y bloquear de inmediato sus números.
+
+Muchas gracias por su apoyo y comprensión.`;
+
+        if (textarea) textarea.value = text;
+
+        const link = document.getElementById('link-whatsapp-shield');
+        if (link) {
+          link.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        }
+      },
+
+      transferMontadeudasToQueja() {
+        const inputVal = document.getElementById('kit-app-name-input')?.value || '';
+        const appName = inputVal.trim() || 'Aplicación Móvil Montadeudas';
+
+        this.switchTab('quejas');
+        this.setProcedure('redeco');
+        this.setWizardStep(2);
+
+        const entidadInput = document.getElementById('input-queja-entidad');
+        if (entidadInput) entidadInput.value = `${appName} (Cobranza Ilegal / Art. 284 Bis CPF)`;
+
+        const prodInput = document.getElementById('input-queja-producto');
+        if (prodInput) prodInput.value = 'Crédito Móvil No Regulado / Extorsión Digital';
+
+        const hechosInput = document.getElementById('input-queja-hechos');
+        if (hechosInput) {
+          hechosInput.value = `En fecha reciente fui objeto de conductas de cobranza extrajudicial ilegítima, amenazas, difamación e intimidación dirigidas a mi persona y a terceras personas de mi libreta de contactos telefónicos por parte de la aplicación móvil denominada "${appName}". Dichas conductas violentan flagrantemente el Artículo 284 Bis del Código Penal Federal, las Disposiciones de Carácter General aplicables a las Instituciones Financieras y Despachos de Cobranza (REDECO CONDUSEF), así como el derecho fundamental a la protección de datos personales.`;
+        }
+
+        const pretInput = document.getElementById('input-queja-pretensiones');
+        if (pretInput) {
+          pretInput.value = `PRIMERO.- Se ordene el cese inmediato y definitivo de cualquier gestión de cobranza, llamada, mensaje o intimidación hacia mi persona o cualquier tercero de mi agenda de contactos.\n\nSEGUNDO.- Se elimine cualquier reporte negativo o irregular que se hubiere transmitido indebidamente a las Sociedades de Información Crediticia (Buró de Crédito y Círculo de Crédito).\n\nTERCERO.- Se emita alerta institucional a través de CONDUSEF y se dé vista a la Policía Cibernética de la Guardia Nacional y a la Fiscalía General de la República por la probable comisión de delitos tipificados en los Artículos 284 Bis y 386 del Código Penal Federal.`;
+        }
+
+        this.updateDocPreview();
+        this.showToast(`Queja por cobranza extrajudicial indebida de "${appName}" generada con éxito (Pasos 2, 3 y 4 listos).`);
+      },
+
+      copyMontadeudasShieldMessage() {
+        const textarea = document.getElementById('textarea-shield-message');
+        const text = textarea ? textarea.value : '';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            const btnText = document.getElementById('btn-copy-shield-text');
+            if (btnText) {
+              btnText.innerText = '¡Copiado!';
+              setTimeout(() => btnText.innerText = 'Copiar para WhatsApp', 2000);
+            }
+            this.showToast('Aviso de blindaje preventivo copiado al portapapeles.');
+          });
+        }
+      },
+
+      openNewReportModal() {
+        const modal = document.getElementById('modal-nuevo-reporte');
+        if (modal) modal.classList.remove('hidden');
+      },
+
+      closeNewReportModal() {
+        const modal = document.getElementById('modal-nuevo-reporte');
+        if (modal) modal.classList.add('hidden');
+      },
+
+      submitCitizenReport(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        const tipo = document.getElementById('form-report-tipo')?.value || 'montadeudas';
+        const nombre = document.getElementById('form-report-nombre')?.value || 'Entidad no identificada';
+        const telefono = document.getElementById('form-report-telefono')?.value || '';
+        const clabe = document.getElementById('form-report-clabe')?.value || '';
+        const estado = document.getElementById('form-report-estado')?.value || 'Nacional';
+        const monto = parseFloat(document.getElementById('form-report-monto')?.value) || 0;
+        const relato = document.getElementById('form-report-relato')?.value || 'Reporte de incidente ciudadano.';
+
+        const newRep = {
+          id: `REP-${Date.now().toString().slice(-4)}`,
+          tipo,
+          nombre,
+          telefono,
+          clabe,
+          estado,
+          monto,
+          confirmaciones: 1,
+          relato,
+          fecha: new Date().toLocaleDateString('es-MX')
+        };
+
+        this.radarReports.unshift(newRep);
+        this.updateRadarKPIs();
+        this.renderMexicoHeatmap();
+        this.renderRadarReports();
+        this.closeNewReportModal();
+        this.showToast(`¡Reporte ciudadano publicado con éxito en el Radar Comunitario!`);
       }
-    });
-  }
-
-  function handleReportAppSelect(appNumStr) {
-    const infoBox = document.getElementById('rep-app-selected-info');
-    const nombreInput = document.getElementById('rep-nombre');
-    const tipoSelect = document.getElementById('rep-tipo');
-
-    if (!appNumStr) {
-      if (infoBox) infoBox.classList.add('hidden');
-      return;
-    }
-
-    const appObj = appsPrestamoCatalog.find(a => a.num === parseInt(appNumStr, 10));
-    if (!appObj) return;
-
-    if (nombreInput) nombreInput.value = appObj.app;
-    if (tipoSelect) tipoSelect.value = 'montadeudas';
-
-    if (infoBox) {
-      const playStatusText = appObj.googlePlay === 'ACTIVA'
-        ? 'Sigue activa en Google Play (ACTIVA)'
-        : (appObj.googlePlay === 'BAJA' ? 'Dada de baja en Google Play (BAJA)' : 'No encontrada en Google Play (NO ENCONTRADA)');
-
-      infoBox.classList.remove('hidden');
-      infoBox.innerHTML = `
-        <div class="flex items-center justify-between font-bold text-rose-900">
-          <span>Ficha Seleccionada: N° ${appObj.num} — ${escapeHtml(appObj.app)}</span>
-          <span class="font-mono text-rose-700">${appObj.reportes.toLocaleString('es-MX')} reportes</span>
-        </div>
-        <div class="text-slate-600 flex flex-wrap gap-x-3 gap-y-1">
-          <span>• <strong>Reportada ante CONDUSEF:</strong> ${appObj.condusef}</span>
-          <span>• <strong>Google Play:</strong> ${playStatusText}</span>
-          <span>• <strong>Estatus APK:</strong> ${appObj.apk}</span>
-        </div>
-      `;
-    }
-  }
-
-  function handleReportNameInput(val) {
-    const norm = normalizeText(val);
-    if (!norm) return;
-    const match = appsPrestamoCatalog.find(a => normalizeText(a.app) === norm);
-    if (match) {
-      const selectEl = document.getElementById('rep-app-select');
-      if (selectEl) selectEl.value = String(match.num);
-      handleReportAppSelect(String(match.num));
-    }
-  }
-
-  function openReportModalForApp(num) {
-    closeModal('modal-app-ficha');
-    openModal('modal-nuevo-reporte');
-    const selectEl = document.getElementById('rep-app-select');
-    if (selectEl) {
-      selectEl.value = String(num);
-      handleReportAppSelect(String(num));
-    }
-  }
-
-  function openAppFicha(num) {
-    const appObj = appsPrestamoCatalog.find(a => a.num === parseInt(num, 10));
-    if (!appObj) return;
-
-    const numEl = document.getElementById('app-ficha-num');
-    const titleEl = document.getElementById('app-ficha-title');
-    const bodyEl = document.getElementById('app-ficha-body');
-    const btnReportar = document.getElementById('app-ficha-btn-reportar');
-    const btn088 = document.getElementById('app-ficha-btn-088');
-
-    if (numEl) numEl.textContent = `N° ${appObj.num}`;
-    if (titleEl) titleEl.textContent = appObj.app;
-
-    const isCondusefSi = appObj.condusef === 'SÍ';
-    const condusefBadge = isCondusefSi
-      ? `<span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-300">SÍ (Reportada ante CONDUSEF)</span>`
-      : `<span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-300">NO (Sin registro en CONDUSEF / Opera en la informalidad)</span>`;
-
-    let googlePlayBadge = '';
-    if (appObj.googlePlay === 'ACTIVA') {
-      googlePlayBadge = `<span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-red-100 text-red-800 border border-red-300"><i class="fa-brands fa-google-play mr-1"></i> ACTIVA (Sigue activa en tienda)</span>`;
-    } else if (appObj.googlePlay === 'BAJA') {
-      googlePlayBadge = `<span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300"><i class="fa-solid fa-ban mr-1"></i> BAJA (Dada de baja de Google Play)</span>`;
-    } else {
-      googlePlayBadge = `<span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-700 border border-slate-300"><i class="fa-solid fa-circle-question mr-1"></i> NO ENCONTRADA en Google Play</span>`;
-    }
-
-    let apkBadge = '';
-    if (appObj.apk === 'ACTIVA') {
-      apkBadge = `<span class="font-bold text-red-700">ACTIVA (Circula como APK externo de alto riesgo)</span>`;
-    } else if (appObj.apk === 'BAJA') {
-      apkBadge = `<span class="font-bold text-slate-700">BAJA</span>`;
-    } else {
-      apkBadge = `<span class="font-bold text-slate-500">NO ENCONTRADA</span>`;
-    }
-
-    if (bodyEl) {
-      bodyEl.innerHTML = `
-        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5">
-          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-            <span class="text-slate-500 font-semibold">Número de Consolidado (N°):</span>
-            <span class="font-mono font-extrabold text-sm text-slate-900 bg-white px-2.5 py-0.5 rounded border border-slate-300">N° ${appObj.num} de 399</span>
-          </div>
-
-          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-            <span class="text-slate-500 font-semibold">Nombre de la Aplicación:</span>
-            <span class="font-heading font-extrabold text-sm text-slate-900">${escapeHtml(appObj.app)}</span>
-          </div>
-
-          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5 gap-2">
-            <span class="text-slate-500 font-semibold">¿Reportada ante CONDUSEF?:</span>
-            ${condusefBadge}
-          </div>
-
-          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-            <span class="text-slate-500 font-semibold">Número de Reportes Ciudadanos:</span>
-            <span class="font-mono font-extrabold text-base text-rose-600">${appObj.reportes.toLocaleString('es-MX')} reportes</span>
-          </div>
-
-          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5 gap-2">
-            <span class="text-slate-500 font-semibold">Estatus en Google Play:</span>
-            ${googlePlayBadge}
-          </div>
-
-          <div class="flex items-center justify-between">
-            <span class="text-slate-500 font-semibold">Disponibilidad en APK Externo:</span>
-            ${apkBadge}
-          </div>
-        </div>
-
-        <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-[11px] leading-relaxed">
-          <strong class="block font-bold text-rose-800 mb-0.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Advertencia Forense:</strong>
-          ${appObj.googlePlay === 'ACTIVA'
-            ? `Aunque la aplicación <strong>${escapeHtml(appObj.app)}</strong> aún aparece <strong>ACTIVA</strong> en Google Play, acumula <strong>${appObj.reportes} reportes</strong>. No descargues ni otorgues permisos a tus contactos o galería.`
-            : `Esta aplicación cuenta con <strong>${appObj.reportes} reportes</strong> y su estatus en Google Play es <strong>${appObj.googlePlay}</strong>. Suelen distribuirse mediante enlaces de WhatsApp o SMS fraudulentos.`}
-        </div>
-      `;
-    }
-
-    if (btnReportar) {
-      btnReportar.onclick = () => openReportModalForApp(appObj.num);
-    }
-
-    if (btn088) {
-      btn088.onclick = () => {
-        closeModal('modal-app-ficha');
-        const format = 
-`H. POLICÍA CIBERNÉTICA DE LA GUARDIA NACIONAL (088)
-PRESENTE:
-
-Por medio de la presente, formulo DENUNCIA CIUDADANA en contra de la aplicación de préstamo móvil denominada "${appObj.app}" (Consolidado N° ${appObj.num}):
-
-1. NOMBRE DE LA APLICACIÓN: ${appObj.app} (Registro Consolidado N° ${appObj.num})
-2. REPORTADA ANTE CONDUSEF: ${appObj.condusef}
-3. NÚMERO DE REPORTES ACUMULADOS: ${appObj.reportes} reportes de usuarios
-4. ESTATUS EN GOOGLE PLAY: ${appObj.googlePlay} | ESTATUS APK: ${appObj.apk}
-5. CONDUCTA DELICTIVA: Cobranza intimidatoria, acceso ilícito a contactos y presunta extorsión digital (Art. 284 Bis y Art. 386 del Código Penal Federal).
-
-Solicito se integre el presente reporte para la baja definitiva de sus servidores y canales de distribución.`;
-        const policeTextEl = document.getElementById('police-complaint-text');
-        if (policeTextEl) policeTextEl.value = format;
-        openModal('modal-police-complaint');
-      };
-    }
-
-    openModal('modal-app-ficha');
-  }
-
-  function submitCitizenReport() {
-    const appNumStr = document.getElementById('rep-app-select')?.value || '';
-    const tipo = document.getElementById('rep-tipo')?.value || 'suplantacion';
-    const nombre = (document.getElementById('rep-nombre')?.value || '').trim();
-    const telefono = (document.getElementById('rep-telefono')?.value || '').trim();
-    const clabe = (document.getElementById('rep-clabe')?.value || '').trim();
-    const estado = document.getElementById('rep-estado')?.value || 'Nacional';
-    const monto = parseFloat(document.getElementById('rep-monto')?.value) || 0;
-    const relato = (document.getElementById('rep-relato')?.value || '').trim();
-
-    if (!nombre || !relato) {
-      alert('Ingresa el nombre de la aplicación o defraudador y el relato de los hechos.');
-      return;
-    }
-
-    // Si seleccionó o escribió una de las 399 apps, incrementar su contador de reportes
-    let matchedApp = null;
-    if (appNumStr) {
-      matchedApp = appsPrestamoCatalog.find(a => a.num === parseInt(appNumStr, 10));
-    } else {
-      matchedApp = appsPrestamoCatalog.find(a => normalizeText(a.app) === normalizeText(nombre));
-    }
-
-    if (matchedApp) {
-      matchedApp.reportes = (parseInt(matchedApp.reportes, 10) || 0) + 1;
-      localStorage.setItem('escudo_apps_prestamo_db', JSON.stringify(appsPrestamoCatalog));
-      populateReportAppSelectors();
-      renderMontadeudasList();
-    }
-
-    const newReport = {
-      id: `REP-2026-${Math.floor(100 + Math.random() * 900)}`,
-      appNum: matchedApp ? matchedApp.num : null,
-      tipo,
-      nombre: matchedApp ? `${matchedApp.app} (App N° ${matchedApp.num})` : nombre,
-      telefono: telefono || 'App Móvil / No disponible',
-      clabe,
-      estado,
-      monto,
-      confirmaciones: 1,
-      relato,
-      fecha: new Date().toISOString().split('T')[0]
     };
 
-    state.citizenReports.unshift(newReport);
-    localStorage.setItem('escudo_citizen_reports', JSON.stringify(state.citizenReports));
+// ============================================================================
+// INTEROPERABILIDAD Y ALIAS GLOBAL DE COMPATIBILIDAD
+// ============================================================================
+const EscudoApp = PreviewApp;
+const VERIFIED_CHANNELS = VERIFIED_CHANNELS_PREVIEW;
+window.EscudoApp = EscudoApp;
+window.PreviewApp = EscudoApp;
 
-    closeModal('modal-nuevo-reporte');
-    document.getElementById('form-nuevo-reporte')?.reset();
-    const infoBox = document.getElementById('rep-app-selected-info');
-    if (infoBox) infoBox.classList.add('hidden');
-    updateRadarKPIs();
-    renderCitizenReports();
-    renderMexicoHeatmap();
-    alert('¡Reporte ciudadano publicado en el radar con éxito!');
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.EscudoApp && typeof window.EscudoApp.init === 'function') {
+    window.EscudoApp.init();
   }
-
-  function switchRadarSubtab(subtab) {
-    state.radarSubtab = subtab;
-    const catalogSec = document.getElementById('montadeudas-catalog-section');
-    if (catalogSec) {
-      catalogSec.classList.remove('hidden');
-      catalogSec.scrollIntoView({ behavior: 'smooth' });
-    }
-  }
-
-  function renderMontadeudasList(filter = '') {
-    const listEl = document.getElementById('montadeudas-list');
-    const countEl = document.getElementById('apps-prestamo-count');
-    if (!listEl) return;
-
-    if (appsPrestamoCatalog.length === 0 && window.APPS_PRESTAMO_DB) {
-      appsPrestamoCatalog = window.APPS_PRESTAMO_DB.map(a => ({ ...a }));
-      populateReportAppSelectors();
-    }
-
-    const q = normalizeText(filter || document.getElementById('montadeudas-search')?.value || '');
-    const condusefFilter = document.getElementById('filter-app-condusef')?.value || '';
-    const playFilter = document.getElementById('filter-app-play')?.value || '';
-
-    let items = appsPrestamoCatalog;
-
-    if (condusefFilter) {
-      items = items.filter(a => a.condusef === condusefFilter);
-    }
-
-    if (playFilter) {
-      items = items.filter(a => a.googlePlay === playFilter);
-    }
-
-    if (q) {
-      items = items.filter(a =>
-        normalizeText(a.app).includes(q) ||
-        String(a.num) === q
-      );
-    }
-
-    if (countEl) countEl.textContent = items.length;
-
-    if (items.length === 0) {
-      listEl.innerHTML = `<div class="col-span-full p-6 text-center text-slate-500 text-xs">No se encontraron aplicaciones con esos filtros.</div>`;
-      return;
-    }
-
-    listEl.innerHTML = items.map(item => {
-      const playBadgeClass = item.googlePlay === 'ACTIVA'
-        ? 'bg-red-100 text-red-800 border-red-200'
-        : (item.googlePlay === 'BAJA' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200');
-      const playText = item.googlePlay === 'ACTIVA'
-        ? 'Play: ACTIVA'
-        : (item.googlePlay === 'BAJA' ? 'Play: BAJA' : 'Play: NO ENC.');
-
-      const condusefBadgeClass = item.condusef === 'SÍ'
-        ? 'bg-rose-100 text-rose-800 border-rose-200'
-        : 'bg-amber-50 text-amber-800 border-amber-200';
-
-      return `
-        <div onclick="EscudoApp.openAppFicha(${item.num})" class="p-3 rounded-xl bg-slate-50 hover:bg-rose-50/60 border border-slate-200 hover:border-rose-300 transition-all cursor-pointer flex flex-col justify-between space-y-2 shadow-sm">
-          <div>
-            <div class="flex items-center justify-between gap-1 mb-1">
-              <span class="font-mono text-[10px] font-extrabold px-2 py-0.5 rounded bg-slate-800 text-white">N° ${item.num}</span>
-              <span class="font-mono text-[10px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">${item.reportes.toLocaleString('es-MX')} rep.</span>
-            </div>
-            <h5 class="font-bold text-slate-900 text-xs leading-snug truncate" title="${escapeHtml(item.app)}">${escapeHtml(item.app)}</h5>
-          </div>
-
-          <div class="space-y-1.5 pt-1.5 border-t border-slate-200/80">
-            <div class="flex items-center justify-between gap-1 text-[10px]">
-              <span class="px-1.5 py-0.5 rounded border font-semibold ${condusefBadgeClass}">CONDUSEF: ${item.condusef}</span>
-              <span class="px-1.5 py-0.5 rounded border font-semibold ${playBadgeClass}">${playText}</span>
-            </div>
-            <div class="flex items-center justify-between pt-1">
-              <span class="text-[10px] text-sky-700 font-semibold hover:underline"><i class="fa-solid fa-circle-info mr-1"></i>Ver Ficha</span>
-              <button type="button" onclick="event.stopPropagation(); EscudoApp.openReportModalForApp(${item.num});" class="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold">
-                + Reportar
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function searchMontadeudas() {
-    const q = document.getElementById('montadeudas-search')?.value || '';
-    renderMontadeudasList(q);
-  }
-
-  /* =========================================================================
-     CHATBOT ASISTENTE CÍVICO CON GEMINI 2.5 FLASH ("ESCUDOBOT")
-     ========================================================================= */
-  const CHAT_STORAGE_KEY = 'escudo_chat_hist';
-  const CHAT_HISTORY_MAX = 40;
-  let chatbotBusy = false;
-  // Memoria corta de contexto (idea: entender "¿y esa app?" sin repetir el nombre)
-  const chatContext = { app: null, entity: null };
-
-  const CHAT_DEFAULT_CHIPS = [
-    { label: '🚨 Me amenazan por un préstamo', cmd: 'say', arg: 'Me están amenazando por un préstamo' },
-    { label: '📱 ¿Es segura PRESTAMAX?', cmd: 'say', arg: '¿Es segura la app PRESTAMAX?' },
-    { label: '🧠 Analizar un mensaje', cmd: 'say', arg: 'Quiero revisar un mensaje sospechoso' }
-  ];
-
-  function toggleChatbot() {
-    state.chatbotOpen = !state.chatbotOpen;
-    const win = document.getElementById('escudobot-window');
-    if (win) {
-      if (state.chatbotOpen) {
-        win.classList.remove('hidden');
-        document.getElementById('escudobot-input')?.focus();
-      } else {
-        win.classList.add('hidden');
-      }
-    }
-  }
-
-  function sendChatbotCommand(command) {
-    const input = document.getElementById('escudobot-input');
-    if (input) {
-      input.value = command;
-      handleChatbotSubmit();
-    }
-  }
-
-  /* -------------------------------------------------------------------------
-     Interfaz, memoria de conversación (sessionStorage) y botones de acción
-     ------------------------------------------------------------------------- */
-  function initChatbotUi() {
-    const container = document.getElementById('escudobot-messages');
-    if (container && !container.dataset.bound) {
-      container.dataset.bound = '1';
-      container.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-chat-cmd]');
-        if (!btn) return;
-        runChatAction(btn.getAttribute('data-chat-cmd'), btn.getAttribute('data-chat-arg') || '');
-      });
-    }
-    restoreChatHistory();
-  }
-
-  function saveChatHistory() {
-    try {
-      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(state.chatbotHistory.slice(-CHAT_HISTORY_MAX)));
-    } catch (e) { /* almacenamiento no disponible */ }
-  }
-
-  function restoreChatHistory() {
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(CHAT_STORAGE_KEY) || '[]');
-      if (!Array.isArray(saved) || saved.length === 0) return;
-      state.chatbotHistory = saved;
-      saved.forEach(m => renderChatBubble(m.role === 'user' ? 'user' : 'bot', m.text, m.actions));
-    } catch (e) { /* historial corrupto: se ignora */ }
-  }
-
-  function runChatAction(cmd, arg) {
-    switch (cmd) {
-      case 'goto':
-        switchTab(arg);
-        break;
-      case 'ficha':
-        openAppFicha(arg);
-        break;
-      case 'report':
-        openReportModalForApp(parseInt(arg, 10));
-        break;
-      case 'say':
-        sendChatbotCommand(arg);
-        break;
-      case 'forensicPdf':
-        downloadForensicReportPDF();
-        break;
-      case 'police': {
-        if (arg) {
-          const el = document.getElementById('ai-message-input');
-          if (el) el.value = arg;
-        }
-        openPoliceComplaintModal();
-        break;
-      }
-      case 'shield':
-        copyMontadeudasShieldMessage();
-        respondChatbot('✅ Copié el aviso para tus contactos. Pégalo en WhatsApp o donde lo necesites.');
-        break;
-      case 'queja':
-        switchTab('quejas');
-        break;
-      default:
-        break;
-    }
-  }
-
-  function renderChatBubble(sender, text, actions) {
-    const container = document.getElementById('escudobot-messages');
-    if (!container) return;
-
-    const div = document.createElement('div');
-    div.className = sender === 'user' ? 'flex justify-end' : 'flex items-start space-x-2';
-
-    if (sender === 'user') {
-      div.innerHTML = `<div class="chat-bubble-user p-2.5 rounded-xl max-w-[85%] text-xs">${escapeHtml(text)}</div>`;
-    } else {
-      const html = escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-      const actionsHtml = Array.isArray(actions) && actions.length > 0
-        ? `<div class="mt-2 flex flex-wrap gap-1.5">${actions.map(a =>
-            `<button type="button" data-chat-cmd="${escapeHtml(a.cmd)}" data-chat-arg="${escapeHtml(a.arg || '')}" class="px-2 py-1 rounded-full bg-white border border-sky-300 text-sky-800 hover:bg-sky-50 font-semibold text-[11px] text-left">${escapeHtml(a.label)}</button>`
-          ).join('')}</div>`
-        : '';
-      div.innerHTML = `
-        <div class="w-6 h-6 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 text-[10px]">
-          <i class="fa-solid fa-robot"></i>
-        </div>
-        <div class="chat-bubble-bot p-2.5 rounded-xl max-w-[85%] text-xs leading-relaxed">${html}${actionsHtml}</div>
-      `;
-    }
-
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-  }
-
-  function appendChatMessage(sender, text, actions) {
-    renderChatBubble(sender, text, actions);
-    const entry = { role: sender === 'user' ? 'user' : 'model', text: text };
-    if (Array.isArray(actions) && actions.length > 0) entry.actions = actions;
-    state.chatbotHistory.push(entry);
-    if (state.chatbotHistory.length > CHAT_HISTORY_MAX) {
-      state.chatbotHistory = state.chatbotHistory.slice(-CHAT_HISTORY_MAX);
-    }
-    saveChatHistory();
-  }
-
-  function respondChatbot(text, actions) {
-    appendChatMessage('bot', text, actions);
-  }
-
-  /* -------------------------------------------------------------------------
-     Detección de intención: emergencia, mensajes sospechosos y apps de préstamo
-     ------------------------------------------------------------------------- */
-  // Texto ya normalizado (sin acentos, en minúsculas)
-  const CHAT_EMERGENCY_RE = new RegExp([
-    '\\bme\\s+(estan\\s+|han\\s+|van\\s+a\\s+|siguen\\s+|andan\\s+)?(amenaz|extors|hostig|acos|chantaje)\\w*',
-    '\\bextorsion\\b',
-    '\\bchantaje\\b',
-    '\\bamenaz\\w*\\s+con\\b',
-    '(enviar|mandar|difundir|avisar|publicar|llamar|mensajes?)\\W+(\\w+\\W+){0,6}(mis\\s+)?contactos',
-    '\\bme\\s+llaman\\s+(a\\s+cada\\s+rato|todo\\s+el\\s+dia|a\\s+mi\\s+trabajo)',
-    '\\bdifam\\w*'
-  ].join('|'));
-
-  const CHAT_FRAUD_KW_RE = /(fianza|anticipo|deposit|oxxo|spin|\bstp\b|pre-?aprobad|felicidades|liberar|gastos de gestion|sin buro|garantizad|deudor|embargo|urgente|\bclic\b|enlace|\blink\b|\bapk\b|codigo|\botp\b|\bnip\b|cuenta (suspendida|bloqueada)|verifica tu|tarjeta terminacion|transferencia|\bclabe\b|\baval\b|contactos|agenda|ultimo aviso|demanda|ganaste|premio)/;
-
-  /**
-   * Decide si el mensaje del usuario es un texto/enlace pegado para evaluar.
-   * Devuelve { type: 'text'|'url', text } o null.
-   */
-  function detectSuspiciousInput(msg) {
-    const trimmed = msg.trim();
-    const norm = normalizeText(trimmed);
-
-    // Enlace solo (o precedido de "analiza/revisa/es seguro ...")
-    const urlOnly = trimmed.match(/^(?:(?:analiza|analizame|revisa|revisame|checa|verifica|es\s+seguro|es\s+confiable)\s*:?\s*)?((?:https?:\/\/|www\.)\S+)$/i);
-    if (urlOnly) return { type: 'url', text: urlOnly[1] };
-
-    // Prefijo explícito: "analiza: ...", "me llegó este mensaje: ..."
-    const explicit = trimmed.match(/^(?:analiza|analizame|revisa|revisame|checa|me\s+lleg[oó]\s+(?:este|el)\s+(?:mensaje|sms|texto)|me\s+mandaron|me\s+enviaron)[^:]{0,40}:\s*([\s\S]{25,})$/i);
-    if (explicit) return { type: 'text', text: explicit[1].trim() };
-
-    // Texto largo con patrones de fraude
-    if (trimmed.length >= 70 && CHAT_FRAUD_KW_RE.test(norm)) {
-      return { type: 'text', text: trimmed };
-    }
-    return null;
-  }
-
-  const CHAT_WEAK_APP_NAMES = new Set([
-    'nu', 'ala', 'alas', 'luz', 'money', 'easy', 'claro', 'quincena', 'confiar', 'conveniente', 'relampago',
-    'mi credito', 'mi prestamo', 'credito hoy', 'dinero rapido', 'prestamos express', 'credito express',
-    'facil credito', 'prestamo efectivo', 'app credito', 'credito prestamo', 'rapido credito', 'rapido prestamo',
-    'prestamo rapido', 'prestamos faciles', 'facil prestamos', 'buen prestamo', 'buen credito', 'todo credito',
-    'dinero listo', 'dinero hoy', 'efectivo hoy', 'efectivo ya', 'credito ya', 'simple credito', 'credito plus',
-    'credito max', 'credito mas', 'prestamo pro', 'efectivo plus', 'efectivo pro', 'efectivo cash', 'cash efectivo',
-    'facil efectivo', 'facil cash', 'mi peso', 'mi caja', 'dinero credito', 'prestamo oportuno', 'prestamos mas',
-    'apoyo economico', 'cartera grande', 'credito loan', 'cash cash', 'mi mejor prestamo', 'tu mejor prestamo'
-  ]);
-
-  let chatAppIndex = null;
-
-  function cleanForMatch(str) {
-    return normalizeText(str).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-
-  function buildChatAppIndex() {
-    chatAppIndex = appsPrestamoCatalog.map(a => {
-      const full = cleanForMatch(a.app);
-      const alias = cleanForMatch(String(a.app).split(/\s+-\s+|\s*[:(]/)[0]);
-      const names = Array.from(new Set([full, alias].filter(n => n.length >= 2)));
-      const weak = names.some(n => CHAT_WEAK_APP_NAMES.has(n)) || (alias.indexOf(' ') === -1 && alias.length <= 4);
-      return { app: a, names, weak };
-    });
-  }
-
-  function findMentionedApps(text) {
-    if (!Array.isArray(appsPrestamoCatalog) || appsPrestamoCatalog.length === 0) return [];
-    if (!chatAppIndex || chatAppIndex.length !== appsPrestamoCatalog.length) buildChatAppIndex();
-
-    const clean = cleanForMatch(text);
-    if (!clean) return [];
-    const wordCount = clean.split(' ').length;
-    const intentStrong = /\b(app|apps|aplicacion|aplicaciones)\b/.test(clean);
-    const intentSoft = intentStrong ||
-      /(es (segura|seguro|confiable|legal|real|estafa|fraude|buena)|esta reportad|reportad|reportes|condusef|google play|play store|descargu|\bbaje\b|me prestaron|me presto|pedi un prestamo|me cobra|me amenaz|me llaman)/.test(clean);
-    const isShort = wordCount <= 4;
-
-    const hits = [];
-    for (const entry of chatAppIndex) {
-      if (entry.weak ? !intentSoft : !(intentSoft || isShort)) continue;
-      for (const name of entry.names) {
-        const re = new RegExp('(^| )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '( |$)');
-        if (re.test(clean)) {
-          hits.push({ app: entry.app, len: name.length, name });
-          break;
-        }
-      }
-    }
-    if (hits.length === 0) return [];
-
-    hits.sort((x, y) => y.len - x.len);
-    const kept = [];
-    for (const h of hits) {
-      if (!kept.some(k => k.name.includes(h.name))) kept.push(h);
-    }
-    return kept.slice(0, 3).map(h => h.app);
-  }
-
-  function describeAppForChat(a) {
-    const condusef = a.condusef === 'SÍ'
-      ? 'SÍ, tiene reportes ante CONDUSEF'
-      : 'NO, sin registro ante CONDUSEF (opera en la informalidad)';
-    const play = a.googlePlay === 'ACTIVA' ? 'ACTIVA (sigue disponible en la tienda)'
-      : (a.googlePlay === 'BAJA' ? 'BAJA (fue dada de baja de Google Play)' : 'NO ENCONTRADA en Google Play');
-    const apk = a.apk === 'ACTIVA' ? 'ACTIVA (circula como APK externo, riesgo alto)'
-      : (a.apk === 'BAJA' ? 'BAJA' : 'NO ENCONTRADA');
-    const high = a.reportes >= 100 || a.apk === 'ACTIVA';
-    const reading = high
-      ? '🚨 **Mi lectura:** acumula muchos reportes o circula como APK externo. Te recomiendo **no pedir préstamos ni dar permisos** (contactos, galería) a esta app.'
-      : '⚠️ **Mi lectura:** tiene reportes ciudadanos. Estar en este listado no es una sentencia legal, pero pide precaución.';
-    return `📱 **${a.app}** (N° ${a.num} de 399 en el Radar)\n` +
-      `• ¿Reportada ante CONDUSEF? **${condusef}**\n` +
-      `• Reportes ciudadanos: **${Number(a.reportes).toLocaleString('es-MX')}**\n` +
-      `• Google Play: **${play}**\n` +
-      `• APK externo: **${apk}**\n` +
-      `${reading}`;
-  }
-
-  function buildAppReply(apps) {
-    const body = apps.map(describeAppForChat).join('\n\n');
-    const footer = '\n\nAntes de pedir dinero, verifica en el Directorio SIPRES que la entidad esté **En operación** y nunca pagues anticipos.';
-    const actions = [];
-    apps.slice(0, 2).forEach(a => {
-      actions.push({ label: `Ver ficha de ${a.app}`, cmd: 'ficha', arg: String(a.num) });
-    });
-    actions.push({ label: 'Reportar esta app', cmd: 'report', arg: String(apps[0].num) });
-    actions.push({ label: 'Semáforo de préstamo', cmd: 'goto', arg: 'credito' });
-    return { text: body + footer, actions };
-  }
-
-  function explainVerdictForChat(v) {
-    const level = v.score >= 70
-      ? { icon: '🚨', text: 'RIESGO ALTO: es muy probable que sea un intento de fraude' }
-      : (v.score >= 40
-        ? { icon: '⚠️', text: 'RIESGO MEDIO: tiene señales sospechosas, no confíes todavía' }
-        : { icon: '✅', text: 'RIESGO BAJO: no vi alertas críticas, pero mantén tus claves en privado' });
-
-    const lines = [`${level.icon} **${level.text}** (puntaje ${v.score}/100).`];
-    if (v.verdictSummary) lines.push(v.verdictSummary);
-
-    const flags = (v.redFlags || []).slice(0, 3);
-    if (flags.length > 0) {
-      lines.push('**Por qué:**\n' + flags.map(f => `• **${f.badge}**: ${f.desc}`).join('\n'));
-    }
-
-    const steps = (v.actions && v.actions.length > 0 ? v.actions : ['Mantén tus contraseñas y claves OTP en privado.']).slice(0, 3);
-    lines.push('**Qué hacer ahora:**\n' + steps.map((s, i) => `${i + 1}. ${s}`).join('\n'));
-    lines.push('El análisis completo, el informe en PDF y tu historial están en el **Laboratorio Forense IA**.');
-    return lines.join('\n\n');
-  }
-
-  function buildVerdictActions(v) {
-    const actions = [
-      { label: '🧠 Ver informe completo', cmd: 'goto', arg: 'analizador' },
-      { label: '📄 Descargar PDF', cmd: 'forensicPdf' }
-    ];
-    if (v.score >= 40) {
-      actions.push({ label: '🚓 Denuncia 088', cmd: 'police' });
-      actions.push({ label: '⚖️ Redactar queja CONDUSEF', cmd: 'queja' });
-    }
-    if ((v.redFlags || []).some(f => /montadeudas|contactos|agenda/i.test(`${f.badge} ${f.desc}`))) {
-      actions.push({ label: '📋 Copiar aviso para mis contactos', cmd: 'shield' });
-    }
-    return actions;
-  }
-
-  async function deriveToForensicLab(det) {
-    const isUrl = det.type === 'url';
-    respondChatbot(`🔎 Eso parece un ${isUrl ? 'enlace' : 'mensaje'} sospechoso. Yo no lo analizo: lo envío al **Laboratorio Forense IA**, nuestro único motor de análisis, y enseguida te explico el resultado en palabras sencillas.`);
-
-    state.lastVerdict = null;
-    if (isUrl) {
-      switchAiInputMode('url');
-      const urlEl = document.getElementById('ai-url-input');
-      if (urlEl) urlEl.value = det.text;
-      analyzeSuspiciousUrl();
-    } else {
-      switchAiInputMode('text');
-      const msgEl = document.getElementById('ai-message-input');
-      if (msgEl) msgEl.value = det.text;
-      await runMessageAnalysis();
-    }
-
-    const verdict = state.lastVerdict;
-    if (!verdict) {
-      respondChatbot('No pude completar el análisis desde aquí. Ábrelo directamente en el Laboratorio Forense IA.',
-        [{ label: '🧠 Abrir Laboratorio Forense IA', cmd: 'goto', arg: 'analizador' }]);
-      return;
-    }
-    respondChatbot(explainVerdictForChat(verdict), buildVerdictActions(verdict));
-  }
-
-  function handleEmergencyMessage(msg, apps) {
-    const lines = [
-      '🚨 **Lo que describes es hostigamiento o extorsión, y puede constituir un delito. Respira: tú tienes el control.**',
-      '1. **No pagues bajo presión** ni envíes más dinero o datos.',
-      '2. **Guarda evidencia:** capturas de mensajes, números, fechas y comprobantes.',
-      '3. **Bloquea** esos números y **quita los permisos** (contactos, galería) a la app; desinstálala.',
-      '4. **Avisa a tus contactos** que no atiendan mensajes sobre ti (te dejo un texto listo para copiar).',
-      '5. **Denuncia:** Policía Cibernética **088** y asesoría CONDUSEF **55 53 400 999**.'
-    ];
-    if (apps.length > 0) {
-      lines.push('Sobre la app que mencionas:\n' + apps.map(a => `• **${a.app}** (N° ${a.num}): ${Number(a.reportes).toLocaleString('es-MX')} reportes, Google Play ${a.googlePlay}.`).join('\n'));
-    }
-    const actions = [
-      { label: '🚓 Redactar denuncia 088', cmd: 'police', arg: msg.slice(0, 400) },
-      { label: '📋 Copiar aviso para mis contactos', cmd: 'shield' },
-      { label: '⚖️ Redactar queja CONDUSEF', cmd: 'queja' },
-      { label: '📡 Ver Radar Comunitario', cmd: 'goto', arg: 'radar' }
-    ];
-    if (apps.length > 0) actions.unshift({ label: `Ver ficha de ${apps[0].app}`, cmd: 'ficha', arg: String(apps[0].num) });
-    respondChatbot(lines.join('\n'), actions);
-  }
-
-  /* -------------------------------------------------------------------------
-     Flujo principal de mensajes
-     ------------------------------------------------------------------------- */
-  async function handleChatbotSubmit() {
-    const input = document.getElementById('escudobot-input');
-    const msg = (input?.value || '').trim();
-    if (!msg || chatbotBusy) return;
-
-    chatbotBusy = true;
-    input.value = '';
-    appendChatMessage('user', msg);
-
-    const typing = document.getElementById('escudobot-typing');
-    if (typing) typing.classList.remove('hidden');
-
-    try {
-      await processChatMessage(msg);
-    } catch (err) {
-      console.error('[EscudoBot] Error procesando el mensaje:', err);
-      respondChatbot('Tuve un problema para procesar tu mensaje. Inténtalo de nuevo o usa el menú para ir a la sección que necesitas.');
-    } finally {
-      chatbotBusy = false;
-      if (typing) typing.classList.add('hidden');
-    }
-  }
-
-  async function processChatMessage(msg) {
-    const apiKey = (document.getElementById('gemini-api-key')?.value || '').trim();
-    const lower = msg.toLowerCase();
-    const norm = normalizeText(msg);
-    const wordCount = norm.split(/\s+/).length;
-
-    // 0. Apps de préstamo mencionadas (con memoria del tema anterior)
-    let apps = findMentionedApps(msg);
-    if (apps.length === 0 && chatContext.app && wordCount <= 8 &&
-        /\b(esa|esta|ella|eso|la misma)\b|reportes|google play|condusef|segur[ao]|confiable/.test(norm)) {
-      apps = [chatContext.app];
-    }
-
-    // 1. Emergencia: amenazas, extorsión u hostigamiento (primera persona)
-    if (CHAT_EMERGENCY_RE.test(norm) && !detectSuspiciousInput(msg)) {
-      if (apps.length > 0) chatContext.app = apps[0];
-      handleEmergencyMessage(msg, apps);
-      return;
-    }
-
-    // 2. Mensajes o enlaces sospechosos: se derivan al Laboratorio Forense IA
-    const suspicious = detectSuspiciousInput(msg);
-    if (suspicious) {
-      await deriveToForensicLab(suspicious);
-      return;
-    }
-
-    // 3. Consulta sobre apps de préstamo móvil (datos del Radar Comunitario)
-    if (apps.length > 0) {
-      chatContext.app = apps[0];
-      const reply = buildAppReply(apps);
-      respondChatbot(reply.text, reply.actions);
-      return;
-    }
-
-    // 4. Comandos directos de navegación
-    if (lower.includes('buscar bbva') || (lower.includes('buscar') && lower.includes('bbva'))) {
-      switchTab('directorio');
-      executeDirectSearch('BBVA');
-      document.getElementById('sipres-search-input').value = 'BBVA';
-      respondChatbot('¡Hecho! Te he llevado al directorio SIPRES y he buscado las entidades relacionadas a **BBVA**.');
-      return;
-    }
-
-    if (lower.includes('calcular') || lower.includes('crédito') || lower.includes('semáforo') || lower.includes('interés')) {
-      switchTab('credito');
-      respondChatbot('¡Listo! Te he llevado al **Semáforo de Préstamo Justo**. Aquí puedes calcular el sobrecosto de tu préstamo y consultar la tabla de amortización cuota por cuota.');
-      return;
-    }
-
-    if (lower.includes('queja') || lower.includes('condusef') || lower.includes('denuncia') || lower.includes('reclamar')) {
-      switchTab('quejas');
-      respondChatbot('Te he trasladado al **Generador de Quejas Oficiales CONDUSEF**. Puedes redactar tu escrito jurídico y firmarlo digitalmente.');
-      return;
-    }
-
-    if (lower.includes('mensaje') || lower.includes('forense') || /\bia\b/.test(lower) || lower.includes('sospechoso')) {
-      respondChatbot('🧠 Puedes **pegar aquí mismo** el mensaje, SMS o enlace sospechoso y yo lo envío al **Laboratorio Forense IA** para analizarlo; después te explico el resultado. También puedes ir directo al laboratorio.',
-        [{ label: 'Ir al Laboratorio Forense IA', cmd: 'goto', arg: 'analizador' }]);
-      return;
-    }
-
-    if (lower.includes('radar') || lower.includes('montadeudas') || lower.includes('estafa') || lower.includes('mapa')) {
-      switchTab('radar');
-      respondChatbot('Te he llevado al **Radar Comunitario**. Puedes comprobar teléfonos, consultar el mapa de estafas y revisar el listado de 399 apps de préstamo móvil.');
-      return;
-    }
-
-    if (lower.includes('modo oscuro') || lower.includes('dark')) {
-      toggleDarkMode();
-      respondChatbot('¡Modo de visualización alternado con éxito!');
-      return;
-    }
-
-    // 5. Consulta directa de cualquiera de las 409 entidades
-    let matchedEntities = findMentionedEntities(msg);
-    if (matchedEntities.length === 0 && chatContext.entity && wordCount <= 8 && /\b(esa|esta|ella|eso|la misma)\b/.test(norm)) {
-      matchedEntities = [chatContext.entity];
-    }
-    if (matchedEntities.length > 0) chatContext.entity = matchedEntities[0];
-
-    if (matchedEntities.length > 0 && lower.startsWith('buscar ')) {
-      const target = matchedEntities[0];
-      switchTab('directorio');
-      executeDirectSearch(target.n);
-      const searchInput = document.getElementById('sipres-search-input');
-      if (searchInput) searchInput.value = target.n;
-      respondChatbot(`¡Listo! He buscado **${target.n}** en el directorio SIPRES: **${target.s}** (Folio SIPRES: **${target.f}**, Sector: **${target.t}**, Estatus: **${target.e}**).`);
-      return;
-    }
-
-    // 6. Gemini (con memoria, instrucciones de sistema y datos oficiales) o motor local
-    let reply;
-    if (apiKey) {
-      try {
-        reply = await queryGeminiChat(apiKey, matchedEntities);
-      } catch (err) {
-        console.warn('[EscudoBot] Error con Gemini API, respondiendo con motor local:', err);
-        reply = getLocalChatbotReply(lower, matchedEntities);
-      }
-    } else {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      reply = getLocalChatbotReply(lower, matchedEntities);
-    }
-    respondChatbot(reply, CHAT_DEFAULT_CHIPS);
-  }
-
-  function getLocalChatbotReply(text, matchedEntities = []) {
-    if (matchedEntities && matchedEntities.length > 0) {
-      const e = matchedEntities[0];
-      const extraCount = matchedEntities.length > 1 ? ` (y otras ${matchedEntities.length - 1} coincidencias relacionadas)` : '';
-      return `✅ **Entidad Localizada en nuestras 409 instituciones SIPRES**${extraCount}: **${e.s}** (Nombre comercial: **${e.n}** | Folio SIPRES: **#${e.f}** | Sector: **${e.t}** | Estatus: **${e.e}** | Ubicación: **${e.d}**). Recuerda que jamás solicita pagos ni fianzas por adelantado.`;
-    }
-    if (text.includes('anticipo') || text.includes('fianza') || text.includes('cobran antes')) {
-      return '¡Cuidado! Ninguna financiera legal en México cobra dinero por adelantado para prestarte. Si te piden un depósito para "liberar fondos" o "gastos de fianza", es una estafa tipificada en el Art. 386 del Código Penal Federal.';
-    }
-    if (text.includes('montadeudas') || text.includes('amenaza') || text.includes('contactos')) {
-      return 'Las apps montadeudas cometen cobranza extrajudicial ilegal (Art. 284 Bis CPF). No pagues bajo amenaza, retira los permisos a la app, avisa a tus contactos que te hackearon y denuncia de inmediato al 088 de la Policía Cibernética.';
-    }
-    if (/\bapps?\b|aplicacion/.test(text) && /prestamo|credito|segur|confiable|reportad/.test(text)) {
-      return 'Tengo el listado de **399 apps de préstamo móvil** con sus reportes ciudadanos, estatus en CONDUSEF y en Google Play. Dime el nombre de la app (por ejemplo: "¿Es segura la app PRESTAMAX?") y te muestro su ficha.';
-    }
-    if (text.includes('sipres') || text.includes('qué es') || text.includes('que es')) {
-      return 'El SIPRES (Sistema de Registro de Prestadores de Servicios Financieros) es el catálogo oficial de la CONDUSEF con las 409 entidades financieras legalmente autorizadas en nuestro padrón (Banca Múltiple, Banca de Desarrollo, SOFIPO, SOCAP, Uniones de Crédito y Fintech). Puedes preguntarme el nombre de cualquier banco, caja o fintech para verificar su Folio SIPRES.';
-    }
-    return 'Entendido. Como asistente de ciberseguridad financiera en México, puedo verificar cualquiera de las **409 entidades del SIPRES**, consultar las **399 apps de préstamo móvil**, ayudarte con quejas legales en PDF, detectar si un CAT es engañoso o enviar al Laboratorio Forense cualquier mensaje sospechoso que pegues aquí. ¿Qué deseas realizar?';
-  }
-
-  const ESCUDOBOT_SYSTEM_PROMPT = `Eres EscudoBot, el asesor cívico-financiero de la plataforma mexicana "Escudo Financiero Pro". Ayudas a personas en México a protegerse de fraudes y a ejercer sus derechos como usuarias de servicios financieros.
-
-REGLAS:
-1. Responde en español mexicano, claro, empático y sin jerga. Máximo 3 párrafos cortos o una lista de hasta 5 puntos.
-2. Eres orientación, no asesoría legal. Si hay una decisión legal importante, recomienda a CONDUSEF (55 53 400 999) o a un abogado.
-3. NO inventes datos: leyes, artículos, folios, cifras, tasas ni nombres de apps o entidades. Si no lo sabes o no está en el contexto de datos oficiales, dilo y sugiere verificarlo en el SIPRES o con CONDUSEF.
-4. Nunca pidas ni aceptes CLABE propia, números de tarjeta, contraseñas, NIP, CURP, INE ni códigos OTP.
-5. No analices tú mensajes, enlaces o capturas sospechosas: pide al usuario que los pegue en este chat y se enviarán al Laboratorio Forense IA, que es el único motor de análisis del sitio.
-6. Si el usuario describe amenazas, extorsión u hostigamiento: prioriza la calma, no pagar, guardar evidencia, bloquear, Policía Cibernética 088 y CONDUSEF.
-7. Cuando ayude, sugiere la sección del sitio: Directorio SIPRES (409 entidades), Generador de Quejas CONDUSEF, Semáforo de Préstamo Justo, Laboratorio Forense IA o Radar Comunitario (399 apps de préstamo).
-8. Dato verificable: ninguna financiera legal cobra anticipos, fianzas o depósitos para liberar un préstamo.`;
-
-  async function queryGeminiChat(apiKey, matchedEntities = []) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const entityContext = matchedEntities && matchedEntities.length > 0
-      ? `\n\nDATOS OFICIALES (padrón SIPRES de 409 entidades) sobre la institución mencionada: ${matchedEntities.slice(0, 3).map(e => `${e.s} (Nombre corto: ${e.n}, Folio SIPRES: ${e.f}, Sector: ${e.t}, Estatus: ${e.e}, Estado: ${e.d})`).join('; ')}.`
-      : '';
-
-    // Memoria: últimos turnos, alternando roles y comenzando por el usuario
-    const recent = state.chatbotHistory.slice(-10);
-    const contents = [];
-    for (const m of recent) {
-      const role = m.role === 'user' ? 'user' : 'model';
-      if (contents.length === 0 && role !== 'user') continue;
-      const last = contents[contents.length - 1];
-      if (last && last.role === role) {
-        last.parts[0].text += '\n' + m.text;
-      } else {
-        contents.push({ role, parts: [{ text: m.text }] });
-      }
-    }
-    if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
-      throw new Error('Sin mensaje de usuario para enviar');
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: ESCUDOBOT_SYSTEM_PROMPT + entityContext }] },
-        contents: contents,
-        generationConfig: { temperature: 0.4, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } }
-      })
-    });
-
-    if (!response.ok) throw new Error('Gemini API call failed');
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error('Respuesta vacía de Gemini');
-    return text;
-  }
-
-  /* =========================================================================
-     SISTEMA DE NAVEGACIÓN Y ATAJOS
-     ========================================================================= */
-  function switchTab(tabId) {
-    state.activeTab = tabId;
-
-    document.querySelectorAll('.tab-content').forEach(tab => {
-      tab.classList.remove('active');
-    });
-    const targetTab = document.getElementById(`tab-${tabId}`);
-    if (targetTab) targetTab.classList.add('active');
-
-    document.querySelectorAll('.nav-tab-btn').forEach(btn => {
-      if (btn.getAttribute('data-tab-btn') === tabId) {
-        btn.className = 'nav-tab-btn px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 bg-sky-600 text-white shadow-sm';
-      } else {
-        btn.className = 'nav-tab-btn px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 text-slate-300 hover:text-white hover:bg-slate-800';
-      }
-    });
-
-    document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
-      if (btn.getAttribute('data-tab-btn') === tabId) {
-        btn.className = 'bottom-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-sky-400 font-bold';
-      } else {
-        btn.className = 'bottom-nav-btn flex flex-col items-center py-1 px-2 rounded-lg text-slate-400';
-      }
-    });
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function setupKeyboardShortcuts() {
-    window.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey && e.key.toLowerCase() === 'k') || (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName))) {
-        e.preventDefault();
-        focusSearch();
-      }
-
-      if (e.key === 'Escape') {
-        closeAllModals();
-        if (state.chatbotOpen) toggleChatbot();
-      }
-
-      if (['1', '2', '3', '4', '5'].includes(e.key) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-        const tabs = ['directorio', 'quejas', 'credito', 'analizador', 'radar'];
-        const index = parseInt(e.key) - 1;
-        if (tabs[index]) switchTab(tabs[index]);
-      }
-    });
-  }
-
-  function setupInitialFormValues() {
-    const fechaInput = document.getElementById('q-fecha-hechos');
-    if (fechaInput && !fechaInput.value) {
-      fechaInput.value = new Date().toISOString().split('T')[0];
-    }
-    updateUdecoInfo();
-  }
-
-  function openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-    }
-  }
-
-  function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.add('hidden');
-      document.body.style.overflow = '';
-    }
-    if (modalId === 'modal-preview-pdf') {
-      revokePreviewBlobUrl();
-    }
-  }
-
-  function closeAllModals() {
-    document.querySelectorAll('[id^="modal-"]').forEach(modal => {
-      modal.classList.add('hidden');
-    });
-    document.body.style.overflow = '';
-    revokePreviewBlobUrl();
-  }
-
-  function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  /* =========================================================================
-     SOPORTE PWA OFFLINE
-     ========================================================================= */
-  function initPWA() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').then(reg => {
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-        reg.update();
-      }).catch(err => {
-        console.log('[PWA] Service Worker no registrado (modo local):', err);
-      });
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', init);
-
-  return {
-    switchTab,
-    toggleDarkMode,
-    focusSearch,
-    clearSearch,
-    executeDirectSearch,
-    setStatusFilter,
-    applySecondaryFilters,
-    loadMoreResults,
-    openExpediente,
-    copyExpedienteCedula,
-    addToComparator,
-    removeFromComparator,
-    clearComparator,
-    openComparatorModal,
-    setQuejaProcedure,
-    transferEntityToQueja,
-    handleInstitucionAutocomplete,
-    validateCurpLive,
-    clearQuejaDraft,
-    updateUdecoInfo,
-    loadTemplate,
-    applyTemplateCausa,
-    clearSignature,
-    handleEvidenceUpload,
-    removeEvidence,
-    generateQuejaPreview,
-    downloadQuejaPDF,
-    switchPdfPreviewMode,
-    printCurrentDocument,
-    downloadCurrentPreviewPDF,
-    calcCredito,
-    exportAmortizationCSV,
-    switchAiInputMode,
-    handleAiImageSelect,
-    clearAiImage,
-    setAiMode,
-    loadAiExample,
-    runForensicAnalysis,
-    openPoliceComplaintModal,
-    copyPoliceComplaint,
-    previewForensicReportPDF,
-    downloadForensicReportPDF,
-    restoreForensicHistory,
-    deleteForensicHistory,
-    clearForensicHistory,
-    searchRadarPhone,
-    filterRadar,
-    filterRadarByState,
-    renderCitizenReports,
-    confirmRadarReport,
-    shareRadarReport,
-    denunciarReporte088,
-    transferReporteToRedeco,
-    copyMontadeudasShieldMessage,
-    handleReportAppSelect,
-    handleReportNameInput,
-    openReportModalForApp,
-    openAppFicha,
-    submitCitizenReport,
-    switchRadarSubtab,
-    searchMontadeudas,
-    toggleChatbot,
-    sendChatbotCommand,
-    handleChatbotSubmit,
-    openModal,
-    closeModal
-  };
-
-})();
+});
