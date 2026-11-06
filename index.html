@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Escudo Financiero Pro — Ciberseguridad Cívica, Buscador SIPRES, Quejas CONDUSEF & Medidor de Crédito</title>
+  <title>Escudo Financiero Pro — Maqueta de Diseño Ejecutivo</title>
 
   <!-- Google Fonts: Newsreader (Editorial Serif Legal) + Inter (Fintech UI) + JetBrains Mono (Datos Técnicos) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -68,8 +68,154 @@
   <script src="pdf-lib.min.js"></script>
   <script src="pdf_engine.js"></script>
 
-  <!-- Estilos Personalizados y Reglas de Impresión -->
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Escala de accesibilidad tipográfica (A- / A / A+) */
+    html.text-scale-sm { font-size: 14.5px; }
+    html.text-scale-md { font-size: 16px; }
+    html.text-scale-lg { font-size: 18.5px; }
+
+    /* Transiciones suaves de tema y elevación */
+    * {
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    
+    /* Scrollbars refinados tipo fintech */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Estilo formal del folio de previsualización jurídica */
+    .legal-document-paper {
+      background: #ffffff;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+      border: 1px solid #e2e8f0;
+    }
+    .dark .legal-document-paper {
+      background: #0f172a;
+      border-color: #1e293b;
+      box-shadow: 0 4px 25px -2px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Estilos del Motor Vectorial EscudoPDF (pdf_engine.js + pdf-lib) */
+    .pdf-container {
+      width: 100%;
+      max-width: 820px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    svg.escudo-pdf-page {
+      display: block;
+      width: 100%;
+      max-width: 780px;
+      height: auto;
+      margin: 0 auto 24px auto;
+      background-color: #ffffff;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, 0.25);
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      user-select: text;
+    }
+    svg.escudo-pdf-page:last-child {
+      margin-bottom: 0;
+    }
+    @media print {
+      .pdf-container {
+        width: 100% !important;
+        max-width: none !important;
+      }
+      svg.escudo-pdf-page {
+        border: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        max-width: none !important;
+        width: 100% !important;
+        height: auto !important;
+        page-break-after: always;
+        break-after: page;
+      }
+      svg.escudo-pdf-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      @page {
+        size: letter portrait;
+        margin: 0;
+      }
+    }
+
+    /* ==========================================================================
+       CHATBOT ASISTENTE CÍVICO VIRTUAL (ESCUDOBOT)
+       ========================================================================== */
+    #escudobot-widget {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 60;
+    }
+    @media (max-width: 767px) {
+      #escudobot-widget {
+        bottom: 20px;
+        right: 16px;
+      }
+    }
+    #escudobot-window {
+      width: 390px;
+      max-width: calc(100vw - 32px);
+      height: 530px;
+      max-height: calc(100vh - 100px);
+      animation: slideInChat 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes slideInChat {
+      from { opacity: 0; transform: translateY(16px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .chat-bubble-bot {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      border-bottom-left-radius: 4px;
+    }
+    .dark .chat-bubble-bot {
+      background-color: #1a2234;
+      color: #f8fafc;
+      border: 1px solid #1f293d;
+    }
+    .chat-bubble-user {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: #ffffff;
+      border-bottom-right-radius: 4px;
+    }
+    .dark .chat-bubble-user {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #ffffff;
+    }
+    .typing-dot {
+      width: 5px;
+      height: 5px;
+      background-color: #d97706;
+      border-radius: 50%;
+      animation: typingBlink 1.4s infinite both;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBlink {
+      0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1.1); }
+    }
+  </style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-obsidian-base text-slate-900 dark:text-slate-100 font-sans antialiased flex flex-col overflow-hidden">
 
@@ -134,21 +280,21 @@
         </div>
 
         <!-- Módulo 1: Directorio SIPRES -->
-        <button onclick="PreviewApp.switchTab('directorio')" data-tab="directorio" title="Directorio SIPRES (409)" class="sidebar-nav-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-colors bg-slate-100 dark:bg-obsidian-elevated text-slate-900 dark:text-white border-l-4 border-legal-gold">
+        <button onclick="PreviewApp.switchTab('directorio')" data-tab="directorio" title="Consultar Institución (SIPRES 409)" class="sidebar-nav-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-colors bg-slate-100 dark:bg-obsidian-elevated text-slate-900 dark:text-white border-l-4 border-legal-gold">
           <div class="flex items-center gap-3">
             <i class="fa-solid fa-building-columns text-legal-gold w-4 text-center text-sm"></i>
-            <span class="sidebar-text-element font-medium">Directorio SIPRES</span>
+            <span class="sidebar-text-element font-medium">Consultar Institución</span>
           </div>
-          <span class="sidebar-text-element font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-obsidian-border text-slate-700 dark:text-slate-300">409</span>
+          <span class="sidebar-text-element font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-obsidian-border text-slate-700 dark:text-slate-300">SIPRES</span>
         </button>
 
         <!-- Módulo 2: Quejas CONDUSEF -->
-        <button onclick="PreviewApp.switchTab('quejas')" data-tab="quejas" title="Quejas Jurídicas CONDUSEF" class="sidebar-nav-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-obsidian-elevated transition-colors border-l-4 border-transparent">
+        <button onclick="PreviewApp.switchTab('quejas')" data-tab="quejas" title="Crear Reclamación (Modo Asistente)" class="sidebar-nav-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-obsidian-elevated transition-colors border-l-4 border-transparent">
           <div class="flex items-center gap-3">
             <i class="fa-solid fa-file-signature w-4 text-center text-sm"></i>
-            <span class="sidebar-text-element">Quejas Jurídicas</span>
+            <span class="sidebar-text-element font-medium">Crear Reclamación</span>
           </div>
-          <span class="sidebar-text-element font-mono text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-legal-gold font-semibold uppercase">PDF</span>
+          <span class="sidebar-text-element font-mono text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-legal-gold font-semibold uppercase">Asistente</span>
         </button>
 
         <!-- Módulo 3: Medidor de Crédito -->
@@ -176,6 +322,15 @@
             <span class="sidebar-text-element">Radar Comunitario</span>
           </div>
           <span class="sidebar-text-element font-mono text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold">399</span>
+        </button>
+
+        <!-- Módulo 6: Plazos & Calendario Legal CNBV -->
+        <button onclick="PreviewApp.switchTab('calendario')" data-tab="calendario" title="Plazos y Calendario Legal (CNBV / CONDUSEF 2026)" class="sidebar-nav-btn w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-obsidian-elevated transition-colors border-l-4 border-transparent">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-calendar-days w-4 text-center text-sm text-legal-gold"></i>
+            <span class="sidebar-text-element font-medium">Plazos &amp; Calendario</span>
+          </div>
+          <span class="sidebar-text-element font-mono text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-legal-emerald font-semibold uppercase">20 DÍAS</span>
         </button>
       </nav>
 
@@ -426,14 +581,85 @@
           <div class="pb-4 border-b border-slate-200 dark:border-obsidian-border">
             <div class="flex items-center space-x-2 text-xs font-semibold text-legal-gold mb-1 uppercase tracking-wider">
               <i class="fa-solid fa-file-contract"></i>
-              <span>Procesador Jurídico Preventivo</span>
+              <span>Procesador Cívico & Jurídico</span>
             </div>
             <h2 class="font-serif text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
               Generador Oficial de Reclamación CONDUSEF
             </h2>
             <p class="text-xs md:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl leading-relaxed">
-              Redacción con fundamento en la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF). Los datos ingresados se auditan y proyectan en tiempo real en la carátula oficial.
+              Protección con fundamento en la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF). Los datos se auditan y proyectan en tiempo real en tu documento oficial.
             </p>
+          </div>
+
+          <!-- BANNER DE EFICIENCIA Y SELECTOR DE MODO (MODO ASISTENTE VS MODO EXPERTO) -->
+          <div class="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-slate-100 dark:via-obsidian-surface to-emerald-500/10 border border-slate-200 dark:border-obsidian-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-legal-gold/15 text-legal-gold flex items-center justify-center font-bold text-lg shrink-0">
+                <i class="fa-solid fa-bolt"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h4 class="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">Asistente Guiado Ciudadano</h4>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-legal-emerald font-bold font-mono">⚡ 94% ahorro de tiempo</span>
+                </div>
+                <p class="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                  Por tu cuenta: <strong>~2.5 horas</strong> • Con Escudo Financiero: <strong>~8 minutos</strong>.
+                </p>
+              </div>
+            </div>
+            
+            <!-- Selector de Modalidad -->
+            <div class="flex items-center gap-2 shrink-0 bg-white dark:bg-obsidian-elevated p-1 rounded-xl border border-slate-200 dark:border-obsidian-border">
+              <button type="button" id="btn-mode-assistant" onclick="PreviewApp.setFormMode('asistente')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-legal-gold text-white shadow-xs transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-[11px]"></i>
+                <span>Modo Asistente</span>
+              </button>
+              <button type="button" id="btn-mode-expert" onclick="PreviewApp.setFormMode('experto')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-sliders text-[11px]"></i>
+                <span>Modo Experto</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- TARJETA DEL MODO ASISTENTE: PREGUNTAS RÁPIDAS TIPO CHAT -->
+          <div id="assistant-guided-card" class="p-4 rounded-xl bg-white dark:bg-obsidian-surface border border-legal-gold/40 shadow-sm space-y-3 transition-all">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-circle-question text-legal-gold text-sm"></i>
+                <span class="text-xs font-bold text-slate-900 dark:text-white">¿Cuál es el problema principal que deseas resolver hoy?</span>
+              </div>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">1 clic para autoconfigurar todo</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <button type="button" onclick="PreviewApp.selectQuickProblem('cargos')" class="p-2.5 rounded-lg border border-slate-200 dark:border-obsidian-border hover:border-legal-gold bg-slate-50 dark:bg-obsidian-elevated hover:bg-amber-500/5 text-left transition-all group">
+                <div class="flex items-center gap-2 font-semibold text-xs text-slate-800 dark:text-slate-100 group-hover:text-legal-gold">
+                  <i class="fa-solid fa-credit-card text-amber-500"></i>
+                  <span>Cargo no reconocido</span>
+                </div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Cobro indebido en tarjeta de débito o crédito sin tu consentimiento.</p>
+              </button>
+              <button type="button" onclick="PreviewApp.selectQuickProblem('spei')" class="p-2.5 rounded-lg border border-slate-200 dark:border-obsidian-border hover:border-legal-gold bg-slate-50 dark:bg-obsidian-elevated hover:bg-emerald-500/5 text-left transition-all group">
+                <div class="flex items-center gap-2 font-semibold text-xs text-slate-800 dark:text-slate-100 group-hover:text-legal-emerald">
+                  <i class="fa-solid fa-money-bill-transfer text-emerald-500"></i>
+                  <span>Fraude SPEI / Transferencia</span>
+                </div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Transferencia no autorizada sin notificación ni token dinámico.</p>
+              </button>
+              <button type="button" onclick="PreviewApp.selectQuickProblem('cobranza')" class="p-2.5 rounded-lg border border-slate-200 dark:border-obsidian-border hover:border-legal-gold bg-slate-50 dark:bg-obsidian-elevated hover:bg-rose-500/5 text-left transition-all group">
+                <div class="flex items-center gap-2 font-semibold text-xs text-slate-800 dark:text-slate-100 group-hover:text-red-500">
+                  <i class="fa-solid fa-phone-slash text-red-500"></i>
+                  <span>Amenazas de cobranza</span>
+                </div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Acoso telefónico o intimidación a contactos y familiares (REDECO).</p>
+              </button>
+              <button type="button" onclick="PreviewApp.selectQuickProblem('buro')" class="p-2.5 rounded-lg border border-slate-200 dark:border-obsidian-border hover:border-legal-gold bg-slate-50 dark:bg-obsidian-elevated hover:bg-indigo-500/5 text-left transition-all group">
+                <div class="flex items-center gap-2 font-semibold text-xs text-slate-800 dark:text-slate-100 group-hover:text-indigo-400">
+                  <i class="fa-solid fa-file-shield text-indigo-500"></i>
+                  <span>Deuda o Buró incorrecto</span>
+                </div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Reporte indebido en Buró de Crédito o cobro de adeudo no reconocido.</p>
+              </button>
+            </div>
           </div>
 
           <!-- Selector de Tipo de Procedimiento: CONDUSEF vs REDECO -->
@@ -452,28 +678,48 @@
             </div>
           </div>
 
-          <!-- Stepper Interactivo de 5 Pasos -->
-          <div class="bg-white dark:bg-obsidian-surface p-3.5 rounded-xl border border-slate-200 dark:border-obsidian-border shadow-sm">
-            <div class="grid grid-cols-5 gap-2 text-center text-xs">
+          <!-- Stepper Interactivo de 5 Pasos con Barra Porcentual Real -->
+          <div class="bg-white dark:bg-obsidian-surface p-4 rounded-xl border border-slate-200 dark:border-obsidian-border shadow-sm space-y-3">
+            <!-- Barra de Avance Real -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <i class="fa-solid fa-bars-progress text-legal-gold"></i>
+                  <span>Avance del Formulario:</span>
+                </span>
+                <span id="wizard-progress-percent" class="font-mono font-bold text-legal-gold text-sm">20%</span>
+                <span id="wizard-progress-hint" class="text-[11px] text-slate-500 dark:text-slate-400">• Paso 1: Tus Datos</span>
+              </div>
+              <div class="text-[11px] font-mono text-legal-emerald font-semibold flex items-center gap-1">
+                <i class="fa-solid fa-stopwatch"></i>
+                <span id="wizard-time-hint">~2 minutos para finalizar</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-100 dark:bg-obsidian-elevated h-2 rounded-full overflow-hidden">
+              <div id="wizard-progress-bar" class="h-full bg-gradient-to-r from-legal-gold to-legal-emerald rounded-full transition-all duration-300" style="width: 20%;"></div>
+            </div>
+
+            <!-- Botones de Paso (Microcopy Ciudadano) -->
+            <div class="grid grid-cols-5 gap-2 text-center text-xs pt-1">
               <button type="button" onclick="PreviewApp.setWizardStep(1)" id="step-pill-1" class="step-pill py-2 px-2.5 rounded-lg bg-legal-gold/10 text-legal-gold font-semibold border border-legal-gold/30 flex items-center justify-center gap-2 transition-all cursor-pointer">
                 <span class="w-5 h-5 rounded-full bg-legal-gold text-white flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
-                <span class="hidden md:inline truncate">Acreditación</span>
+                <span class="hidden md:inline truncate">Tus Datos</span>
               </button>
               <button type="button" onclick="PreviewApp.setWizardStep(2)" id="step-pill-2" class="step-pill py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated text-slate-400 font-medium border border-slate-200 dark:border-obsidian-border flex items-center justify-center gap-2 hover:border-legal-gold/40 transition-all cursor-pointer">
                 <span class="w-5 h-5 rounded-full bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-                <span class="hidden md:inline truncate">Entidad</span>
+                <span class="hidden md:inline truncate">Institución</span>
               </button>
               <button type="button" onclick="PreviewApp.setWizardStep(3)" id="step-pill-3" class="step-pill py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated text-slate-400 font-medium border border-slate-200 dark:border-obsidian-border flex items-center justify-center gap-2 hover:border-legal-gold/40 transition-all cursor-pointer">
                 <span class="w-5 h-5 rounded-full bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
-                <span class="hidden md:inline truncate">Hechos</span>
+                <span class="hidden md:inline truncate">¿Qué Pasó?</span>
               </button>
               <button type="button" onclick="PreviewApp.setWizardStep(4)" id="step-pill-4" class="step-pill py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated text-slate-400 font-medium border border-slate-200 dark:border-obsidian-border flex items-center justify-center gap-2 hover:border-legal-gold/40 transition-all cursor-pointer">
                 <span class="w-5 h-5 rounded-full bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0">4</span>
-                <span class="hidden md:inline truncate">Pretensiones</span>
+                <span class="hidden md:inline truncate">¿Qué Solicitas?</span>
               </button>
               <button type="button" onclick="PreviewApp.setWizardStep(5)" id="step-pill-5" class="step-pill py-2 px-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated text-slate-400 font-medium border border-slate-200 dark:border-obsidian-border flex items-center justify-center gap-2 hover:border-legal-gold/40 transition-all cursor-pointer">
                 <span class="w-5 h-5 rounded-full bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0">5</span>
-                <span class="hidden md:inline truncate">Firma & PDF</span>
+                <span class="hidden md:inline truncate">Descargar</span>
               </button>
             </div>
           </div>
@@ -484,7 +730,7 @@
             <!-- Columna Izquierda: Formulario Guiado por Pasos -->
             <div class="lg:col-span-7 bg-white dark:bg-obsidian-surface p-6 rounded-2xl border border-slate-200 dark:border-obsidian-border space-y-5 shadow-sm">
               
-              <!-- PASO 1: GENERALES DEL PROMOVENTE Y SEDE UDECO (TODOS LOS RECUADROS ORIGINALES) -->
+              <!-- PASO 1: GENERALES DEL PROMOVENTE Y SEDE UAU (TODOS LOS RECUADROS ORIGINALES) -->
               <div id="wizard-step-1" class="wizard-step-content space-y-6">
                 
                 <!-- Sub-bloque 1A: Generales del Promovente -->
@@ -493,8 +739,8 @@
                     <div class="flex items-center gap-3">
                       <span class="w-8 h-8 rounded-lg bg-legal-gold/10 text-legal-gold border border-legal-gold/30 font-bold flex items-center justify-center text-xs shrink-0">1</span>
                       <div>
-                        <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white leading-snug">Generales del Promovente (Usuario Afectado)</h3>
-                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Datos para la personalidad jurídica y domicilio procesal (LFPDPPP protegida en memoria volátil).</p>
+                        <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white leading-snug">Paso 1: Tus Datos Personales (Titular Afectado)</h3>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Tus datos se procesan en tu navegador para acreditar tu queja oficial ante la autoridad.</p>
                       </div>
                     </div>
                     <button type="button" onclick="PreviewApp.clearQuejaDraft()" class="self-start sm:self-auto text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-obsidian-border hover:border-red-300 dark:hover:border-red-800 bg-slate-50 dark:bg-obsidian-elevated transition-colors shrink-0">
@@ -563,8 +809,8 @@
                         type="text" 
                         id="input-quejoso-calle" 
                         oninput="PreviewApp.updateDocPreview()"
-                        placeholder="Av. Insurgentes Sur 123, Depto 4B" 
-                        value="Av. Insurgentes Sur 123, Depto 4B"
+                        placeholder="Av. Universidad 1200, Depto 4B" 
+                        value="Av. Universidad 1200, Depto 4B"
                         class="w-full bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border rounded-lg px-3.5 py-2 text-xs md:text-sm text-slate-900 dark:text-white focus:bg-white dark:focus:bg-obsidian-base focus:outline-none focus:border-legal-gold"
                       >
                     </div>
@@ -610,7 +856,7 @@
 
                 <div class="pt-3 flex justify-end">
                   <button type="button" onclick="PreviewApp.setWizardStep(2)" class="px-4 py-2 bg-slate-900 dark:bg-legal-gold text-white text-xs font-semibold rounded-lg flex items-center gap-2 shadow-sm hover:opacity-95 transition-opacity">
-                    <span>Continuar a Entidad Reclamada</span>
+                    <span>Siguiente: ¿A qué institución reclamas?</span>
                     <i class="fa-solid fa-arrow-right text-[10px]"></i>
                   </button>
                 </div>
@@ -622,8 +868,8 @@
                   <div class="flex items-center gap-3">
                     <span class="w-8 h-8 rounded-lg bg-legal-gold/10 text-legal-gold border border-legal-gold/30 font-bold flex items-center justify-center text-xs shrink-0">2</span>
                     <div>
-                      <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Datos de la Entidad Reclamada y del Producto</h3>
-                      <p class="text-[11px] text-slate-500 dark:text-slate-400">Se autocompletan todos los datos oficiales al seleccionar una institución en el Directorio SIPRES.</p>
+                      <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Paso 2: Institución Financiera a Reclamar</h3>
+                      <p class="text-[11px] text-slate-500 dark:text-slate-400">Selecciona el banco, fintech o SOFIPO. Los datos oficiales del SIPRES se completarán automáticamente.</p>
                     </div>
                   </div>
                   <button type="button" onclick="PreviewApp.switchTab('directorio')" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-obsidian-elevated hover:border-legal-gold/50 text-slate-700 dark:text-slate-300 text-[11px] font-semibold border border-slate-200 dark:border-obsidian-border flex items-center gap-1.5 transition-colors">
@@ -801,11 +1047,11 @@
                 </div>
 
                 <div class="pt-3 flex justify-between">
-                  <button type="button" onclick="PreviewApp.setWizardStep(1)" class="px-4 py-2 bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg">
-                    Regresar a Promovente
+                  <button type="button" onclick="PreviewApp.setWizardStep(1)" class="px-4 py-2 bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg hover:border-legal-gold/50 transition-colors">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> Regresar a Tus Datos
                   </button>
                   <button type="button" onclick="PreviewApp.setWizardStep(3)" class="px-4 py-2 bg-slate-900 dark:bg-legal-gold text-white text-xs font-semibold rounded-lg flex items-center gap-2">
-                    <span>Continuar a Hechos</span>
+                    <span>Siguiente: Cuéntanos qué pasó</span>
                     <i class="fa-solid fa-arrow-right text-[10px]"></i>
                   </button>
                 </div>
@@ -816,14 +1062,14 @@
                 <div class="pb-3 border-b border-slate-100 dark:border-obsidian-border flex items-center gap-3">
                   <span class="w-8 h-8 rounded-lg bg-legal-gold/10 text-legal-gold border border-legal-gold/30 font-bold flex items-center justify-center text-xs shrink-0">3</span>
                   <div>
-                    <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Relatoría Cronológica de Hechos</h3>
-                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Exposición detallada de los acontecimientos, cargos indebidos o actos reclamados.</p>
+                    <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Paso 3: ¿Qué Ocurrió? (Relato de los Hechos)</h3>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Describe con tus palabras o usa una plantilla rápida. La IA redactará los fundamentos legales en tu escrito.</p>
                   </div>
                 </div>
 
                 <!-- Plantillas Rápidas de Hechos (4 modelos originales) -->
                 <div class="space-y-1.5">
-                  <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Modelos de Redacción:</span>
+                  <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Modelos de Redacción en 1 clic:</span>
                   <div class="flex flex-wrap gap-1.5">
                     <button type="button" onclick="PreviewApp.applyHechosPreset('cargos')" class="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-obsidian-elevated hover:border-legal-gold/50 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-obsidian-border transition-colors">
                       <i class="fa-solid fa-credit-card mr-1 text-legal-gold"></i> Cargos no reconocidos
@@ -841,7 +1087,7 @@
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Capítulo de Hechos (Relato cronológico de los acontecimientos) *</label>
+                  <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">¿Qué ocurrió? (Relato cronológico de los acontecimientos) *</label>
                   <textarea 
                     id="input-queja-hechos" 
                     rows="6" 
@@ -851,11 +1097,11 @@
                 </div>
 
                 <div class="pt-3 flex justify-between">
-                  <button type="button" onclick="PreviewApp.setWizardStep(2)" class="px-4 py-2 bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg">
-                    Regresar a Entidad
+                  <button type="button" onclick="PreviewApp.setWizardStep(2)" class="px-4 py-2 bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg hover:border-legal-gold/50 transition-colors">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> Regresar a Institución
                   </button>
                   <button type="button" onclick="PreviewApp.setWizardStep(4)" class="px-4 py-2 bg-slate-900 dark:bg-legal-gold text-white text-xs font-semibold rounded-lg flex items-center gap-2">
-                    <span>Continuar a Pretensiones</span>
+                    <span>Siguiente: ¿Qué solución exiges?</span>
                     <i class="fa-solid fa-arrow-right text-[10px]"></i>
                   </button>
                 </div>
@@ -866,29 +1112,35 @@
                 <div class="pb-3 border-b border-slate-100 dark:border-obsidian-border flex items-center gap-3">
                   <span class="w-8 h-8 rounded-lg bg-legal-gold/10 text-legal-gold border border-legal-gold/30 font-bold flex items-center justify-center text-xs shrink-0">4</span>
                   <div>
-                    <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Pretensiones Concretas del Usuario</h3>
-                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Formula lo que exiges jurídicamente a la institución financiera frente a los hechos antes descritos.</p>
+                    <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Paso 4: ¿Qué Solución Exiges? (Pretensiones)</h3>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Marca las soluciones que requieres. Nosotros redactamos la fórmula legal para que el banco no pueda esquivarla.</p>
                   </div>
                 </div>
 
                 <!-- Plantillas Rápidas de Pretensiones -->
                 <div class="space-y-1.5">
-                  <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Insertar cláusulas petitorias frecuentes:</span>
+                  <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Soluciones legales en 1 clic (marca lo que aplique):</span>
                   <div class="flex flex-wrap gap-1.5">
                     <button type="button" onclick="PreviewApp.applyPretensionPreset('restitucion')" class="px-2.5 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-legal-gold text-[11px] font-semibold border border-legal-gold/30 transition-colors">
-                      + Restitución íntegra + Intereses (Art. 68 Bis)
+                      + Reembolso íntegro + Intereses (Art. 68 Bis)
+                    </button>
+                    <button type="button" onclick="PreviewApp.applyPretensionPreset('buro')" class="px-2.5 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-legal-emerald text-[11px] font-semibold border border-emerald-500/30 transition-colors">
+                      + Limpieza en Buró y Círculo de Crédito
+                    </button>
+                    <button type="button" onclick="PreviewApp.applyPretensionPreset('comisiones')" class="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-obsidian-elevated hover:border-legal-gold/50 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-obsidian-border transition-colors">
+                      + Cancelación de comisiones e intereses
+                    </button>
+                    <button type="button" onclick="PreviewApp.applyPretensionPreset('cobranza')" class="px-2.5 py-1 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-[11px] font-medium border border-red-500/25 transition-colors">
+                      + Cese de llamadas y acoso (REDECO)
                     </button>
                     <button type="button" onclick="PreviewApp.applyPretensionPreset('pericial')" class="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-obsidian-elevated hover:border-legal-gold/50 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-obsidian-border transition-colors">
-                      + Exhibición de bitácoras CNBV / IP
-                    </button>
-                    <button type="button" onclick="PreviewApp.applyPretensionPreset('buro')" class="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-obsidian-elevated hover:border-legal-gold/50 text-slate-700 dark:text-slate-300 text-[11px] font-medium border border-slate-200 dark:border-obsidian-border transition-colors">
-                      + Eliminación en Buró y cese de cobranza
+                      + Bitácoras de IP y biometría (CNBV)
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Capítulo de Pretensiones Concretas *</label>
+                  <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">¿Qué solución solicitas formalmente? *</label>
                   <textarea 
                     id="input-queja-pretensiones" 
                     rows="5" 
@@ -899,11 +1151,11 @@
                 </div>
 
                 <div class="pt-3 flex justify-between">
-                  <button type="button" onclick="PreviewApp.setWizardStep(3)" class="px-4 py-2 bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg">
-                    Regresar a Hechos
+                  <button type="button" onclick="PreviewApp.setWizardStep(3)" class="px-4 py-2 bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg hover:border-legal-gold/50 transition-colors">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> Regresar a ¿Qué Ocurrió?
                   </button>
                   <button type="button" onclick="PreviewApp.setWizardStep(5)" class="px-4 py-2 bg-slate-900 dark:bg-legal-gold text-white text-xs font-semibold rounded-lg flex items-center gap-2">
-                    <span>Continuar a Firma y Anexos</span>
+                    <span>Siguiente: Firmar y Descargar</span>
                     <i class="fa-solid fa-arrow-right text-[10px]"></i>
                   </button>
                 </div>
@@ -914,8 +1166,17 @@
                 <div class="pb-3 border-b border-slate-100 dark:border-obsidian-border flex items-center gap-3">
                   <span class="w-8 h-8 rounded-lg bg-legal-gold/10 text-legal-gold border border-legal-gold/30 font-bold flex items-center justify-center text-xs shrink-0">5</span>
                   <div>
-                    <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Firma Autógrafa Digital, Anexos y Expedición</h3>
-                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Estampa tu rúbrica en pantalla, adjunta evidencias opcionales y genera tu escrito PDF oficial.</p>
+                    <h3 class="font-serif font-bold text-lg text-slate-900 dark:text-white">Paso 5: Firmar y Descargar tu Expediente Oficial</h3>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Estampa tu firma en pantalla, revisa el expediente final y descárgalo en PDF listo para radicar ante CONDUSEF o REDECO.</p>
+                  </div>
+                </div>
+
+                <!-- Banner de Orientación Sencilla sobre la Firma -->
+                <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-slate-700 dark:text-slate-300 flex items-start gap-2.5 text-xs">
+                  <i class="fa-solid fa-lightbulb text-legal-gold text-base mt-0.5 shrink-0"></i>
+                  <div class="space-y-1 text-[11px] leading-relaxed">
+                    <span class="font-bold text-slate-900 dark:text-white block text-xs">¿Cómo te conviene firmar tu documento?</span>
+                    <p>Puedes firmar aquí mismo con tu dedo o ratón para que tu firma quede en el PDF (sirve perfectamente si mandarás tu queja por correo electrónico a tu banco). <strong>Un consejo muy útil:</strong> si vas a llevar tu documento impreso a una oficina de CONDUSEF, te recomendamos imprimir 2 copias y firmarlas <strong>a mano con tinta azul</strong> para que te pongan el sello de recibido sin problemas.</p>
                   </div>
                 </div>
 
@@ -947,13 +1208,13 @@
                 <div class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
                   <i class="fa-solid fa-circle-check text-legal-emerald mt-0.5"></i>
                   <p class="text-[11px] leading-relaxed">
-                    <strong>Expediente listo:</strong> Incluye domicilio procesal completo, relatoría de hechos, capítulo de pretensiones, artículos 68 y 68 Bis LPDUSF y tu firma digital.
+                    <strong>Expediente blindado:</strong> Incluye domicilio procesal, relatoría cronológica, peticiones fundadas en los artículos 68 y 68 Bis LPDUSF y tu firma autógrafa digital.
                   </p>
                 </div>
 
                 <div class="pt-2 flex flex-wrap justify-between items-center gap-3">
                   <button type="button" onclick="PreviewApp.setWizardStep(4)" class="px-4 py-2 bg-slate-100 dark:bg-obsidian-elevated text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg hover:border-legal-gold/50 transition-colors">
-                    <i class="fa-solid fa-arrow-left mr-1"></i> Modificar Pretensiones
+                    <i class="fa-solid fa-arrow-left mr-1"></i> Modificar Solución Exigida
                   </button>
                   <div class="flex items-center gap-2 flex-wrap">
                     <button type="button" onclick="PreviewApp.openPostDownloadRoadmap()" class="px-3.5 py-2.5 bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 dark:hover:bg-obsidian-border text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-obsidian-border flex items-center gap-1.5 transition-all" title="Ver Hoja de Ruta de Radicación Oficial y Plazo de 20 Días (Art. 68 LPDUSF)">
@@ -975,7 +1236,69 @@
             </div>
 
             <!-- Columna Derecha: Previsualización en Tiempo Real del Documento Legal -->
-            <div class="lg:col-span-5">
+            <div class="lg:col-span-5 space-y-4">
+              
+              <!-- TARJETA: ESCUDO SCORE (ÍNDICE DE SOLIDEZ PROBATORIA) & DIAGNÓSTICO INTELIGENTE -->
+              <div class="bg-white dark:bg-obsidian-surface p-4 rounded-xl border border-slate-200 dark:border-obsidian-border shadow-sm space-y-3 font-sans">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 text-legal-emerald border border-emerald-500/30 flex items-center justify-center font-bold text-sm shadow-xs">
+                      <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h4 class="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">Escudo Score Cívico</h4>
+                        <span id="escudo-score-badge" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-legal-emerald">🟢 Solidez Alta</span>
+                      </div>
+                      <span class="text-[10px] text-slate-500 dark:text-slate-400">Auditoría de viabilidad legal (Art. 68 LPDUSF)</span>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <span id="escudo-score-number" class="font-mono text-2xl font-bold text-legal-emerald">90</span>
+                    <span class="text-[10px] font-mono text-slate-400">/100</span>
+                  </div>
+                </div>
+
+                <!-- Barra de Solidez -->
+                <div class="w-full bg-slate-100 dark:bg-obsidian-elevated h-2 rounded-full overflow-hidden">
+                  <div id="escudo-score-bar" class="h-full bg-gradient-to-r from-amber-500 to-legal-emerald transition-all duration-500 rounded-full" style="width: 90%;"></div>
+                </div>
+
+                <!-- Checklist de Elementos Esenciales del Expediente -->
+                <div class="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-slate-100 dark:border-obsidian-border">
+                  <div id="score-chk-datos" class="flex items-center gap-1.5 text-legal-emerald font-medium">
+                    <i class="fa-solid fa-circle-check text-[11px]"></i>
+                    <span class="truncate">Tus Datos (+25)</span>
+                  </div>
+                  <div id="score-chk-entidad" class="flex items-center gap-1.5 text-legal-emerald font-medium">
+                    <i class="fa-solid fa-circle-check text-[11px]"></i>
+                    <span class="truncate">Institución SIPRES (+25)</span>
+                  </div>
+                  <div id="score-chk-hechos" class="flex items-center gap-1.5 text-legal-emerald font-medium">
+                    <i class="fa-solid fa-circle-check text-[11px]"></i>
+                    <span class="truncate">Hechos y Monto (+25)</span>
+                  </div>
+                  <div id="score-chk-pretension" class="flex items-center gap-1.5 text-legal-emerald font-medium">
+                    <i class="fa-solid fa-circle-check text-[11px]"></i>
+                    <span class="truncate">Solución Exigida (+15)</span>
+                  </div>
+                </div>
+
+                <!-- Diagnóstico Inteligente Preliminar -->
+                <div id="escudo-diagnostico-box" class="p-2.5 rounded-lg bg-amber-500/10 dark:bg-amber-500/15 border border-legal-gold/25 text-[11px] text-slate-800 dark:text-slate-200">
+                  <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-1.5 font-bold text-legal-gold text-[10px] uppercase tracking-wider">
+                      <i class="fa-solid fa-scale-balanced"></i>
+                      <span>Diagnóstico Jurídico Preliminar</span>
+                    </div>
+                    <span id="escudo-diagnostico-plazo" class="text-[9px] font-mono text-legal-emerald font-semibold">Plazo banco: 20 días</span>
+                  </div>
+                  <p id="escudo-diagnostico-text" class="text-[10px] leading-relaxed">
+                    Conforme al <strong>Artículo 68 fracción III de la LPDUSF</strong>, la entidad financiera tiene la obligación de rendir un informe justificado. Si no aporta bitácoras de autenticación biométrica, procede el dictamen técnico a tu favor.
+                  </p>
+                </div>
+              </div>
+
               <div class="sticky top-20 legal-document-paper rounded-xl p-6 sm:p-7 text-slate-900 dark:text-slate-100 text-xs space-y-3.5 font-serif leading-relaxed">
                 
                 <!-- Barra de Estado y Acciones Rápidas EscudoPDF -->
@@ -1002,12 +1325,15 @@
                 <!-- Encabezado Membretado Oficial -->
                 <div class="flex items-start justify-between border-b-2 border-slate-900 dark:border-slate-400 pb-3 font-sans">
                   <div>
-                    <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">Comisión Nacional para la Protección y Defensa</span>
-                    <span class="block text-[9px] text-slate-500 dark:text-slate-400">de los Usuarios de Servicios Financieros (CONDUSEF)</span>
-                    <span class="block text-[10px] font-semibold text-legal-gold mt-0.5">Portal de Queja Electrónica • Oficialía de Partes</span>
+                    <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 leading-tight">
+                      Comisión Nacional para la Protección y Defensa de los Usuarios de Servicios Financieros
+                    </span>
+                    <span class="block text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                      Fecha de creación: <span id="doc-preview-fecha-creacion" class="font-medium text-slate-700 dark:text-slate-300"></span>
+                    </span>
                   </div>
                   <div class="text-right font-mono text-[9px] text-slate-500 shrink-0">
-                    <div>FOLIO: <strong id="doc-preview-folio" class="text-slate-800 dark:text-slate-200">SIPRES-40012</strong></div>
+                    <div>FOLIO: <strong id="doc-preview-folio" class="text-slate-800 dark:text-slate-200">EXP-CONDUSEF-40012</strong></div>
                     <div id="doc-preview-proc-tag" class="text-legal-emerald font-semibold">VÍA CONDUSEF</div>
                   </div>
                 </div>
@@ -1020,9 +1346,9 @@
 
                 <!-- Proemio Legal con Domicilio Procesal Completo -->
                 <p class="text-justify text-[11px] leading-relaxed">
-                  COMISIÓN NACIONAL PARA LA PROTECCIÓN Y DEFENSA DE LOS USUARIOS DE SERVICIOS FINANCIEROS (CONDUSEF).<br>
+                  COMISIÓN NACIONAL PARA LA PROTECCIÓN Y DEFENSA DE LOS USUARIOS DE SERVICIOS FINANCIEROS.<br>
                   PRESENTE.<br><br>
-                  <strong id="doc-preview-nombre">Juan Carlos Pérez Hernández</strong>, con clave CURP <span id="doc-preview-curp" class="font-mono font-semibold">PEHJ850412HDFRRN09</span>, señalando como domicilio procesal para oír y recibir notificaciones el ubicado en <span id="doc-preview-domicilio" class="underline decoration-slate-300 dark:decoration-slate-600">Av. Insurgentes Sur 123, Depto 4B, Col. Del Valle, Alcaldía/Municipio Benito Juárez, C.P. 03100</span>, correo electrónico <span id="doc-preview-email" class="font-mono">jc.perez@correo.mx</span> y teléfono <span id="doc-preview-tel" class="font-mono">5541928831</span>, comparezco para interponer formal reclamación en contra de:
+                  <strong id="doc-preview-nombre">Juan Carlos Pérez Hernández</strong>, con clave CURP <span id="doc-preview-curp" class="font-mono font-semibold">PEHJ850412HDFRRN09</span>, señalando como domicilio procesal para oír y recibir notificaciones el ubicado en <span id="doc-preview-domicilio" class="underline decoration-slate-300 dark:decoration-slate-600">Av. Universidad 1200, Depto 4B, Col. Del Valle, Alcaldía/Municipio Benito Juárez, C.P. 03100</span>, correo electrónico <span id="doc-preview-email" class="font-mono">jc.perez@correo.mx</span> y teléfono <span id="doc-preview-tel" class="font-mono">5541928831</span>, comparezco para interponer formal reclamación en contra de:
                 </p>
 
                 <!-- Entidad Reclamada y Producto -->
@@ -1066,6 +1392,7 @@
                     <img id="doc-preview-signature-img" class="hidden h-10 mb-1 object-contain dark:invert" alt="Firma autógrafa">
                     <span class="block text-[9px] text-slate-400">PROTESTO LO NECESARIO:</span>
                     <span id="doc-preview-firma-nombre" class="font-bold text-slate-800 dark:text-slate-200">Juan Carlos Pérez Hernández</span>
+                    <span class="block text-[8.5px] text-slate-400 italic">(Firma autógrafa del promovente • Rúbrica con tinta azul para ventanilla UAU)</span>
                   </div>
                   <div class="text-right space-y-1">
                     <div id="doc-preview-anexos-badge" class="hidden text-[9px] font-mono text-legal-emerald">0 anexos probatorios</div>
@@ -1075,19 +1402,7 @@
                   </div>
                 </div>
 
-                <!-- Sello Criptográfico de Integridad SHA-256 (NOM-151-SCFI-2016) -->
-                <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-obsidian-border text-[9.5px] font-mono text-slate-500">
-                  <div class="flex items-center justify-between">
-                    <span class="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 text-[9px]">
-                      <i class="fa-solid fa-fingerprint text-legal-gold"></i>
-                      <span>SELLO CRIPTOGRÁFICO SHA-256 (NOM-151-SCFI-2016)</span>
-                    </span>
-                    <span class="text-[8.5px] text-emerald-600 dark:text-emerald-400 font-semibold font-sans">Inalterable</span>
-                  </div>
-                  <div id="doc-preview-hash" class="mt-1 p-1.5 rounded bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border text-[8px] text-indigo-600 dark:text-indigo-400 break-all select-all font-mono leading-tight">
-                    Iniciando cálculo criptográfico...
-                  </div>
-                </div>
+
 
               </div>
             </div>
@@ -2621,6 +2936,280 @@ Muchas gracias por su apoyo y comprensión.</textarea>
         </section>
 
         <!-- =====================================================================
+             MÓDULO 6: CALENDARIO LEGAL Y PLAZOS BANCARIOS (CNBV / CONDUSEF 2026)
+             ===================================================================== -->
+        <section id="module-calendario" class="hidden space-y-6">
+          
+          <div class="pb-4 border-b border-slate-200 dark:border-obsidian-border flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <div class="flex items-center space-x-2 text-xs font-semibold text-legal-gold mb-1 uppercase tracking-wider">
+                <i class="fa-solid fa-scale-balanced"></i>
+                <span>Cómputo Procesal Oficial CNBV / CONDUSEF 2026</span>
+              </div>
+              <h2 class="font-serif text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                Plazos Legales &amp; Calendario Bancario
+              </h2>
+              <p class="text-xs md:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl leading-relaxed">
+                Calcula automáticamente los <strong>20 días hábiles</strong> del Art. 68 de la LPDUSF, excluye inhábiles oficiales del Diario Oficial de la Federación (DOF) y monitorea el semáforo procesal de tu caso.
+              </p>
+            </div>
+
+            <!-- Badge de Estado -->
+            <div class="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border shadow-xs text-xs font-mono shrink-0">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="text-slate-700 dark:text-slate-300">Calendario Oficial DOF 2026 Activo</span>
+            </div>
+          </div>
+
+          <!-- Barra de Simulación del Caso -->
+          <div class="p-4 rounded-2xl bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <i class="fa-regular fa-calendar-check mr-1 text-legal-gold"></i> Fecha de Entrega / Acuse:
+                </label>
+                <input type="date" id="cal-start-date" value="2026-11-02" onchange="PreviewApp.calculateCalendarRoadmap()" class="w-full bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-legal-gold">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <i class="fa-solid fa-building-columns mr-1 text-legal-emerald"></i> Institución Reclamada:
+                </label>
+                <input type="text" id="cal-entity-name" value="BBVA México" oninput="PreviewApp.calculateCalendarRoadmap()" placeholder="Ej. BBVA, Nu, Banorte" class="w-full bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-legal-gold">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <i class="fa-solid fa-gavel mr-1 text-indigo-500"></i> Procedimiento Legal:
+                </label>
+                <select id="cal-proc-type" onchange="PreviewApp.calculateCalendarRoadmap()" class="w-full bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-legal-gold">
+                  <option value="20" selected>CONDUSEF (20 Días Hábiles - Art. 68)</option>
+                  <option value="5">REDECO (5 Días Hábiles - Cobranza)</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" onclick="PreviewApp.calculateCalendarRoadmap()" class="px-4 py-2 bg-slate-900 dark:bg-legal-gold text-white font-semibold text-xs rounded-xl shadow-sm hover:opacity-95 transition-all flex items-center justify-center gap-1.5 shrink-0">
+              <i class="fa-solid fa-arrows-rotate"></i>
+              <span>Recalcular Plazos</span>
+            </button>
+          </div>
+
+          <!-- RESUMEN DE ESTADO Y CUENTA REGRESIVA -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-4 rounded-xl bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border shadow-xs flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-legal-emerald flex items-center justify-center font-bold text-lg shrink-0">
+                <i class="fa-solid fa-hourglass-start"></i>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Fecha de Acuse</span>
+                <div id="cal-display-start" class="font-bold text-xs text-slate-900 dark:text-white">Lunes 2 de Noviembre, 2026</div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-xl bg-amber-500/10 border border-legal-gold/30 shadow-xs flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-legal-gold flex items-center justify-center font-bold text-lg shrink-0">
+                <i class="fa-solid fa-flag-checkered"></i>
+              </div>
+              <div>
+                <span class="text-[10px] text-amber-700 dark:text-amber-400 uppercase font-mono tracking-wider font-bold">Vencimiento Legal</span>
+                <div id="cal-display-deadline" class="font-bold text-xs text-slate-900 dark:text-white">Calculando...</div>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-xl bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border shadow-xs flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-lg shrink-0">
+                <i class="fa-solid fa-shield-halved"></i>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Estado del Plazo</span>
+                <div id="cal-display-status" class="font-bold text-xs text-legal-emerald">Fase 1: Recepción e Investigación</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CUADRÍCULA PRINCIPAL: CALENDARIO INTERACTIVO (7 COLS) + FASES & PRESCRIPCIÓN (5 COLS) -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- Columna Izquierda: Calendario Mensual Interactivo -->
+            <div class="lg:col-span-7 bg-white dark:bg-obsidian-surface p-5 rounded-2xl border border-slate-200 dark:border-obsidian-border space-y-4 shadow-sm">
+              
+              <!-- Cabecera de Navegación de Mes -->
+              <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-obsidian-border">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-calendar-days text-legal-gold"></i>
+                  <h3 id="cal-month-title" class="font-serif font-bold text-base text-slate-900 dark:text-white">Noviembre 2026</h3>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" onclick="PreviewApp.changeCalendarMonth(-1)" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 dark:hover:bg-obsidian-border text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs transition-colors" title="Mes Anterior">
+                    <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                  </button>
+                  <button type="button" onclick="PreviewApp.changeCalendarMonth(0)" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-[10px] font-mono font-semibold transition-colors" title="Ir al mes del acuse">
+                    Hoy
+                  </button>
+                  <button type="button" onclick="PreviewApp.changeCalendarMonth(1)" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 dark:hover:bg-obsidian-border text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs transition-colors" title="Mes Siguiente">
+                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Matriz de Días de la Semana -->
+              <div class="grid grid-cols-7 gap-1 text-center font-mono text-[10px] uppercase font-bold text-slate-400 pb-1">
+                <div>Lun</div>
+                <div>Mar</div>
+                <div>Mié</div>
+                <div>Jue</div>
+                <div>Vie</div>
+                <div class="text-slate-300 dark:text-slate-600">Sáb</div>
+                <div class="text-slate-300 dark:text-slate-600">Dom</div>
+              </div>
+
+              <!-- Contenedor del Grid Dinámico de Días -->
+              <div id="cal-days-grid" class="grid grid-cols-7 gap-1.5 text-xs select-none">
+                <!-- Se llena dinámicamente con JavaScript -->
+              </div>
+
+              <!-- Leyenda del Calendario -->
+              <div class="pt-3 border-t border-slate-100 dark:border-obsidian-border flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 font-mono">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Día Hábil de Cómputo
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span> Inhábil Oficial CNBV (DOF)
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-obsidian-border"></span> Fin de Semana
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Vencimiento Legal
+                </span>
+              </div>
+
+              <!-- TARJETA DE ORIENTACIÓN DEL DÍA SELECCIONADO ("EL ESCUDO DIARIO") -->
+              <div id="cal-day-action-card" class="p-3.5 rounded-xl bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span id="cal-action-date-label" class="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-info text-legal-gold"></i>
+                    <span>Orientación del Día Seleccionado</span>
+                  </span>
+                  <span id="cal-action-badge" class="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-legal-gold/20 text-legal-gold">Día Clave</span>
+                </div>
+                <p id="cal-action-description" class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Haz clic en cualquier día del calendario para conocer los hitos procesales y recomendaciones de protección legal correspondientes a esa fecha.
+                </p>
+              </div>
+
+            </div>
+
+            <!-- Columna Derecha: Semáforo de Fases & Calculadora de Prescripción -->
+            <div class="lg:col-span-5 space-y-4">
+              
+              <!-- SEMÁFORO DE FASES PROCESALES -->
+              <div class="bg-white dark:bg-obsidian-surface p-5 rounded-2xl border border-slate-200 dark:border-obsidian-border shadow-sm space-y-3.5">
+                <div class="flex items-center justify-between">
+                  <h4 class="font-serif font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-traffic-light text-legal-gold"></i>
+                    <span>Semáforo de Fases del Caso</span>
+                  </h4>
+                  <span class="text-[10px] font-mono text-legal-emerald font-semibold">En tiempo</span>
+                </div>
+
+                <!-- Lista de Fases -->
+                <div class="space-y-2 text-xs">
+                  <!-- Fase 1 -->
+                  <div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-start gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
+                    <div class="space-y-0.5">
+                      <strong class="text-[11px] text-slate-900 dark:text-white">Días 1 al 10: Recepción y Folio UNE</strong>
+                      <p class="text-[10px] text-slate-600 dark:text-slate-400">El banco acusa de recibo y asigna número de caso interno. No pueden reportarte negativamente a Buró.</p>
+                    </div>
+                  </div>
+
+                  <!-- Fase 2 -->
+                  <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border flex items-start gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
+                    <div class="space-y-0.5">
+                      <strong class="text-[11px] text-slate-900 dark:text-white">Días 11 al 18: Investigación Técnica</strong>
+                      <p class="text-[10px] text-slate-600 dark:text-slate-400">Auditoría de bitácoras IP y factores de autenticación. Si te llaman a negociar quitas, exige el reembolso total.</p>
+                    </div>
+                  </div>
+
+                  <!-- Fase 3 -->
+                  <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border flex items-start gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
+                    <div class="space-y-0.5">
+                      <strong class="text-[11px] text-slate-900 dark:text-white">Días 19 y 20: Dictamen Definitivo</strong>
+                      <p class="text-[10px] text-slate-600 dark:text-slate-400">Límite legal para responder por escrito con fundamentos. Si no responden, incurren en mora procesal.</p>
+                    </div>
+                  </div>
+
+                  <!-- Fase 4 -->
+                  <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border flex items-start gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">4</span>
+                    <div class="space-y-0.5">
+                      <strong class="text-[11px] text-slate-900 dark:text-white">Día 21+: Dictamen en Rebeldía (CONDUSEF)</strong>
+                      <p class="text-[10px] text-slate-600 dark:text-slate-400">Si hay silencio o negativa, solicita cita para audiencia de conciliación. La ley presume ciertos tus hechos.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CALCULADORA DE PRESCRIPCIÓN DE 2 AÑOS (ART. 67 LPDUSF) -->
+              <div class="bg-white dark:bg-obsidian-surface p-5 rounded-2xl border border-slate-200 dark:border-obsidian-border shadow-sm space-y-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="font-serif font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-legal-gold"></i>
+                    <span>Calculadora de Prescripción (2 Años)</span>
+                  </h4>
+                  <span class="text-[10px] font-mono text-legal-gold font-bold">Art. 67</span>
+                </div>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  La ley te otorga <strong>hasta 2 años</strong> desde el hecho controvertido para reclamar ante CONDUSEF. Verifica si tu caso sigue vigente:
+                </p>
+
+                <div class="flex items-center gap-2">
+                  <input type="date" id="cal-prescripcion-date" value="2025-10-14" class="w-full bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-legal-gold">
+                  <button type="button" onclick="PreviewApp.checkPrescripcion()" class="px-3.5 py-1.5 rounded-lg bg-slate-900 dark:bg-legal-gold text-white font-semibold text-xs shadow-xs hover:opacity-95 shrink-0">
+                    Verificar
+                  </button>
+                </div>
+
+                <!-- Resultado de Prescripción -->
+                <div id="cal-prescripcion-result" class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-slate-700 dark:text-slate-300">
+                  <strong class="text-legal-emerald flex items-center gap-1">
+                    <i class="fa-solid fa-circle-check"></i> Derecho Legal 100% Vigente
+                  </strong>
+                  <p class="text-[10px] mt-0.5 text-slate-600 dark:text-slate-400">
+                    Tienes hasta el <strong>14 de Octubre de 2027</strong> para reclamar ante CONDUSEF. Aún te quedan más de 11 meses de vigencia legal.
+                  </p>
+                </div>
+              </div>
+
+              <!-- BOTONERA DE EXPORTACIÓN Y WHATSAPP -->
+              <div class="bg-white dark:bg-obsidian-surface p-4 rounded-2xl border border-slate-200 dark:border-obsidian-border shadow-sm space-y-2.5">
+                <span class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                  Sincronización y Alertas Personales:
+                </span>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button type="button" onclick="PreviewApp.openGoogleCalendarReminder()" class="flex-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 text-slate-800 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-obsidian-border flex items-center justify-center gap-2 transition-all">
+                    <i class="fa-brands fa-google text-legal-gold"></i>
+                    <span>Google Calendar</span>
+                  </button>
+                  <button type="button" onclick="PreviewApp.downloadCalendarIcs()" class="flex-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 text-slate-800 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-obsidian-border flex items-center justify-center gap-2 transition-all">
+                    <i class="fa-solid fa-calendar-arrow-down text-legal-emerald"></i>
+                    <span>Archivo .ICS</span>
+                  </button>
+                  <button type="button" onclick="PreviewApp.sendWhatsAppCalendarReminder()" class="w-full px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all">
+                    <i class="fa-brands fa-whatsapp text-sm"></i>
+                    <span>Enviarme Recordatorio a mi WhatsApp</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        <!-- =====================================================================
              PIE INSTITUCIONAL: AVISO LEGAL, SAFE HARBOR & PRIVACIDAD LFPDPPP
              ===================================================================== -->
         <footer class="pt-8 pb-4 border-t border-slate-200 dark:border-obsidian-border flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
@@ -2840,7 +3429,7 @@ Muchas gracias por su apoyo y comprensión.</textarea>
               </p>
             </div>
           </div>
-          <button onclick="PreviewApp.closeSafeHarborModal()" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-obsidian-elevated text-slate-400 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors shrink-0" title="Cerrar vista preliminar">
+          <button id="btn-close-terms-header" onclick="PreviewApp.closeSafeHarborModal()" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-obsidian-elevated text-slate-400 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors shrink-0" title="Cerrar vista preliminar">
             <i class="fa-solid fa-xmark text-sm"></i>
           </button>
         </div>
@@ -3028,12 +3617,12 @@ Muchas gracias por su apoyo y comprensión.</textarea>
 
             <!-- Cláusula 6 -->
             <div class="p-3 rounded-lg bg-slate-50 dark:bg-obsidian-elevated/40 border border-slate-200/70 dark:border-obsidian-border space-y-1">
-              <span class="font-bold text-slate-900 dark:text-white text-xs">Cláusula 6. Efectos Procesales del Generador de Quejas, Plazos (Art. 68 LPDUSF) y Sello Criptográfico SHA-256</span>
+              <span class="font-bold text-slate-900 dark:text-white text-xs">Cláusula 6. Efectos Procesales del Generador de Quejas y Plazos (Art. 68 LPDUSF)</span>
               <p class="text-[11.5px] text-slate-600 dark:text-slate-400">
-                La descarga de un documento PDF desde esta plataforma <strong>NO radica ni interpone la reclamación ante la autoridad</strong>. El Usuario asume la carga procesal exclusiva de imprimir el escrito, suscribirlo con su firma autógrafa y presentarlo mediante los canales institucionales oficiales (Portal de Queja Electrónica de CONDUSEF o en las UDECO competentes).
+                La descarga de un documento PDF desde esta plataforma <strong>NO radica ni interpone la reclamación ante la autoridad</strong>. El Usuario asume la carga procesal exclusiva de imprimir el escrito, suscribirlo con su firma autógrafa y presentarlo mediante los canales institucionales oficiales (Portal de Queja Electrónica de CONDUSEF o en las Unidades de Atención a Usuarios - UAU competentes).
               </p>
               <p class="text-[11.5px] text-slate-600 dark:text-slate-400 mt-1">
-                Asimismo: a) <em>Hoja de Ruta y Plazos (Art. 68 fracc. III LPDUSF)</em>: el cómputo de 20 días hábiles para el informe de la institución financiera y los recordatorios para calendario (.ics / Google Calendar) son cálculos cívico-orientativos basados en días laborales ordinarios, sin considerar suspensiones extraordinarias o periodos vacacionales publicados por CONDUSEF en el DOF; b) <em>Sello Criptográfico SHA-256 (NOM-151-SCFI-2016)</em>: el hash matemático calculado localmente en el navegador permite verificar la inalterabilidad e integridad técnica del documento, pero <strong>no constituye una Constancia de Conservación emitida por un Prestador de Servicios de Certificación (PSC) acreditado</strong> por la Secretaría de Economía, salvo que el Usuario gestione dicha certificación de forma independiente.
+                Asimismo, en cuanto a la <em>Hoja de Ruta y Plazos (Art. 68 fracc. III LPDUSF)</em>: el cómputo de 20 días hábiles para el informe de la institución financiera y los recordatorios para calendario (.ics / Google Calendar) son cálculos cívico-orientativos basados en días laborales ordinarios, sin considerar suspensiones extraordinarias o periodos vacacionales publicados por CONDUSEF en el DOF.
               </p>
             </div>
 
@@ -3229,12 +3818,18 @@ Muchas gracias por su apoyo y comprensión.</textarea>
         <div class="px-6 py-4 border-t border-slate-200 dark:border-obsidian-border bg-slate-50/90 dark:bg-obsidian-elevated/70 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
           
           <!-- Checkbox de Consentimiento Expreso -->
-          <label class="flex items-start gap-2.5 cursor-pointer select-none text-left max-w-lg">
-            <input type="checkbox" id="check-terms-modal-accept" onchange="PreviewApp.toggleTermsAcceptBtn()" class="w-4 h-4 rounded mt-0.5 text-legal-emerald focus:ring-legal-emerald border-slate-300 dark:border-obsidian-border dark:bg-obsidian-base cursor-pointer shrink-0">
-            <span class="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
-              He leído y acepto los <strong>Términos y Condiciones Generales de Uso</strong>, el <strong>Deslinde de Responsabilidad</strong> y el <strong>Aviso de Privacidad Integral</strong> de Escudo Financiero Pro.
-            </span>
-          </label>
+          <div class="space-y-1.5 max-w-lg">
+            <label class="flex items-start gap-2.5 cursor-pointer select-none text-left">
+              <input type="checkbox" id="check-terms-modal-accept" onchange="PreviewApp.toggleTermsAcceptBtn()" class="w-4 h-4 rounded mt-0.5 text-legal-emerald focus:ring-legal-emerald border-slate-300 dark:border-obsidian-border dark:bg-obsidian-base cursor-pointer shrink-0">
+              <span class="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
+                He leído y acepto los <strong>Términos y Condiciones Generales de Uso</strong>, el <strong>Deslinde de Responsabilidad</strong> y el <strong>Aviso de Privacidad Integral</strong> de Escudo Financiero Pro.
+              </span>
+            </label>
+            <div id="terms-modal-checkbox-alert" class="hidden text-rose-600 dark:text-rose-400 font-semibold text-[11px] flex items-center gap-1.5 pl-6">
+              <i class="fa-solid fa-circle-exclamation text-xs"></i>
+              <span>Debes marcar la casilla para confirmar tu consentimiento expreso y acceder a la plataforma.</span>
+            </div>
+          </div>
 
           <!-- Botones de Acción -->
           <div class="flex items-center gap-3 w-full sm:w-auto justify-end shrink-0">
@@ -3243,7 +3838,7 @@ Muchas gracias por su apoyo y comprensión.</textarea>
               <span>Denegar / Salir</span>
             </button>
 
-            <button type="button" id="btn-accept-terms-modal" onclick="PreviewApp.acceptTermsModal()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2 opacity-95 hover:opacity-100">
+            <button type="button" id="btn-accept-terms-modal" onclick="PreviewApp.acceptTermsModal()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2 opacity-70 hover:opacity-100">
               <i class="fa-solid fa-circle-check text-xs"></i>
               <span>Aceptar y Continuar</span>
             </button>
@@ -3288,10 +3883,10 @@ Muchas gracias por su apoyo y comprensión.</textarea>
             <i class="fa-solid fa-arrow-rotate-left"></i>
             <span>Reconsiderar y Leer Términos</span>
           </button>
-          <a href="https://www.gob.mx/condusef" target="_blank" rel="noopener" class="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-obsidian-borderLight text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-obsidian-elevated text-xs font-semibold transition-all flex items-center gap-2">
-            <i class="fa-solid fa-building-columns"></i>
-            <span>Ir a CONDUSEF Oficial</span>
-          </a>
+          <button type="button" onclick="PreviewApp.exitPlatform()" class="px-5 py-2.5 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:text-rose-800 text-xs font-semibold transition-all flex items-center gap-2">
+            <i class="fa-solid fa-right-from-bracket"></i>
+            <span>Abandonar Sitio (Ir a CONDUSEF)</span>
+          </button>
         </div>
       </div>
 
@@ -3545,18 +4140,18 @@ Muchas gracias por su apoyo y comprensión.</textarea>
   <div id="modal-post-descarga-roadmap" onclick="if(event.target===this) PreviewApp.closeRoadmapModal()" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white dark:bg-obsidian-surface rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 dark:border-obsidian-border overflow-hidden animate-fadeIn">
       
-      <!-- Encabezado Modal -->
+      <!-- Encabezado Modal: Humanizado y Claro -->
       <div class="p-5 border-b border-slate-200 dark:border-obsidian-border flex items-center justify-between bg-slate-50 dark:bg-obsidian-elevated/40">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-legal-emerald flex items-center justify-center text-lg shrink-0">
-            <i class="fa-solid fa-route"></i>
+            <i class="fa-solid fa-map-location-dot"></i>
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="font-serif font-bold text-base text-slate-900 dark:text-white">Hoja de Ruta de Radicación Oficial</h3>
+              <h3 class="font-serif font-bold text-base text-slate-900 dark:text-white">¿Qué hago ahora? Pasos para que te devuelvan tu dinero</h3>
               <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-legal-emerald border border-emerald-500/30">Art. 68 LPDUSF</span>
             </div>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Guía procesal y plazos legales para dar validez y seguimiento a tu escrito</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Guía práctica y plazos legales para entregar tu reclamación y asegurar tu respuesta</p>
           </div>
         </div>
         <button type="button" onclick="PreviewApp.closeRoadmapModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg transition-colors">
@@ -3567,16 +4162,82 @@ Muchas gracias por su apoyo y comprensión.</textarea>
       <!-- Cuerpo del Modal -->
       <div class="p-6 overflow-y-auto space-y-6 text-xs text-slate-700 dark:text-slate-300">
         
+        <!-- TIMELINE VISUAL DE 3 TIEMPOS: EL MAPA MENTAL CIUDADANO -->
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border space-y-3">
+          <span class="block text-[10px] font-mono uppercase tracking-wider text-legal-gold font-bold">
+            <i class="fa-solid fa-timeline mr-1"></i> Tu Ruta en 3 Pasos Sencillos:
+          </span>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center sm:text-left">
+            <!-- Paso 1 -->
+            <div class="p-2.5 rounded-lg bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border space-y-1">
+              <div class="flex items-center gap-1.5 text-legal-emerald font-bold text-[11px]">
+                <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-legal-emerald flex items-center justify-center text-[10px]">1</span>
+                <span>HOY: Entrega</span>
+              </div>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">Envía el PDF por correo a la UNE del banco o súbelo a CONDUSEF.</p>
+            </div>
+            <!-- Paso 2 -->
+            <div class="p-2.5 rounded-lg bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border space-y-1">
+              <div class="flex items-center gap-1.5 text-amber-500 font-bold text-[11px]">
+                <span class="w-5 h-5 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-[10px]">2</span>
+                <span>DÍAS 5 AL 15</span>
+              </div>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">El banco audita el caso. No pueden cobrarte cargos moratorios mientras investigan.</p>
+            </div>
+            <!-- Paso 3 -->
+            <div class="p-2.5 rounded-lg bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border space-y-1">
+              <div class="flex items-center gap-1.5 text-indigo-500 font-bold text-[11px]">
+                <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-500 flex items-center justify-center text-[10px]">3</span>
+                <span>DÍA 20: Solución</span>
+              </div>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">Vence el plazo de ley. Si rechazan o callan, procede dictamen a tu favor.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHECKLIST DE PREPARACIÓN DEL EXPEDIENTE (RECOMENDACIÓN DE FIRMA EN TINTA AZUL) -->
+        <div class="p-4 rounded-xl bg-sky-500/10 border border-sky-500/20 text-slate-700 dark:text-slate-300 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sky-900 dark:text-sky-200 flex items-center gap-2 text-xs uppercase tracking-wider">
+              <i class="fa-solid fa-clipboard-check text-sky-600 dark:text-sky-400"></i> Checklist Práctico de Validez para tu Reclamación
+            </span>
+            <span class="text-[10px] font-mono font-bold bg-sky-500/20 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded">Recomendación Legal</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+            <div class="p-2.5 rounded-lg bg-white/80 dark:bg-obsidian-surface border border-sky-500/15 space-y-1">
+              <div class="flex items-center gap-1.5 font-bold text-sky-800 dark:text-sky-300">
+                <i class="fa-solid fa-print text-sky-600"></i>
+                <span>1. Imprime 2 Juegos</span>
+              </div>
+              <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">Un tanto para entregar a la autoridad/banco y otro idéntico para que te lo sellen como acuse.</p>
+            </div>
+            <div class="p-2.5 rounded-lg bg-white/80 dark:bg-obsidian-surface border border-sky-500/15 space-y-1">
+              <div class="flex items-center gap-1.5 font-bold text-sky-800 dark:text-sky-300">
+                <i class="fa-solid fa-pen-nib text-sky-600"></i>
+                <span>2. Firma con Tinta Azul</span>
+              </div>
+              <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">Si acudes a ventanilla UAU, firma de puño y letra con tinta azul. Para envío por correo/UNE, tu rúbrica digital es válida.</p>
+            </div>
+            <div class="p-2.5 rounded-lg bg-white/80 dark:bg-obsidian-surface border border-sky-500/15 space-y-1">
+              <div class="flex items-center gap-1.5 font-bold text-sky-800 dark:text-sky-300">
+                <i class="fa-solid fa-id-card text-sky-600"></i>
+                <span>3. Anexa Copia INE</span>
+              </div>
+              <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">Adjunta copia legible de tu identificación oficial y carátula del estado de cuenta o contratos.</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Tarjeta de Plazos Procesales: Contador de 20 Días Hábiles -->
         <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-2.5">
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-xs uppercase tracking-wider">
-              <i class="fa-solid fa-stopwatch text-legal-gold"></i> Plazo Legal de Contestación (20 Días Hábiles)
+              <i class="fa-solid fa-stopwatch text-legal-gold"></i> Plazo Legal de Respuesta del Banco (20 Días Hábiles)
             </span>
             <span id="roadmap-days-count" class="font-mono text-[11px] font-bold text-legal-gold bg-amber-500/20 px-2 py-0.5 rounded">20 DÍAS HÁBILES</span>
           </div>
           <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-            Conforme al <strong>Artículo 68 fracción III de la LPDUSF</strong>, la institución financiera cuenta con un término de veinte días hábiles para emitir un informe fundado y motivado respondiendo a tus pretensiones.
+            Por ley, tu banco o financiera tiene un plazo máximo de <strong>20 días hábiles</strong> para investigar tu caso y entregarte una respuesta clara y por escrito.
           </p>
           <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-500/20 text-[11px]">
             <div>
@@ -3594,86 +4255,93 @@ Muchas gracias por su apoyo y comprensión.</textarea>
           </div>
         </div>
 
-        <!-- Sello Criptográfico SHA-256 -->
-        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-obsidian-elevated border border-slate-200 dark:border-obsidian-border space-y-1.5">
-          <div class="flex items-center justify-between text-[11px]">
-            <span class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <i class="fa-solid fa-fingerprint text-indigo-500"></i> Sello Criptográfico de Integridad (NOM-151-SCFI-2016)
-            </span>
-            <button type="button" onclick="PreviewApp.copyRoadmapHash()" class="text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-mono text-[10px]">
-              <i class="fa-solid fa-copy"></i> Copiar Hash
-            </button>
-          </div>
-          <div id="roadmap-crypto-hash" class="font-mono text-[10px] text-slate-600 dark:text-slate-400 break-all select-all bg-white dark:bg-obsidian-surface p-2 rounded border border-slate-200 dark:border-obsidian-border">
-            Calculando SHA-256...
-          </div>
-          <span class="text-[10px] text-slate-500 dark:text-slate-400 block italic">Este hash demuestra matemáticamente que la relatoría y evidencias no sufrieron alteración posterior a su generación.</span>
-        </div>
-
-        <!-- 3 Vías de Presentación Oficial -->
+        <!-- 3 Vías de Presentación Oficial (Con Recomendación Clara) -->
         <div class="space-y-3.5">
-          <h4 class="font-serif font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-            <i class="fa-solid fa-signs-post text-legal-emerald"></i> Selecciona tu Vía de Presentación:
-          </h4>
+          <div class="flex items-center justify-between">
+            <h4 class="font-serif font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <i class="fa-solid fa-signs-post text-legal-emerald"></i> ¿A dónde enviar tu documento?
+            </h4>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400">Elige la opción más cómoda para ti</span>
+          </div>
 
-          <!-- Vía 1: Portal Queja Electrónica CONDUSEF -->
-          <div class="p-4 rounded-xl border border-slate-200 dark:border-obsidian-border bg-slate-50 dark:bg-obsidian-elevated/40 hover:border-legal-gold/40 transition-all space-y-2">
-            <div class="flex items-center justify-between">
+          <!-- VÍA 1: RECOMENDADA (ENVÍO POR CORREO A LA UNE) -->
+          <div class="p-4 rounded-xl border-2 border-legal-gold/60 bg-amber-500/5 dark:bg-amber-500/10 shadow-sm space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full bg-emerald-500/10 text-legal-emerald flex items-center justify-center font-bold text-xs font-mono">1</span>
+                <span class="w-6 h-6 rounded-full bg-legal-gold text-white flex items-center justify-center font-bold text-xs font-mono">1</span>
+                <strong class="text-xs text-slate-900 dark:text-white">Envío Directo a la Unidad Especializada (UNE del Banco)</strong>
+              </div>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-legal-gold border border-legal-gold/30">
+                ⭐ Vía Más Rápida (Sin salir de casa)
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              Todos los bancos cuentan con un área especializada para atender quejas. Enviar tu documento por correo tiene total validez y desde hoy comienzan a contar los 20 días para que te respondan.
+            </p>
+            
+            <div class="p-2.5 rounded-lg bg-white dark:bg-obsidian-surface border border-slate-200 dark:border-obsidian-border text-[11px] space-y-1">
+              <div class="flex items-center justify-between flex-wrap gap-1">
+                <span class="text-slate-500">Correo oficial UNE de la institución:</span>
+                <strong id="roadmap-une-email" class="font-mono text-legal-gold font-semibold text-xs">une@institucion.com</strong>
+              </div>
+              <p class="text-[10px] text-slate-400 italic">Recuerda adjuntar el archivo PDF que acabas de descargar antes de presionar enviar.</p>
+            </div>
+
+            <!-- BOTONERA DIRECTA WEB: GMAIL, OUTLOOK, COPIAR Y MAILTO -->
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <button type="button" onclick="PreviewApp.openGmailComposer()" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors">
+                <i class="fa-solid fa-envelope-open-text"></i>
+                <span>Abrir en Gmail Web</span>
+              </button>
+              <button type="button" onclick="PreviewApp.openOutlookComposer()" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors">
+                <i class="fa-brands fa-microsoft"></i>
+                <span>Abrir en Outlook Web</span>
+              </button>
+              <button type="button" onclick="PreviewApp.copyRoadmapEmailBody()" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-obsidian-elevated hover:bg-slate-200 dark:hover:bg-obsidian-border text-slate-700 dark:text-slate-300 font-semibold text-xs border border-slate-200 dark:border-obsidian-border flex items-center gap-1.5 transition-colors">
+                <i class="fa-solid fa-copy text-legal-gold"></i>
+                <span>Copiar Texto &amp; Correo</span>
+              </button>
+              <a id="roadmap-btn-mailto" href="#" class="px-2.5 py-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 text-[11px] underline ml-auto">
+                Abrir en App de Correo Local
+              </a>
+            </div>
+          </div>
+
+          <!-- VÍA 2: PORTAL OFICIAL QUEJA ELECTRÓNICA CONDUSEF -->
+          <div class="p-4 rounded-xl border border-slate-200 dark:border-obsidian-border bg-slate-50 dark:bg-obsidian-elevated/40 hover:border-legal-gold/40 transition-all space-y-2">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-full bg-emerald-500/10 text-legal-emerald flex items-center justify-center font-bold text-xs font-mono">2</span>
                 <strong class="text-xs text-slate-900 dark:text-white">Portal de Queja Electrónica CONDUSEF (En Línea)</strong>
               </div>
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-legal-emerald font-semibold">100% Digital</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-legal-emerald font-semibold">100% Oficial Digital</span>
             </div>
             <p class="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-              Válido para instituciones con convenio de ventanilla electrónica. Ingresa al portal oficial de CONDUSEF, autentícate y adjunta el PDF generado junto con tu identificación INE.
+              Si prefieres que la autoridad intervenga directamente o si la institución no te respondió, ingresa al portal oficial de CONDUSEF y adjunta el PDF generado junto con tu foto del INE.
             </p>
             <div class="pt-1 flex justify-end">
               <a href="https://tramites.condusef.gob.mx/QuejaElectronica/" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-legal-gold text-white font-semibold text-xs flex items-center gap-1.5 hover:opacity-90 shadow-xs">
-                <span>Abrir Queja Electrónica CONDUSEF</span>
+                <span>Abrir Portal Queja Electrónica CONDUSEF</span>
                 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
               </a>
             </div>
           </div>
 
-          <!-- Vía 2: Correo Directo a la UNE (Unidad Especializada) -->
+          <!-- VÍA 3: RADICACIÓN PRESENCIAL EN UNIDAD DE ATENCIÓN A USUARIOS (UAU) -->
           <div class="p-4 rounded-xl border border-slate-200 dark:border-obsidian-border bg-slate-50 dark:bg-obsidian-elevated/40 hover:border-legal-gold/40 transition-all space-y-2">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full bg-amber-500/10 text-legal-gold flex items-center justify-center font-bold text-xs font-mono">2</span>
-                <strong class="text-xs text-slate-900 dark:text-white">Envío Directo a la Unidad Especializada (UNE)</strong>
-              </div>
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-legal-gold font-semibold">Art. 50 Bis LPDUSF</span>
-            </div>
-            <p class="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-              Cada banco y entidad regulada en SIPRES está obligada a contar con un titular de UNE para resolver controversias sin costo antes del juicio.
-            </p>
-            <div class="pt-1 flex items-center justify-between gap-2 flex-wrap text-[11px]">
-              <div>
-                <span class="text-slate-500">Correo UNE de la Institución:</span>
-                <strong id="roadmap-une-email" class="font-mono text-legal-gold ml-1">une@institucion.com</strong>
-              </div>
-              <a id="roadmap-btn-mailto" href="#" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs">
-                <i class="fa-solid fa-envelope"></i> Redactar Correo UNE
-              </a>
-            </div>
-          </div>
-
-          <!-- Vía 3: Presentación Presencial en UDECO -->
-          <div class="p-4 rounded-xl border border-slate-200 dark:border-obsidian-border bg-slate-50 dark:bg-obsidian-elevated/40 hover:border-legal-gold/40 transition-all space-y-2">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between flex-wrap gap-2">
               <div class="flex items-center gap-2">
                 <span class="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-xs font-mono">3</span>
-                <strong class="text-xs text-slate-900 dark:text-white">Radicación Presencial en Módulo UDECO</strong>
+                <strong class="text-xs text-slate-900 dark:text-white">Presentación Presencial en Unidad de Atención a Usuarios (UAU)</strong>
               </div>
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/10 text-indigo-500 font-semibold">Oficialía de Partes</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/10 text-indigo-500 font-semibold">Acuse Sellado en Papel</span>
             </div>
             <p class="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-              Imprime el PDF generado en <strong>2 tantos</strong>: 1 original para el expediente de la CONDUSEF y 1 copia que la ventanilla sellará con fecha y hora exacta como tu <strong>Acuse de Recibo con Valor Jurídico</strong>. Acude con tu INE original vigente.
+              Imprime tu documento en <strong>2 copias</strong> y fírmalas a mano con <strong>bolígrafo de tinta azul</strong> en la línea de firma: una copia se queda en la oficina de CONDUSEF y la otra te la sellan con fecha y hora como tu <strong>comprobante oficial de entrega</strong>. Recuerda llevar tu credencial de elector (INE) vigente.
             </p>
             <div class="pt-1 flex justify-end">
-              <a href="https://www.gob.mx/condusef/acciones-y-programas/unidades-de-atencion-a-usuarios-udeco" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-obsidian-elevated hover:bg-slate-300 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1.5">
-                <span>Directorio Nacional de UDECOs</span>
+              <a href="https://www.condusef.gob.mx/uau/" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-obsidian-elevated hover:bg-slate-300 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1.5">
+                <span>Directorio Oficial de Oficinas UAU (CONDUSEF)</span>
                 <i class="fa-solid fa-map-location-dot text-[10px]"></i>
               </a>
             </div>
@@ -3681,14 +4349,22 @@ Muchas gracias por su apoyo y comprensión.</textarea>
 
         </div>
 
+
+
       </div>
 
-      <!-- Pie del Modal -->
-      <div class="p-4 border-t border-slate-200 dark:border-obsidian-border flex items-center justify-between bg-slate-50 dark:bg-obsidian-elevated/20">
+      <!-- Pie del Modal con Acceso al Calendario -->
+      <div class="p-4 border-t border-slate-200 dark:border-obsidian-border flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-obsidian-elevated/20">
         <span class="text-[11px] text-slate-500 dark:text-slate-400">Protegido por el Secreto Bancario y LFPDPPP Zero-Knowledge</span>
-        <button type="button" onclick="PreviewApp.closeRoadmapModal()" class="px-4 py-2 bg-slate-900 dark:bg-legal-gold text-white font-bold rounded-lg text-xs hover:opacity-95 transition-all">
-          Entendido / Cerrar Guía
-        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="PreviewApp.openCalendarFromRoadmap()" class="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-obsidian-elevated hover:bg-slate-800 dark:hover:bg-obsidian-border text-legal-gold font-bold text-xs border border-legal-gold/40 flex items-center gap-1.5 transition-all shadow-xs">
+            <i class="fa-solid fa-calendar-days"></i>
+            <span>Ver Plazos en Calendario Legal</span>
+          </button>
+          <button type="button" onclick="PreviewApp.closeRoadmapModal()" class="px-4 py-2 bg-slate-900 dark:bg-legal-gold text-white font-bold rounded-xl text-xs hover:opacity-95 transition-all">
+            Entendido / Cerrar Guía
+          </button>
+        </div>
       </div>
 
     </div>
@@ -3925,9 +4601,12 @@ Muchas gracias por su apoyo y comprensión.</textarea>
   </div>
 
   <!-- =========================================================================
-       MOTOR PRINCIPAL DE LA APLICACIÓN (ES6+ / MODULAR app.js)
+       LÓGICA JAVASCRIPT DE LA MAQUETA (AISLADA DE app.js)
+       ========================================================================= -->
+
+  <!-- =========================================================================
+       8. CONTROLADOR MAESTRO DE LA APLICACIÃ“N (app.js)
        ========================================================================= -->
   <script src="app.js"></script>
-
 </body>
 </html>

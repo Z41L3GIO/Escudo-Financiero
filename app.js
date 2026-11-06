@@ -1,13 +1,15 @@
-﻿/**
+/**
  * ============================================================================
  * ESCUDO FINANCIERO PRO â€” LÃ“GICA PRINCIPAL INTEGRAL (ES6+)
  * ============================================================================
  * Plataforma CÃ­vica de Ciberseguridad Financiera, Buscador SIPRES (409 Entidades),
  * Generador de Quejas JurÃ­dicas CONDUSEF en PDF Vectorial (pdf-lib + EscudoPDF),
  * Medidor de CrÃ©dito con AmortizaciÃ³n Oficial Mexicana (Banxico / LIVA),
- * Laboratorio HeurÃ­stico Multimodal, Radar Comunitario (399 Apps) y EscudoBot IA.
+ * Laboratorio HeurÃ­stico Multimodal, Radar Comunitario (399 Apps), Calendario
+ * Interactivo de Plazos Procesales (Art. 68 LPDUSF) y EscudoBot IA.
  * ============================================================================
  */
+
 const VERIFIED_CHANNELS_PREVIEW = {
       '40012': { tel: '55 5226 2663', une: 'une.mx@bbva.com', web: 'bbva.mx' },
       '40072': { tel: '81 8156 9600', une: 'une@banorte.com', web: 'banorte.com' },
@@ -84,10 +86,12 @@ const VERIFIED_CHANNELS_PREVIEW = {
         this.initFontSize();
         this.initPanicKeyShortcut();
         this.initServiceWorkerPwa();
-        this.updateQuejaHashLive();
+        this.updateWizardProgressBar(1);
+        this.updateEscudoScore();
         this.initChatbotUi();
         this.updateEngineBadgeUI();
         this.initChatbotDragAndPaste();
+        this.initCalendarModule();
         // Cargar preferencia de tema
         if (localStorage.getItem('escudo_theme') === 'dark' || (!localStorage.getItem('escudo_theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
           document.documentElement.classList.add('dark');
@@ -525,23 +529,12 @@ const VERIFIED_CHANNELS_PREVIEW = {
         const dateStr = now.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         const transcriptLines = this.chatHistory.map(m => `[${m.time}] ${m.sender === 'user' ? 'USUARIO' : 'ESCUDOBOT'}:\n${m.text}\n`).join('\n');
         
-        let hashStr = 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855';
-        try {
-          let hash = 0;
-          for (let i = 0; i < transcriptLines.length; i++) {
-            hash = ((hash << 5) - hash) + transcriptLines.charCodeAt(i);
-            hash |= 0;
-          }
-          hashStr = 'NOM151-' + Math.abs(hash).toString(16).toUpperCase().padStart(16, '0') + '-SEC2026';
-        } catch (e) {}
-
         const doc = [
           '=========================================================================',
           '   MINUTA DE ASISTENCIA Y ORIENTACIÓN CÍVICO-FINANCIERA (ESCUDOBOT)     ',
           '        Plataforma Escudo Financiero Pro • Sistema Cívico Digital       ',
           '=========================================================================',
           `Fecha y hora de emisión: ${dateStr}`,
-          `Constancia Digital de Integridad (NOM-151): ${hashStr}`,
           'Modo de Inferencia: ' + (this.chatEngine === 'gemini' ? 'Google Gemini 2.5 Flash IA' : 'Heurística Algorítmica Local (0ms • Offline)'),
           '-------------------------------------------------------------------------',
           '1. CONTACTOS DE EMERGENCIA Y ASISTENCIA INMEDIATA:',
@@ -1180,26 +1173,6 @@ const VERIFIED_CHANNELS_PREVIEW = {
         }
       },
 
-      async generateSha256(text) {
-        try {
-          const encoder = new TextEncoder();
-          const data = encoder.encode(text);
-          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        } catch (e) {
-          let h1 = 0xdeadbeef, h2 = 0x41c64e6d;
-          for (let i = 0, ch; i < text.length; i++) {
-            ch = text.charCodeAt(i);
-            h1 = Math.imul(h1 ^ ch, 2654435761);
-            h2 = Math.imul(h2 ^ ch, 1597334677);
-          }
-          h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-          h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-          const s = (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
-          return (s + s + s + s).slice(0, 64).padStart(64, '0');
-        }
-      },
 
       async sanitizeImageExif(file) {
         return new Promise((resolve) => {
@@ -1244,24 +1217,13 @@ const VERIFIED_CHANNELS_PREVIEW = {
         return cur;
       },
 
-      async updateQuejaHashLive() {
-        const data = this.collectQuejaFormData();
-        const rawContent = `${data.curp}|${data.folioSipres}|${data.fechaHechos}|${data.monto}|${data.hechos}|${data.pretensiones}`;
-        const hash = await this.generateSha256(rawContent);
-        const el = document.getElementById('doc-preview-hash');
-        if (el) el.innerText = hash;
-      },
 
       async openPostDownloadRoadmap(customData = null, customBuilt = null) {
         const data = customData || this.collectQuejaFormData();
         const folio = data.folioSipres || '40012';
         const channels = VERIFIED_CHANNELS_PREVIEW[folio] || { une: 'atencion.usuarios@condusef.gob.mx' };
-        
-        // 1. Sello SHA-256
-        const rawContent = `${data.curp}|${data.folioSipres}|${data.fechaHechos}|${data.monto}|${data.hechos}|${data.pretensiones}`;
-        const hash = await this.generateSha256(rawContent);
 
-        // 2. Plazos procesales (20 días hábiles)
+        // Plazos procesales (20 días hábiles)
         const today = new Date();
         const deadline = this.calculateLegalDeadline(today, 20);
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -1269,18 +1231,14 @@ const VERIFIED_CHANNELS_PREVIEW = {
 
         this.lastRoadmapData = {
           data,
-          hash,
           today,
           deadline,
           uneEmail: channels.une
         };
 
-        // 3. Inyectar datos en el modal
+        // Inyectar datos en el modal
         const elDate = document.getElementById('roadmap-deadline-date');
         if (elDate) elDate.innerText = deadlineStr;
-
-        const elHash = document.getElementById('roadmap-crypto-hash');
-        if (elHash) elHash.innerText = hash;
 
         const elUne = document.getElementById('roadmap-une-email');
         if (elUne) elUne.innerText = channels.une;
@@ -1294,8 +1252,7 @@ const VERIFIED_CHANNELS_PREVIEW = {
             `• Promovente: ${data.nombre}\n` +
             `• CURP: ${data.curp}\n` +
             `• Institución: ${data.institucion} (Folio SIPRES ${folio})\n` +
-            `• Causa: ${data.causa}\n` +
-            `• Sello de Integridad SHA-256: ${hash}\n\n` +
+            `• Causa: ${data.causa}\n\n` +
             `Adjunto al presente el documento formal en formato PDF emitido con firma digital autógrafa y constancia probatoria.\n\n` +
             `Atentamente,\n${data.nombre}`
           );
@@ -1311,36 +1268,60 @@ const VERIFIED_CHANNELS_PREVIEW = {
         if (modal) modal.classList.add('hidden');
       },
 
-      copyRoadmapHash() {
-        if (!this.lastRoadmapData) return;
-        const hash = this.lastRoadmapData.hash;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(hash).then(() => {
-            this.showToast('Sello criptográfico SHA-256 copiado al portapapeles.');
-          });
-        } else {
-          this.showToast('Sello SHA-256: ' + hash.slice(0, 16) + '...');
+      openCalendarFromRoadmap() {
+        this.closeRoadmapModal();
+        this.switchTab('calendario');
+        if (this.lastRoadmapData && this.lastRoadmapData.data) {
+          const d = this.lastRoadmapData.data;
+          const entityInput = document.getElementById('cal-entity-name');
+          const startInput = document.getElementById('cal-start-date');
+          if (entityInput && d.institucion) {
+            entityInput.value = d.institucion;
+          }
+          if (startInput) {
+            startInput.value = this.formatDateKey ? this.formatDateKey(new Date()) : new Date().toISOString().slice(0, 10);
+          }
+          this.calculateCalendarRoadmap();
         }
       },
 
       downloadCalendarIcs() {
-        if (!this.lastRoadmapData) return;
-        const d = this.lastRoadmapData;
-        const formatIcsDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        
+        let rm = this.calendarRoadmap;
+        let dStr = '';
+        let todayStr = (this.formatDateKey ? this.formatDateKey(new Date()) : new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+        let entityName = 'Institución Financiera';
+        let targetDays = 20;
+
+        if (rm && rm.deadlineDate) {
+          dStr = rm.deadlineDate.replace(/-/g, '');
+          entityName = rm.entityName || 'Institución Financiera';
+          targetDays = rm.targetDays || 20;
+        } else if (this.lastRoadmapData && this.lastRoadmapData.deadline) {
+          const d = this.lastRoadmapData.deadline;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          dStr = `${y}${m}${day}`;
+          entityName = this.lastRoadmapData.data?.institucion || 'Institución Financiera';
+          targetDays = 20;
+        } else {
+          alert('Primero calcula los plazos legales o descarga una reclamación.');
+          return;
+        }
+
         const icsContent = [
           'BEGIN:VCALENDAR',
           'VERSION:2.0',
-          'PRODID:-//Escudo Financiero Pro//Legaltech Calendario//ES',
+          'PRODID:-//Escudo Financiero Pro//Calendario Legal CNBV//ES',
           'CALSCALE:GREGORIAN',
-          'METHOD:PUBLISH',
           'BEGIN:VEVENT',
-          `UID:escudo-legal-${Date.now()}@escudofinanciero.mx`,
-          `DTSTAMP:${formatIcsDate(new Date())}`,
-          `DTSTART:${formatIcsDate(d.deadline)}`,
-          `DTEND:${formatIcsDate(new Date(d.deadline.getTime() + 3600000))}`,
-          `SUMMARY:Vencimiento de Contestación UNE / CONDUSEF (Folio ${d.data.folioSipres})`,
-          `DESCRIPTION:Vencen los 20 días hábiles que la LPDUSF (Art. 68) otorga a la institución financiera para contestar la queja formal presentada por ${d.data.nombre}. Si no hubo contestación favorable, solicitar cita para audiencia de conciliación.`,
+          `UID:escudo-legal-${dStr}@escudofinanciero.mx`,
+          `DTSTAMP:${todayStr}T120000Z`,
+          `DTSTART;VALUE=DATE:${dStr}`,
+          `DTEND;VALUE=DATE:${dStr}`,
+          `SUMMARY:⚖️ Vencimiento Legal CONDUSEF (${targetDays} Días Hábiles) - ${entityName}`,
+          `DESCRIPTION:Hoy se cumple el plazo legal improrrogable (Art. 68 LPDUSF) para que ${entityName} entregue contestación por escrito y dictamen fundado.\\nGenerado con Escudo Financiero Pro.`,
+          'STATUS:CONFIRMED',
           'BEGIN:VALARM',
           'ACTION:DISPLAY',
           'DESCRIPTION:Recordatorio de término legal CONDUSEF',
@@ -1350,26 +1331,114 @@ const VERIFIED_CHANNELS_PREVIEW = {
           'END:VCALENDAR'
         ].join('\r\n');
 
-        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Vencimiento-Legal-CONDUSEF-Folio-${d.data.folioSipres}.ics`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', `Vencimiento_Legal_${entityName.replace(/\s+/g, '_')}_${dStr}.ics`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         this.showToast('Recordatorio .ics descargado para tu calendario.');
       },
 
       openGoogleCalendarReminder() {
+        let dStr = '';
+        let entityName = 'Institución Financiera';
+        let targetDays = 20;
+
+        if (this.calendarRoadmap && this.calendarRoadmap.deadlineDate) {
+          dStr = this.calendarRoadmap.deadlineDate.replace(/-/g, '');
+          entityName = this.calendarRoadmap.entityName || 'Institución Financiera';
+          targetDays = this.calendarRoadmap.targetDays || 20;
+        } else if (this.lastRoadmapData && this.lastRoadmapData.deadline) {
+          const d = this.lastRoadmapData.deadline;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          dStr = `${y}${m}${day}`;
+          entityName = this.lastRoadmapData.data?.institucion || 'Institución Financiera';
+          targetDays = 20;
+        } else {
+          alert('Primero calcula los plazos legales o descarga una reclamación.');
+          return;
+        }
+
+        const title = encodeURIComponent(`⚖️ Vencimiento Legal CONDUSEF (${targetDays} Días Hábiles) - ${entityName}`);
+        const details = encodeURIComponent(`Hoy se cumple el plazo legal improrrogable (Art. 68 LPDUSF) para que ${entityName} responda por escrito y con dictamen motivado.\n\nSi no recibes resolución favorable, acude inmediatamente a la CONDUSEF para exigir dictamen en rebeldía.\nGenerado con Escudo Financiero Pro.`);
+        const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dStr}T090000Z/${dStr}T100000Z&details=${details}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      },
+
+      openGmailComposer() {
         if (!this.lastRoadmapData) return;
         const d = this.lastRoadmapData;
-        const dStr = d.deadline.toISOString().replace(/[-:]/g, '').slice(0, 8);
-        const title = `Vencimiento Contestación CONDUSEF - Folio ${d.data.folioSipres}`;
-        const desc = `Vencimiento de 20 días hábiles (Art. 68 LPDUSF) para informe de ${d.data.institucion}. Sello SHA-256: ${d.hash}`;
-        const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dStr}/${dStr}&details=${encodeURIComponent(desc)}`;
+        const folio = d.data.folioSipres || '40012';
+        const une = d.uneEmail || 'atencion.usuarios@condusef.gob.mx';
+        const subject = encodeURIComponent(`Reclamación Formal CONDUSEF - Folio SIPRES ${folio} - ${d.data.nombre}`);
+        const body = encodeURIComponent(
+          `A la Unidad Especializada de Atención a Usuarios (UNE):\n\n` +
+          `Por medio del presente correo interpongo formal escrito de reclamación de conformidad con los Artículos 50 Bis, 68 y 68 Bis de la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF).\n\n` +
+          `• Titular Promovente: ${d.data.nombre}\n` +
+          `• CURP: ${d.data.curp}\n` +
+          `• Institución Reclamada: ${d.data.institucion} (Folio SIPRES ${folio})\n` +
+          `• Motivo: ${d.data.causa}\n\n` +
+          `Adjunto al presente correo el archivo PDF con mi firma autógrafa digital y constancias probatorias.\n\n` +
+          `Solicito se acuse de recibo del presente correo con el número de folio interno de atención.\n\n` +
+          `Atentamente,\n${d.data.nombre}`
+        );
+        const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(une)}&su=${subject}&body=${body}`;
         window.open(url, '_blank', 'noopener,noreferrer');
+        this.showToast('Abriendo Gmail Web con el correo de la UNE precargado...');
+      },
+
+      openOutlookComposer() {
+        if (!this.lastRoadmapData) return;
+        const d = this.lastRoadmapData;
+        const folio = d.data.folioSipres || '40012';
+        const une = d.uneEmail || 'atencion.usuarios@condusef.gob.mx';
+        const subject = encodeURIComponent(`Reclamación Formal CONDUSEF - Folio SIPRES ${folio} - ${d.data.nombre}`);
+        const body = encodeURIComponent(
+          `A la Unidad Especializada de Atención a Usuarios (UNE):\n\n` +
+          `Por medio del presente correo interpongo formal escrito de reclamación de conformidad con los Artículos 50 Bis, 68 y 68 Bis de la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF).\n\n` +
+          `• Titular Promovente: ${d.data.nombre}\n` +
+          `• CURP: ${d.data.curp}\n` +
+          `• Institución Reclamada: ${d.data.institucion} (Folio SIPRES ${folio})\n` +
+          `• Motivo: ${d.data.causa}\n\n` +
+          `Adjunto al presente correo el archivo PDF con mi firma autógrafa digital y constancias probatorias.\n\n` +
+          `Solicito se acuse de recibo del presente correo con el número de folio interno de atención.\n\n` +
+          `Atentamente,\n${d.data.nombre}`
+        );
+        const url = `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(une)}&subject=${subject}&body=${body}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+        this.showToast('Abriendo Outlook Web con el correo de la UNE precargado...');
+      },
+
+      copyRoadmapEmailBody() {
+        if (!this.lastRoadmapData) return;
+        const d = this.lastRoadmapData;
+        const folio = d.data.folioSipres || '40012';
+        const une = d.uneEmail || 'atencion.usuarios@condusef.gob.mx';
+        const text = `PARA: ${une}\n` +
+          `ASUNTO: Reclamación Formal CONDUSEF - Folio SIPRES ${folio} - ${d.data.nombre}\n\n` +
+          `A la Unidad Especializada de Atención a Usuarios (UNE):\n\n` +
+          `Por medio del presente correo interpongo formal escrito de reclamación de conformidad con los Artículos 50 Bis, 68 y 68 Bis de la Ley de Protección y Defensa al Usuario de Servicios Financieros (LPDUSF).\n\n` +
+          `• Titular Promovente: ${d.data.nombre}\n` +
+          `• CURP: ${d.data.curp}\n` +
+          `• Institución Reclamada: ${d.data.institucion} (Folio SIPRES ${folio})\n` +
+          `• Motivo: ${d.data.causa}\n\n` +
+          `Adjunto al presente correo el archivo PDF con mi firma autógrafa digital y constancias probatorias.\n\n` +
+          `Solicito se acuse de recibo del presente correo con el número de folio interno de atención.\n\n` +
+          `Atentamente,\n${d.data.nombre}`;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            this.showToast('📋 ¡Texto y destinatario copiados! Pégalos en tu correo y adjunta el PDF.');
+          }).catch(() => {
+            this.showToast('Texto copiado.');
+          });
+        } else {
+          this.showToast('Destinatario: ' + une);
+        }
       },
 
       escapeHtml(str) {
@@ -1458,8 +1527,12 @@ const VERIFIED_CHANNELS_PREVIEW = {
       },
 
       switchTab(tabId) {
-        if (tabId !== 'directorio' && tabId !== 'quejas' && tabId !== 'credito' && tabId !== 'forense' && tabId !== 'radar') {
-          alert('Este módulo interactivo estará disponible en el siguiente paso de la maqueta. Actualmente puedes explorar a detalle el Directorio SIPRES (con paginación progresiva, Ficha y Comparador), el Generador de Quejas de 5 pasos, el Medidor de Crédito, el Laboratorio Heurístico y el Radar Comunitario.');
+        if (!this.isTermsAccepted()) {
+          this.openTermsModal(true);
+          return;
+        }
+        if (tabId !== 'directorio' && tabId !== 'quejas' && tabId !== 'credito' && tabId !== 'forense' && tabId !== 'radar' && tabId !== 'calendario') {
+          alert('Este módulo interactivo estará disponible en el siguiente paso de la maqueta.');
           return;
         }
         this.currentTab = tabId;
@@ -1472,6 +1545,8 @@ const VERIFIED_CHANNELS_PREVIEW = {
         if (modForense) modForense.classList.add('hidden');
         const modRadar = document.getElementById('module-radar');
         if (modRadar) modRadar.classList.add('hidden');
+        const modCalendario = document.getElementById('module-calendario');
+        if (modCalendario) modCalendario.classList.add('hidden');
 
         if (tabId === 'directorio') {
           document.getElementById('module-directorio').classList.remove('hidden');
@@ -1491,6 +1566,10 @@ const VERIFIED_CHANNELS_PREVIEW = {
           if (modRadar) modRadar.classList.remove('hidden');
           document.getElementById('breadcrumb-current-tab').innerText = 'Radar Comunitario (399 Apps & Alertas)';
           this.initRadar();
+        } else if (tabId === 'calendario') {
+          if (modCalendario) modCalendario.classList.remove('hidden');
+          document.getElementById('breadcrumb-current-tab').innerText = 'Plazos & Calendario Legal (CNBV 2026)';
+          this.initCalendarModule();
         }
       },
 
@@ -2274,6 +2353,7 @@ const VERIFIED_CHANNELS_PREVIEW = {
             procTag.className = 'text-red-500 font-semibold';
           }
         }
+        this.updateEscudoScore();
       },
 
       validateCurpLive() {
@@ -2428,7 +2508,6 @@ const VERIFIED_CHANNELS_PREVIEW = {
           }
         }
         this.showToast(`✓ ${rawFiles.length} anexo(s) procesado(s) sin metadatos EXIF.`);
-        this.updateQuejaHashLive();
       },
 
       setWizardStep(stepNum) {
@@ -2454,6 +2533,210 @@ const VERIFIED_CHANNELS_PREVIEW = {
             pill.querySelector('span').className = "w-5 h-5 rounded-full bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0";
           }
         }
+        this.updateWizardProgressBar(stepNum);
+        this.updateEscudoScore();
+      },
+
+      updateWizardProgressBar(stepNum) {
+        const percent = Math.min(100, Math.max(20, stepNum * 20));
+        const barEl = document.getElementById('wizard-progress-bar');
+        const pctEl = document.getElementById('wizard-progress-percent');
+        const hintEl = document.getElementById('wizard-progress-hint');
+        const timeEl = document.getElementById('wizard-time-hint');
+
+        const stepNames = {
+          1: '• Paso 1: Tus Datos',
+          2: '• Paso 2: Institución',
+          3: '• Paso 3: ¿Qué Pasó?',
+          4: '• Paso 4: ¿Qué Solicitas?',
+          5: '• Paso 5: Descargar Expediente'
+        };
+
+        const timeHints = {
+          1: '~2 minutos para finalizar',
+          2: '~1.5 minutos para finalizar',
+          3: '~1 minuto para finalizar',
+          4: '~30 segundos para finalizar',
+          5: '¡Expediente 100% listo!'
+        };
+
+        if (barEl) barEl.style.width = `${percent}%`;
+        if (pctEl) pctEl.innerText = `${percent}%`;
+        if (hintEl && stepNames[stepNum]) hintEl.innerText = stepNames[stepNum];
+        if (timeEl && timeHints[stepNum]) timeEl.innerText = timeHints[stepNum];
+      },
+
+      setFormMode(mode) {
+        const assistantBtn = document.getElementById('btn-mode-assistant');
+        const expertBtn = document.getElementById('btn-mode-expert');
+        const card = document.getElementById('assistant-guided-card');
+
+        if (mode === 'asistente') {
+          if (assistantBtn) {
+            assistantBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-legal-gold text-white shadow-xs transition-all flex items-center gap-1.5";
+          }
+          if (expertBtn) {
+            expertBtn.className = "px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1.5";
+          }
+          if (card) card.classList.remove('hidden');
+          this.showToast('✨ Modo Asistente activado: Preguntas guiadas y redacción jurídica automática.');
+        } else {
+          if (expertBtn) {
+            expertBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 dark:bg-legal-gold text-white shadow-xs transition-all flex items-center gap-1.5";
+          }
+          if (assistantBtn) {
+            assistantBtn.className = "px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1.5";
+          }
+          if (card) card.classList.add('hidden');
+          this.showToast('⚙️ Modo Experto activado: Edición técnica y captura directa.');
+        }
+      },
+
+      selectQuickProblem(type) {
+        if (type === 'cargos') {
+          this.setProcedure('condusef');
+          const causaInput = document.getElementById('input-queja-causa');
+          if (causaInput) causaInput.value = 'Cargos no reconocidos en cuenta / tarjeta';
+          this.applyHechosPreset('cargos');
+          const pretEl = document.getElementById('input-queja-pretensiones');
+          const monto = document.getElementById('input-queja-monto')?.value || '$48,500.00 MXN';
+          if (pretEl) {
+            pretEl.value = `PRIMERO: La restitución íntegra e inmediata de la cantidad reclamada de ${monto}, adicionada con los intereses moratorios legales conforme al artículo 68 Bis de la LPDUSF.\n\nSEGUNDO: La cancelación y rectificación de cualquier reporte negativo ante las Sociedades de Información Crediticia (Buró de Crédito y Círculo de Crédito).`;
+          }
+          this.setWizardStep(2);
+          this.showToast('✓ Caso seleccionado: Cargo no reconocido. Confirma tu banco o institución.');
+        } else if (type === 'spei') {
+          this.setProcedure('condusef');
+          const causaInput = document.getElementById('input-queja-causa');
+          if (causaInput) causaInput.value = 'Transferencia SPEI no autorizada / Fraude cibernético';
+          this.applyHechosPreset('spei');
+          const pretEl = document.getElementById('input-queja-pretensiones');
+          const monto = document.getElementById('input-queja-monto')?.value || '$48,500.00 MXN';
+          if (pretEl) {
+            pretEl.value = `PRIMERO: La restitución íntegra de la cantidad de ${monto} transferida mediante SPEI sin mi consentimiento ni factor de autenticación OTP.\n\nSEGUNDO: Se requiera a la institución financiera exhibir las bitácoras técnicas de geolocalización e IP conforme a la Circular Única de Bancos.`;
+          }
+          this.setWizardStep(2);
+          this.showToast('✓ Caso seleccionado: Fraude SPEI. Confirma tu banco o SOFIPO.');
+        } else if (type === 'cobranza') {
+          this.setProcedure('redeco');
+          const causaInput = document.getElementById('input-queja-causa');
+          if (causaInput) causaInput.value = 'Cobranza indebida y amenazas telefónicas (REDECO)';
+          this.applyHechosPreset('cobranza');
+          const pretEl = document.getElementById('input-queja-pretensiones');
+          if (pretEl) {
+            pretEl.value = `PRIMERO: El cese inmediato y definitivo de gestiones de cobro extrajudicial, mensajes o llamadas telefónicas en días y horarios inhábiles.\n\nSEGUNDO: La eliminación perentoria de los números de mis familiares y referencias personales de sus bases de gestión de cobranza (Art. 284 Bis CPF y lineamientos REDECO).`;
+          }
+          this.setWizardStep(2);
+          this.showToast('✓ Caso seleccionado: Cobranza abusiva (REDECO). Confirma la entidad.');
+        } else if (type === 'buro') {
+          this.setProcedure('condusef');
+          const causaInput = document.getElementById('input-queja-causa');
+          if (causaInput) causaInput.value = 'Registro incorrecto en Sociedades de Información Crediticia';
+          const hechosEl = document.getElementById('input-queja-hechos');
+          if (hechosEl) {
+            hechosEl.value = 'En fecha reciente consulté mi Reporte de Crédito Especial ante Buró de Crédito y Círculo de Crédito, percatándome de la existencia de una clave de prevención o saldo deudor controvertido que no contraté o que fue oportunamente finiquitado, lesionando injustificadamente mi capacidad crediticia.';
+          }
+          const pretEl = document.getElementById('input-queja-pretensiones');
+          if (pretEl) {
+            pretEl.value = `PRIMERO: La inmediata modificación y eliminación del registro negativo ante Buró de Crédito y Círculo de Crédito (clave MOC favorable).\n\nSEGUNDO: La expedición de la constancia formal de no adeudo y carta finiquito correspondiente.`;
+          }
+          this.setWizardStep(2);
+          this.showToast('✓ Caso seleccionado: Buró incorrecto. Confirma la entidad financiera.');
+        }
+        this.updateDocPreview();
+        this.updateEscudoScore();
+      },
+
+      updateEscudoScore() {
+        let score = 0;
+        const nombre = (document.getElementById('input-quejoso-nombre')?.value || '').trim();
+        const curp = (document.getElementById('input-quejoso-curp')?.value || '').trim();
+        const email = (document.getElementById('input-quejoso-email')?.value || '').trim();
+        const entidad = (document.getElementById('input-queja-entidad')?.value || '').trim();
+        const folio = (document.getElementById('input-queja-folio')?.value || '').trim();
+        const hechos = (document.getElementById('input-queja-hechos')?.value || '').trim();
+        const monto = (document.getElementById('input-queja-monto')?.value || '').trim();
+        const pretensiones = (document.getElementById('input-queja-pretensiones')?.value || '').trim();
+
+        // 1. Datos del Promovente (+25)
+        const hasDatos = nombre.length > 5 && curp.length >= 18 && email.includes('@');
+        if (hasDatos) score += 25;
+        const chkDatos = document.getElementById('score-chk-datos');
+        if (chkDatos) {
+          chkDatos.className = hasDatos ? 'flex items-center gap-1.5 text-legal-emerald font-medium' : 'flex items-center gap-1.5 text-slate-400 font-normal';
+          const icon = chkDatos.querySelector('i');
+          if (icon) icon.className = hasDatos ? 'fa-solid fa-circle-check text-[11px]' : 'fa-regular fa-circle text-[11px]';
+        }
+
+        // 2. Institución identificada (+25)
+        const hasEntidad = entidad.length > 3 && folio.length > 0 && folio !== 'S/F';
+        if (hasEntidad) score += 25;
+        const chkEntidad = document.getElementById('score-chk-entidad');
+        if (chkEntidad) {
+          chkEntidad.className = hasEntidad ? 'flex items-center gap-1.5 text-legal-emerald font-medium' : 'flex items-center gap-1.5 text-slate-400 font-normal';
+          const icon = chkEntidad.querySelector('i');
+          if (icon) icon.className = hasEntidad ? 'fa-solid fa-circle-check text-[11px]' : 'fa-regular fa-circle text-[11px]';
+        }
+
+        // 3. Hechos y Monto (+25)
+        const hasHechos = hechos.length > 40 && monto.length > 0;
+        if (hasHechos) score += 25;
+        const chkHechos = document.getElementById('score-chk-hechos');
+        if (chkHechos) {
+          chkHechos.className = hasHechos ? 'flex items-center gap-1.5 text-legal-emerald font-medium' : 'flex items-center gap-1.5 text-slate-400 font-normal';
+          const icon = chkHechos.querySelector('i');
+          if (icon) icon.className = hasHechos ? 'fa-solid fa-circle-check text-[11px]' : 'fa-regular fa-circle text-[11px]';
+        }
+
+        // 4. Pretensión jurídica (+15)
+        const hasPret = pretensiones.length > 25;
+        if (hasPret) score += 15;
+        const chkPret = document.getElementById('score-chk-pretension');
+        if (chkPret) {
+          chkPret.className = hasPret ? 'flex items-center gap-1.5 text-legal-emerald font-medium' : 'flex items-center gap-1.5 text-slate-400 font-normal';
+          const icon = chkPret.querySelector('i');
+          if (icon) icon.className = hasPret ? 'fa-solid fa-circle-check text-[11px]' : 'fa-regular fa-circle text-[11px]';
+        }
+
+        // Bonus: Anexos / Evidencias (+10)
+        if (this.evidenceFiles && this.evidenceFiles.length > 0) {
+          score += 10;
+        }
+
+        score = Math.min(100, Math.max(15, score));
+
+        // Actualizar UI
+        const numEl = document.getElementById('escudo-score-number');
+        const barEl = document.getElementById('escudo-score-bar');
+        const badgeEl = document.getElementById('escudo-score-badge');
+        const diagText = document.getElementById('escudo-diagnostico-text');
+        const diagPlazo = document.getElementById('escudo-diagnostico-plazo');
+
+        if (numEl) numEl.innerText = score;
+        if (barEl) barEl.style.width = `${score}%`;
+
+        if (badgeEl) {
+          if (score >= 80) {
+            badgeEl.className = "px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-legal-emerald";
+            badgeEl.innerText = "🟢 Solidez Alta";
+          } else if (score >= 50) {
+            badgeEl.className = "px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-legal-gold";
+            badgeEl.innerText = "🟡 Solidez Media";
+          } else {
+            badgeEl.className = "px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/15 text-rose-500";
+            badgeEl.innerText = "🔴 Solidez Inicial";
+          }
+        }
+
+        if (diagText) {
+          if (this.procedure === 'redeco') {
+            if (diagPlazo) diagPlazo.innerText = "Plazo despacho: 5 días";
+            diagText.innerHTML = `Procedimiento de queja fundado en el marco regulatorio del <strong>REDECO y Art. 284 Bis del CPF</strong>. La entidad o despacho debe cesar inmediatamente gestiones de cobranza extrajudicial intimidatorias o fuera de horario permitido.`;
+          } else {
+            if (diagPlazo) diagPlazo.innerText = "Plazo banco: 20 días";
+            diagText.innerHTML = `Conforme al <strong>Artículo 68 fracción III de la LPDUSF</strong>, la entidad cuenta con un plazo de 20 días hábiles para emitir un informe fundado y motivado. Si no acredita la autenticación de dos factores, procede el dictamen técnico a tu favor.`;
+          }
+        }
       },
 
       applyHechosPreset(type) {
@@ -2472,11 +2755,13 @@ const VERIFIED_CHANNELS_PREVIEW = {
 
       applyPretensionPreset(type) {
         const pretEl = document.getElementById('input-queja-pretensiones');
-        const monto = document.getElementById('input-queja-monto').value || 'el monto controvertido';
+        const monto = document.getElementById('input-queja-monto')?.value || 'el monto controvertido';
         const presets = {
           restitucion: `PRIMERO: La restitución íntegra e inmediata de la cantidad de ${monto} sustraída sin mi consentimiento, adicionada con los intereses moratorios legales conforme al artículo 68 Bis de la LPDUSF y jurisprudencia aplicable de la Primera Sala de la SCJN.`,
           pericial: `SEGUNDO: Se requiera formalmente a la institución financiera exhibir en audiencia de conciliación las bitácoras criptográficas de factor de autenticación, dirección IP y geolocalización exigidas por la Circular Única de Bancos, con el apercibimiento legal correspondiente.`,
-          buro: `TERCERO: La cancelación definitiva de intereses ordinarios, moratorios y comisiones derivadas del acto reclamado, el cese inmediato de gestiones de cobranza extrajudicial y la rectificación de cualquier registro negativo ante las Sociedades de Información Crediticia (Buró de Crédito / Círculo de Crédito).`
+          buro: `TERCERO: La cancelación definitiva de intereses ordinarios, moratorios y comisiones derivadas del acto reclamado, el cese inmediato de gestiones de cobranza extrajudicial y la rectificación de cualquier registro negativo ante las Sociedades de Información Crediticia (Buró de Crédito / Círculo de Crédito).`,
+          comisiones: `CUARTO: La condonación y cancelación absoluta de cualquier comisión por manejo de cuenta, anualidad, penalización o interés moratorio devengado a raíz de los hechos reclamados.`,
+          cobranza: `QUINTO: La orden perentoria de cese inmediato de gestiones de cobro extrajudicial, mensajes o llamadas telefónicas dirigidas a mi persona y a cualquier referencia personal o laboral registrada (Art. 284 Bis CPF y REDECO).`
         };
         if (pretEl && presets[type]) {
           const current = pretEl.value.trim();
@@ -2532,9 +2817,10 @@ const VERIFIED_CHANNELS_PREVIEW = {
         setTxt('doc-preview-contrato', contrato);
         setTxt('doc-preview-monto', monto);
         setTxt('doc-preview-fecha', fecha);
+        setTxt('doc-preview-fecha-creacion', new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }));
         setTxt('doc-preview-hechos', hechos);
         setTxt('doc-preview-pretensiones', pretensiones);
-        this.updateQuejaHashLive();
+        this.updateEscudoScore();
       },
 
       /* =======================================================================
@@ -2547,7 +2833,7 @@ const VERIFIED_CHANNELS_PREVIEW = {
           curp: (getV('input-quejoso-curp') || 'PEHJ850412HDFRRN09').toUpperCase(),
           email: getV('input-quejoso-email') || 'usuario@correo.com',
           telefono: getV('input-quejoso-tel') || '5512345678',
-          calle: getV('input-quejoso-calle') || 'Av. Insurgentes Sur 123, Depto 4B',
+          calle: getV('input-quejoso-calle') || 'Av. Universidad 1200, Depto 4B',
           colonia: getV('input-quejoso-colonia') || 'Col. Del Valle',
           municipio: getV('input-quejoso-municipio') || 'Benito Juárez',
           cp: getV('input-quejoso-cp') || '03100',
@@ -2575,16 +2861,13 @@ const VERIFIED_CHANNELS_PREVIEW = {
         const { B } = window.EscudoPDF;
 
         if (!this.pdfPreviewState.folio || this.pdfPreviewState.folioIsRedeco !== data.isRedeco) {
-          this.pdfPreviewState.folio = `${data.isRedeco ? 'REDECO-CONDUSEF' : 'CONDUSEF-METROPOLITANA'}-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+          this.pdfPreviewState.folio = `${data.isRedeco ? 'REDECO' : 'EXP-CONDUSEF'}-${Math.floor(10000 + Math.random() * 90000)}`;
           this.pdfPreviewState.folioIsRedeco = data.isRedeco;
         }
         const folioExp = this.pdfPreviewState.folio;
         const fechaHoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
 
-        // Cálculo de integridad criptográfica SHA-256 (NOM-151-SCFI-2016)
-        const rawContent = `${data.curp}|${data.folioSipres}|${data.fechaHechos}|${data.monto}|${data.hechos}|${data.pretensiones}`;
-        const cryptoHash = await this.generateSha256(rawContent);
-        data.cryptoHash = cryptoHash;
+
 
         // Extraer firma autógrafa digital del canvas si fue estampada
         let sigImg = null;
@@ -2652,23 +2935,23 @@ const VERIFIED_CHANNELS_PREVIEW = {
 
         // 1. Membrete Oficial
         const headerTop = doc.y;
-        const boxW = 160;
-        const boxH = 34;
-        const leftW = doc.contentWidth - boxW - 12;
+        const boxW = 150;
+        const boxH = 30;
+        const leftW = doc.contentWidth - boxW - 14;
 
         doc.rectAt(doc.right - boxW, headerTop, boxW, boxH, {
           fill: '#f8fafc',
           stroke: '#0f172a',
           lineWidth: 0.9
         });
-        doc.textAt(doc.right - 7, headerTop + 13, folioExp, {
+        doc.textAt(doc.right - 7, headerTop + 12, folioExp, {
           size: 8.5,
           style: 'monoBold',
           align: 'right',
           color: '#0f172a',
           maxWidth: boxW - 14
         });
-        doc.textAt(doc.right - 7, headerTop + 25, `RADICACIÓN: ${fechaHoy.toUpperCase()}`, {
+        doc.textAt(doc.right - 7, headerTop + 22, `FECHA: ${fechaHoy.toUpperCase()}`, {
           size: 6.8,
           style: 'regular',
           align: 'right',
@@ -2680,22 +2963,14 @@ const VERIFIED_CHANNELS_PREVIEW = {
           [B(data.isRedeco
             ? 'REGISTRO DE DESPACHOS DE COBRANZA (REDECO) — CONDUSEF'
             : 'COMISIÓN NACIONAL PARA LA PROTECCIÓN Y DEFENSA DE LOS USUARIOS DE SERVICIOS FINANCIEROS')],
-          { x: doc.left, width: leftW, size: 10.5, lineHeight: 1.24, spaceAfter: 2 }
+          { x: doc.left, width: leftW, size: 10.5, lineHeight: 1.3, spaceAfter: 4 }
         );
-        doc.paragraph([B('DIRECCIÓN GENERAL DE UNIDADES DE ATENCIÓN A USUARIOS (CDMX METROPOLITANA)')], {
+        doc.paragraph(`Fecha de creación: ${fechaHoy}`, {
           x: doc.left,
           width: leftW,
-          size: 9.2,
-          color: '#1e293b',
-          lineHeight: 1.24,
-          spaceAfter: 2
-        });
-        doc.paragraph('Av. Insurgentes Sur 762, PB, Col. Del Valle Norte, Alcaldía Benito Juárez, C.P. 03103, CDMX.', {
-          x: doc.left,
-          width: leftW,
-          size: 8.2,
-          color: '#475569',
-          lineHeight: 1.24
+          size: 9,
+          color: '#334155',
+          lineHeight: 1.25
         });
 
         doc.y = Math.max(doc.y, headerTop + boxH) + 6;
@@ -2859,17 +3134,16 @@ const VERIFIED_CHANNELS_PREVIEW = {
           color: '#475569',
           spaceAfter: 1
         });
-        doc.paragraph(`Sello Digital Cívico: ${folioExp} • Verificado con Escudo Financiero Pro`, {
-          size: 7.8,
+        doc.paragraph(`(Firma autógrafa del promovente • Rúbrica con tinta azul para radicación física en ventanilla UAU)`, {
+          size: 7.2,
           align: 'center',
           color: '#64748b',
           spaceAfter: 1
         });
-        doc.paragraph(`Sello Criptográfico (NOM-151-SCFI-2016): SHA-256: ${cryptoHash}`, {
-          size: 6.8,
-          style: 'mono',
+        doc.paragraph(`Sello Digital Cívico: ${folioExp} • Verificado con Escudo Financiero Pro`, {
+          size: 7.8,
           align: 'center',
-          color: '#0284c7'
+          color: '#64748b'
         });
 
         // 8. Anexo de Pruebas Documentales
@@ -2930,7 +3204,7 @@ const VERIFIED_CHANNELS_PREVIEW = {
           footer: (d, pageIdx, totalPages) => {
             const fy = window.EscudoPDF.PAGE_H - 38;
             d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
-            d.textAt(d.left, fy - 2, `SHA-256: ${cryptoHash.slice(0, 36)}... • NOM-151-SCFI-2016`, {
+            d.textAt(d.left, fy - 2, `Folio de Queja: ${folioExp} • Vía Oficial CONDUSEF`, {
               size: 6.8,
               style: 'mono',
               color: '#64748b'
@@ -2984,7 +3258,6 @@ const VERIFIED_CHANNELS_PREVIEW = {
 
         const when = new Date().toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short' });
         const folio = `FX-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-        const hashForensic = await this.generateSha256(`${folio}|${score}|${rec.threatType || 'Alerta'}|${when}`);
 
         const doc = window.EscudoPDF.createDocument({
           family: 'helvetica',
@@ -3174,7 +3447,7 @@ const VERIFIED_CHANNELS_PREVIEW = {
           footer: (d, pageIdx, totalPages) => {
             const fy = window.EscudoPDF.PAGE_H - 38;
             d.lineAt(d.left, fy - 10, d.right, fy - 10, { width: 0.5, color: '#cbd5e1' });
-            d.textAt(d.left, fy - 2, `SHA-256: ${hashForensic.slice(0, 36)}... • NOM-151-SCFI-2016`, {
+            d.textAt(d.left, fy - 2, `Dictamen de Ciberseguridad • Folio: ${folio}`, {
               size: 6.8,
               style: 'mono',
               color: '#64748b'
@@ -3404,7 +3677,9 @@ const VERIFIED_CHANNELS_PREVIEW = {
             this.closeSearchModal();
             this.closeExpediente();
             this.closeComparatorModal();
-            this.closeSafeHarborModal();
+            if (this.isTermsAccepted()) {
+              this.closeSafeHarborModal();
+            }
             this.closeAppFicha();
             this.closeNewReportModal();
             this.closePdfModal();
@@ -3412,15 +3687,37 @@ const VERIFIED_CHANNELS_PREVIEW = {
         });
       },
 
+      isTermsAccepted() {
+        try {
+          return localStorage.getItem('escudo_terms_accepted') === 'true';
+        } catch (e) {
+          return false;
+        }
+      },
+
       openTermsModal(forceView = true) {
         const m = document.getElementById('modal-safe-harbor');
         if (!m) return;
+        const accepted = this.isTermsAccepted();
+        const closeBtn = document.getElementById('btn-close-terms-header');
+        if (closeBtn) {
+          if (!accepted) {
+            closeBtn.classList.add('hidden');
+          } else {
+            closeBtn.classList.remove('hidden');
+          }
+        }
         if (forceView) {
           const termsView = document.getElementById('terms-content-view');
           const deniedView = document.getElementById('terms-denied-view');
           if (termsView) termsView.classList.remove('hidden');
           if (deniedView) deniedView.classList.add('hidden');
         }
+        const alertBox = document.getElementById('terms-modal-checkbox-alert');
+        if (alertBox) alertBox.classList.add('hidden');
+        const cb = document.getElementById('check-terms-modal-accept');
+        if (cb) cb.checked = accepted;
+        this.toggleTermsAcceptBtn();
         m.classList.remove('hidden');
       },
 
@@ -3429,23 +3726,58 @@ const VERIFIED_CHANNELS_PREVIEW = {
       },
 
       closeSafeHarborModal() {
+        if (!this.isTermsAccepted()) {
+          this.denyTermsModal();
+          return;
+        }
         const m = document.getElementById('modal-safe-harbor');
         if (m) m.classList.add('hidden');
       },
 
       acceptTermsModal() {
+        const cb = document.getElementById('check-terms-modal-accept');
+        const alertBox = document.getElementById('terms-modal-checkbox-alert');
+        if (cb && !cb.checked) {
+          if (alertBox) alertBox.classList.remove('hidden');
+          cb.focus();
+          this.showToast('⚠️ Debes marcar la casilla para aceptar los términos antes de ingresar.');
+          return;
+        }
+        if (alertBox) alertBox.classList.add('hidden');
         try {
           localStorage.setItem('escudo_terms_accepted', 'true');
         } catch (e) {}
-        this.closeSafeHarborModal();
+        const closeBtn = document.getElementById('btn-close-terms-header');
+        if (closeBtn) closeBtn.classList.remove('hidden');
+        const m = document.getElementById('modal-safe-harbor');
+        if (m) m.classList.add('hidden');
         this.showToast('✓ Términos y Condiciones aceptados. Bienvenido a Escudo Financiero Pro.');
       },
 
       denyTermsModal() {
+        try {
+          localStorage.removeItem('escudo_terms_accepted');
+        } catch (e) {}
+        const cb = document.getElementById('check-terms-modal-accept');
+        if (cb) cb.checked = false;
+        this.toggleTermsAcceptBtn();
+        const alertBox = document.getElementById('terms-modal-checkbox-alert');
+        if (alertBox) alertBox.classList.add('hidden');
+        const closeBtn = document.getElementById('btn-close-terms-header');
+        if (closeBtn) closeBtn.classList.add('hidden');
         const termsView = document.getElementById('terms-content-view');
         const deniedView = document.getElementById('terms-denied-view');
         if (termsView) termsView.classList.add('hidden');
         if (deniedView) deniedView.classList.remove('hidden');
+        const m = document.getElementById('modal-safe-harbor');
+        if (m) m.classList.remove('hidden');
+      },
+
+      exitPlatform() {
+        try {
+          localStorage.removeItem('escudo_terms_accepted');
+        } catch (e) {}
+        window.location.href = 'https://www.gob.mx/condusef';
       },
 
       restoreTermsView() {
@@ -3453,16 +3785,26 @@ const VERIFIED_CHANNELS_PREVIEW = {
         const deniedView = document.getElementById('terms-denied-view');
         if (termsView) termsView.classList.remove('hidden');
         if (deniedView) deniedView.classList.add('hidden');
+        const closeBtn = document.getElementById('btn-close-terms-header');
+        if (closeBtn && !this.isTermsAccepted()) closeBtn.classList.add('hidden');
+        const modalContainer = termsView?.parentElement;
+        if (modalContainer) modalContainer.scrollTop = 0;
       },
 
       toggleTermsAcceptBtn() {
         const cb = document.getElementById('check-terms-modal-accept');
         const btn = document.getElementById('btn-accept-terms-modal');
+        const alertBox = document.getElementById('terms-modal-checkbox-alert');
         if (btn && cb) {
           if (cb.checked) {
             btn.classList.add('ring-2', 'ring-emerald-400');
+            btn.classList.remove('opacity-70');
+            btn.classList.add('opacity-100');
+            if (alertBox) alertBox.classList.add('hidden');
           } else {
             btn.classList.remove('ring-2', 'ring-emerald-400');
+            btn.classList.add('opacity-70');
+            btn.classList.remove('opacity-100');
           }
         }
       },
@@ -3475,15 +3817,16 @@ const VERIFIED_CHANNELS_PREVIEW = {
       },
 
       checkTermsOnLaunch() {
-        const accepted = localStorage.getItem('escudo_terms_accepted');
-        if (accepted !== 'true') {
-          setTimeout(() => {
-            this.openTermsModal(true);
-          }, 300);
+        if (!this.isTermsAccepted()) {
+          this.openTermsModal(true);
         }
       },
 
       openSearchModal() {
+        if (!this.isTermsAccepted()) {
+          this.openTermsModal(true);
+          return;
+        }
         document.getElementById('search-modal').classList.remove('hidden');
         document.getElementById('command-palette-input').focus();
       },
@@ -4913,6 +5256,425 @@ const VERIFIED_CHANNELS_PREVIEW = {
         'Durango', 'Tlaxcala', 'Nayarit', 'Campeche', 'Baja California Sur', 'Colima'
       ],
 
+      // =========================================================================
+      // MÓDULO 6: CALENDARIO LEGAL Y PLAZOS BANCARIOS (CNBV / CONDUSEF 2026)
+      // =========================================================================
+      calendarYear: 2026,
+      calendarMonth: 10, // Noviembre (0-indexed)
+      calendarSelectedDate: '2026-11-02',
+      calendarRoadmap: null,
+      calendarInitialized: false,
+
+      cnbvHolidays2026: {
+        '2026-01-01': 'Año Nuevo',
+        '2026-02-02': 'Constitución Mexicana (1er lunes de febrero)',
+        '2026-03-16': 'Natalicio de Benito Juárez (3er lunes de marzo)',
+        '2026-04-02': 'Jueves Santo',
+        '2026-04-03': 'Viernes Santo',
+        '2026-05-01': 'Día del Trabajo',
+        '2026-09-16': 'Independencia de México',
+        '2026-11-02': 'Día de Muertos (Inhábil bancario oficial CNBV/DOF)',
+        '2026-11-16': 'Revolución Mexicana (3er lunes de noviembre)',
+        '2026-12-12': 'Día del Empleado Bancario',
+        '2026-12-25': 'Navidad'
+      },
+
+      initCalendarModule() {
+        const startDateInput = document.getElementById('cal-start-date');
+        if (startDateInput && !startDateInput.value) {
+          startDateInput.value = '2026-11-02';
+        }
+        this.calculateCalendarRoadmap();
+        this.checkPrescripcion();
+        this.calendarInitialized = true;
+      },
+
+      formatDateKey(dateObj) {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      },
+
+      formatPrettyDate(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const dt = new Date(y, m, d, 12, 0, 0);
+
+        const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        return `${days[dt.getDay()]} ${d} de ${months[m]}, ${y}`;
+      },
+
+      calculateCalendarRoadmap() {
+        const startInput = document.getElementById('cal-start-date');
+        const entityInput = document.getElementById('cal-entity-name');
+        const procSelect = document.getElementById('cal-proc-type');
+
+        const startDateStr = (startInput && startInput.value) ? startInput.value : '2026-11-02';
+        const entityName = (entityInput && entityInput.value.trim()) ? entityInput.value.trim() : 'Institución Financiera';
+        const targetBusinessDays = (procSelect && procSelect.value) ? parseInt(procSelect.value, 10) : 20;
+
+        const parts = startDateStr.split('-');
+        const startYear = parseInt(parts[0], 10);
+        const startMonth = parseInt(parts[1], 10) - 1;
+        const startDay = parseInt(parts[2], 10);
+
+        this.calendarYear = startYear;
+        this.calendarMonth = startMonth;
+
+        let current = new Date(startYear, startMonth, startDay, 12, 0, 0);
+        const roadmapDays = {};
+        const businessDates = [];
+        let businessDayCount = 0;
+
+        // Día del acuse
+        const dateKey0 = this.formatDateKey(current);
+        roadmapDays[dateKey0] = {
+          type: 'acuse',
+          businessDay: 0,
+          title: 'Fecha de Acuse / Radicación Formal',
+          description: `Radicación de queja ante ${entityName}. Guarda tu acuse sellado o captura del correo enviado a la UNE.`
+        };
+
+        // Recorrido de días hábiles bancarios
+        let safetyLoop = 0;
+        let lastBusinessDate = null;
+
+        while (businessDayCount < targetBusinessDays && safetyLoop < 120) {
+          safetyLoop++;
+          current.setDate(current.getDate() + 1);
+          const dayOfWeek = current.getDay(); // 0 = Dom, 6 = Sáb
+          const dKey = this.formatDateKey(current);
+
+          const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+          const isHoliday = !!this.cnbvHolidays2026[dKey];
+
+          if (!isWeekend && !isHoliday) {
+            businessDayCount++;
+            businessDates.push(dKey);
+            lastBusinessDate = dKey;
+
+            let milestoneTitle = `Día Hábil #${businessDayCount}`;
+            let milestoneDesc = `Transcurso del plazo procesal legal (${businessDayCount} de ${targetBusinessDays} días hábiles).`;
+
+            if (targetBusinessDays === 20) {
+              if (businessDayCount === 1) {
+                milestoneTitle = 'Día Hábil #1 - Notificación y Turno a UNE';
+                milestoneDesc = `${entityName} recibe el expediente y debe turnarlo a su Unidad Especializada (UNE). Prohibido reportarte con clave de cartera vencida en Buró por este saldo.`;
+              } else if (businessDayCount === 5) {
+                milestoneTitle = 'Día Hábil #5 - Vencimiento Límite REDECO';
+                milestoneDesc = `Si tu reclamación versa sobre cobranza extrajudicial intimidatoria (REDECO), el plazo máximo vence hoy. En reclamaciones ordinarias, continúa la fase preliminar.`;
+              } else if (businessDayCount === 10) {
+                milestoneTitle = 'Día Hábil #10 - Cierre Fase 1 (Requerimiento Técnico)';
+                milestoneDesc = `${entityName} debió requerir bitácoras IP, certificados de transferencias SPEI (CEP) y grabaciones telefónicas. Se cumple el 50% del plazo legal.`;
+              } else if (businessDayCount === 15) {
+                milestoneTitle = 'Día Hábil #15 - Dictamen Técnico Preliminar';
+                milestoneDesc = `La entidad concluye su peritaje técnico interno. Si te contactan para ofrecer convenios parciales o quitas con condiciones dudosas, mantén tu reclamo al 100%.`;
+              } else if (businessDayCount === 19) {
+                milestoneTitle = 'Día Hábil #19 - Víspera de Vencimiento Legal';
+                milestoneDesc = `Últimas 24 horas hábiles para que la UNE emita respuesta formal motivada con estados de cuenta auditados y factores de autenticación.`;
+              } else if (businessDayCount === 20) {
+                milestoneTitle = 'DÍA HÁBIL #20 - VENCIMIENTO LEGAL DEFINITIVO (Art. 68)';
+                milestoneDesc = `Vence el plazo legal improrrogable del Art. 68 LPDUSF. Si ${entityName} no te entregó dictamen fundado, incurre en mora procesal y CONDUSEF presumirá ciertos tus hechos en audiencia.`;
+              }
+            } else if (targetBusinessDays === 5) {
+              if (businessDayCount === 1) {
+                milestoneTitle = 'Día Hábil #1 - Notificación REDECO';
+                milestoneDesc = `Despacho de cobranza notificado formalmente. Deben cesar llamadas intimidatorias a referencias o en horarios inhábiles.`;
+              } else if (businessDayCount === 5) {
+                milestoneTitle = 'DÍA HÁBIL #5 - VENCIMIENTO REDECO (Cobranza)';
+                milestoneDesc = `Vence el plazo legal para que la entidad y el despacho rindan informe de cese de cobranza o resolución del folio.`;
+              }
+            }
+
+            roadmapDays[dKey] = {
+              type: businessDayCount === targetBusinessDays ? 'deadline' : 'business',
+              businessDay: businessDayCount,
+              title: milestoneTitle,
+              description: milestoneDesc
+            };
+          } else if (isHoliday) {
+            roadmapDays[dKey] = {
+              type: 'holiday',
+              holidayName: this.cnbvHolidays2026[dKey],
+              title: `Inhábil Oficial CNBV: ${this.cnbvHolidays2026[dKey]}`,
+              description: `Día festivo bancario oficial publicado en el DOF. Los bancos y CONDUSEF suspenden operaciones. NO descuenta de los ${targetBusinessDays} días hábiles.`
+            };
+          }
+        }
+
+        this.calendarRoadmap = {
+          startDate: startDateStr,
+          deadlineDate: lastBusinessDate,
+          targetDays: targetBusinessDays,
+          entityName: entityName,
+          roadmapDays: roadmapDays,
+          businessDates: businessDates
+        };
+
+        // Actualizar Resúmenes
+        const displayStart = document.getElementById('cal-display-start');
+        const displayDeadline = document.getElementById('cal-display-deadline');
+        const displayStatus = document.getElementById('cal-display-status');
+
+        if (displayStart) {
+          displayStart.textContent = this.formatPrettyDate(startDateStr);
+        }
+        if (displayDeadline && lastBusinessDate) {
+          displayDeadline.innerHTML = `<span class="text-amber-800 dark:text-amber-300 font-bold">${this.formatPrettyDate(lastBusinessDate)}</span>`;
+        }
+        if (displayStatus) {
+          displayStatus.innerHTML = `<span class="text-emerald-800 dark:text-emerald-400 font-bold"><i class="fa-solid fa-clock mr-1"></i>En tiempo (${targetBusinessDays} Días Hábiles)</span>`;
+        }
+
+        this.renderCalendarGrid();
+        this.selectCalendarDay(startDateStr);
+      },
+
+      changeCalendarMonth(offset) {
+        if (offset === 0) {
+          if (this.calendarRoadmap && this.calendarRoadmap.startDate) {
+            const parts = this.calendarRoadmap.startDate.split('-');
+            this.calendarYear = parseInt(parts[0], 10);
+            this.calendarMonth = parseInt(parts[1], 10) - 1;
+          } else {
+            this.calendarYear = 2026;
+            this.calendarMonth = 10;
+          }
+        } else {
+          this.calendarMonth += offset;
+          if (this.calendarMonth > 11) {
+            this.calendarMonth = 0;
+            this.calendarYear += 1;
+          } else if (this.calendarMonth < 0) {
+            this.calendarMonth = 11;
+            this.calendarYear -= 1;
+          }
+        }
+        this.renderCalendarGrid();
+      },
+
+      renderCalendarGrid() {
+        const grid = document.getElementById('cal-days-grid');
+        const monthTitle = document.getElementById('cal-month-title');
+        if (!grid) return;
+
+        const monthsNames = [
+          'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ];
+
+        if (monthTitle) {
+          monthTitle.textContent = `${monthsNames[this.calendarMonth]} ${this.calendarYear}`;
+        }
+
+        const firstDayDate = new Date(this.calendarYear, this.calendarMonth, 1);
+        const firstDayOfWeek = firstDayDate.getDay();
+        const leadingEmptyCells = (firstDayOfWeek + 6) % 7;
+        const daysInMonth = new Date(this.calendarYear, this.calendarMonth + 1, 0).getDate();
+
+        let html = '';
+
+        for (let i = 0; i < leadingEmptyCells; i++) {
+          html += `<div class="h-14 md:h-16 rounded-xl border border-dashed border-slate-100 dark:border-obsidian-border/30 opacity-20"></div>`;
+        }
+
+        const roadmap = this.calendarRoadmap ? this.calendarRoadmap.roadmapDays : {};
+        const startDateStr = this.calendarRoadmap ? this.calendarRoadmap.startDate : '';
+        const deadlineDateStr = this.calendarRoadmap ? this.calendarRoadmap.deadlineDate : '';
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dateStr = `${this.calendarYear}-${String(this.calendarMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const currentDayObj = new Date(this.calendarYear, this.calendarMonth, d);
+          const dow = currentDayObj.getDay();
+          const isWeekend = (dow === 0 || dow === 6);
+          const isHoliday = !!this.cnbvHolidays2026[dateStr];
+          const holidayName = this.cnbvHolidays2026[dateStr] || '';
+          const isAcuse = (dateStr === startDateStr);
+          const isDeadline = (dateStr === deadlineDateStr);
+          const isSelected = (dateStr === this.calendarSelectedDate);
+          const dayInfo = roadmap[dateStr];
+
+          let borderClass = 'border-slate-200 dark:border-obsidian-border';
+          let bgClass = 'bg-white dark:bg-obsidian-elevated/40 text-slate-800 dark:text-slate-200';
+          let badgeHtml = '';
+
+          if (isDeadline) {
+            bgClass = 'bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold';
+            borderClass = 'border-2 border-amber-500 shadow-md shadow-amber-500/10';
+            badgeHtml = `<span class="mt-1 inline-block px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-amber-500 text-slate-900 tracking-tight animate-pulse">VENCE</span>`;
+          } else if (isAcuse) {
+            bgClass = 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold';
+            borderClass = 'border-2 border-legal-emerald';
+            badgeHtml = `<span class="mt-1 inline-block px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-legal-emerald text-white tracking-tight">ACUSE</span>`;
+          } else if (dayInfo && dayInfo.type === 'business') {
+            bgClass = 'bg-emerald-500/5 dark:bg-emerald-500/10 text-slate-900 dark:text-white';
+            borderClass = 'border-emerald-500/30';
+            badgeHtml = `<span class="mt-1 inline-block px-1 py-0.2 rounded text-[8px] font-mono font-semibold bg-emerald-500/20 text-legal-emerald">H-${dayInfo.businessDay}</span>`;
+          } else if (isHoliday) {
+            bgClass = 'bg-rose-500/10 text-rose-700 dark:text-rose-300';
+            borderClass = 'border-rose-400/30';
+            badgeHtml = `<span class="mt-1 inline-block px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-rose-500 text-white truncate max-w-full" title="${holidayName}">DOF</span>`;
+          } else if (isWeekend) {
+            bgClass = 'bg-slate-50 dark:bg-obsidian-card/40 text-slate-400 dark:text-slate-500';
+            borderClass = 'border-slate-100 dark:border-obsidian-border/40';
+          }
+
+          if (isSelected) {
+            borderClass += ' ring-2 ring-legal-gold ring-offset-1 dark:ring-offset-obsidian-surface';
+          }
+
+          html += `
+            <div onclick="PreviewApp.selectCalendarDay('${dateStr}')" 
+                 class="h-14 md:h-16 p-1.5 rounded-xl border ${borderClass} ${bgClass} cursor-pointer transition-all hover:scale-[1.03] hover:z-10 flex flex-col justify-between overflow-hidden">
+              <div class="flex items-center justify-between text-[11px] leading-none">
+                <span class="font-bold">${d}</span>
+                ${isHoliday ? '<i class="fa-solid fa-ban text-[9px] text-rose-400" title="Inhábil CNBV"></i>' : ''}
+                ${isDeadline ? '<i class="fa-solid fa-flag-checkered text-[9px] text-legal-gold"></i>' : ''}
+              </div>
+              <div class="text-center overflow-hidden">
+                ${badgeHtml}
+              </div>
+            </div>
+          `;
+        }
+
+        grid.innerHTML = html;
+      },
+
+      selectCalendarDay(dateStr) {
+        this.calendarSelectedDate = dateStr;
+        this.renderCalendarGrid();
+
+        const actionDateLabel = document.getElementById('cal-action-date-label');
+        const actionBadge = document.getElementById('cal-action-badge');
+        const actionDesc = document.getElementById('cal-action-description');
+
+        if (!actionDateLabel || !actionDesc) return;
+
+        actionDateLabel.innerHTML = `<i class="fa-solid fa-calendar-day text-legal-gold"></i><span>${this.formatPrettyDate(dateStr)}</span>`;
+
+        const roadmap = this.calendarRoadmap ? this.calendarRoadmap.roadmapDays : {};
+        const isHoliday = !!this.cnbvHolidays2026[dateStr];
+        const dayInfo = roadmap[dateStr];
+
+        const parts = dateStr.split('-');
+        const currentDayObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        const dow = currentDayObj.getDay();
+        const isWeekend = (dow === 0 || dow === 6);
+
+        if (dayInfo) {
+          if (dayInfo.type === 'deadline') {
+            actionBadge.className = 'px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500 text-slate-900';
+            actionBadge.textContent = 'VENCIMIENTO LEGAL';
+            actionDesc.innerHTML = `<strong>${dayInfo.title}:</strong> ${dayInfo.description}`;
+          } else if (dayInfo.type === 'acuse') {
+            actionBadge.className = 'px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500 text-white';
+            actionBadge.textContent = 'ACUSE DE RECIBO';
+            actionDesc.innerHTML = `<strong>${dayInfo.title}:</strong> ${dayInfo.description}`;
+          } else if (dayInfo.type === 'business') {
+            actionBadge.className = 'px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-legal-emerald';
+            actionBadge.textContent = `DÍA HÁBIL #${dayInfo.businessDay}`;
+            actionDesc.innerHTML = `<strong>${dayInfo.title}:</strong> ${dayInfo.description}`;
+          } else if (dayInfo.type === 'holiday') {
+            actionBadge.className = 'px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-rose-500 text-white';
+            actionBadge.textContent = 'INHÁBIL CNBV (DOF)';
+            actionDesc.innerHTML = `<strong>${dayInfo.title}:</strong> ${dayInfo.description}`;
+          }
+        } else if (isHoliday) {
+          actionBadge.className = 'px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-rose-500 text-white';
+          actionBadge.textContent = 'INHÁBIL CNBV (DOF)';
+          actionDesc.innerHTML = `<strong>Día Inhábil Bancario Oficial:</strong> ${this.cnbvHolidays2026[dateStr]}. Las sucursales bancarias, la CNBV y CONDUSEF no laboran conforme al calendario publicado en el DOF.`;
+        } else if (isWeekend) {
+          actionBadge.className = 'px-2 py-0.5 rounded text-[9px] font-mono font-semibold bg-slate-200 dark:bg-obsidian-border text-slate-600 dark:text-slate-400';
+          actionBadge.textContent = 'FIN DE SEMANA';
+          actionDesc.innerHTML = `<strong>Fin de semana (Inhábil procesal):</strong> Los sábados y domingos no computan para el plazo legal de los 20 días hábiles (Art. 68 LPDUSF).`;
+        } else {
+          actionBadge.className = 'px-2 py-0.5 rounded text-[9px] font-mono font-semibold bg-slate-100 dark:bg-obsidian-elevated text-slate-500';
+          actionBadge.textContent = 'DÍA HÁBIL ORDINARIO';
+          actionDesc.innerHTML = `Día hábil del sistema bancario nacional mexicano.`;
+        }
+      },
+
+      checkPrescripcion() {
+        const prescInput = document.getElementById('cal-prescripcion-date');
+        const resultContainer = document.getElementById('cal-prescripcion-result');
+        if (!prescInput || !resultContainer) return;
+
+        const val = prescInput.value;
+        if (!val) {
+          resultContainer.innerHTML = `<span class="text-xs text-rose-500">Por favor ingresa la fecha del cargo o hecho controvertido.</span>`;
+          return;
+        }
+
+        const parts = val.split('-');
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+
+        const prescDate = new Date(y + 2, m, d);
+        const prescDateStr = this.formatDateKey(prescDate);
+        const prettyPrescDate = this.formatPrettyDate(prescDateStr);
+
+        const now = new Date(2026, 10, 2); // Simulación 2 Nov 2026
+
+        const diffTime = prescDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays >= 0) {
+          const diffMonths = Math.floor(diffDays / 30);
+          resultContainer.className = 'p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-slate-700 dark:text-slate-300';
+          resultContainer.innerHTML = `
+            <div class="flex items-center gap-1.5 font-bold text-legal-emerald mb-1">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>Derecho Legal 100% Vigente (Art. 67 LPDUSF)</span>
+            </div>
+            <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+              Tienes hasta el <strong>${prettyPrescDate}</strong> para radicar tu queja formal ante CONDUSEF. Te quedan aproximadamente <strong>${diffMonths} meses (${diffDays} días)</strong> de vigencia legal. No dejes pasar el tiempo para asegurar la recuperación de tus fondos.
+            </p>
+          `;
+        } else {
+          resultContainer.className = 'p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-slate-700 dark:text-slate-300';
+          resultContainer.innerHTML = `
+            <div class="flex items-center gap-1.5 font-bold text-rose-600 dark:text-rose-400 mb-1">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span>Plazo Ordinario CONDUSEF Expirado (${Math.abs(diffDays)} días vencido)</span>
+            </div>
+            <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+              El plazo de 2 años conforme al Art. 67 LPDUSF venció el <strong>${prettyPrescDate}</strong>. Aunque la vía conciliatoria de CONDUSEF precluyó, aún puedes evaluar la <strong>vía mercantil ordinaria (Código de Comercio)</strong> o acreditar que tuviste conocimiento del hecho en una fecha posterior.
+            </p>
+          `;
+        }
+      },
+
+
+
+      sendWhatsAppCalendarReminder() {
+        if (!this.calendarRoadmap || !this.calendarRoadmap.deadlineDate) {
+          alert('Primero calcula los plazos legales.');
+          return;
+        }
+
+        const rm = this.calendarRoadmap;
+        const startPretty = this.formatPrettyDate(rm.startDate);
+        const deadlinePretty = this.formatPrettyDate(rm.deadlineDate);
+
+        const msg = `🛡️ *Escudo Financiero Pro - Alerta de Plazo Legal CNBV*\n\n` +
+                    `🏛️ *Institución:* ${rm.entityName}\n` +
+                    `📅 *Fecha de Acuse:* ${startPretty}\n` +
+                    `🚨 *Vencimiento Legal (${rm.targetDays} Días Hábiles - Art. 68):* ${deadlinePretty}\n\n` +
+                    `⚠️ *Importante:* Si para esta fecha no hay contestación motivada, la institución incurre en mora procesal y la ley presume ciertos tus hechos ante CONDUSEF.\n\n` +
+                    `Protege tu patrimonio: https://escudofinanciero.mx`;
+
+        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+        window.open(waUrl, '_blank');
+      },
+
       initRadar() {
         if (!this.radarInitialized) {
           this.filterRadarApps();
@@ -5723,16 +6485,4 @@ Muchas gracias por su apoyo y comprensión.`;
       }
     };
 
-// ============================================================================
-// INTEROPERABILIDAD Y ALIAS GLOBAL DE COMPATIBILIDAD
-// ============================================================================
-const EscudoApp = PreviewApp;
-const VERIFIED_CHANNELS = VERIFIED_CHANNELS_PREVIEW;
-window.EscudoApp = EscudoApp;
-window.PreviewApp = EscudoApp;
-
-document.addEventListener('DOMContentLoaded', () => {
-  if (window.EscudoApp && typeof window.EscudoApp.init === 'function') {
-    window.EscudoApp.init();
-  }
-});
+    document.addEventListener('DOMContentLoaded', () => PreviewApp.init());
