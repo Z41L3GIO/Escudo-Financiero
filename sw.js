@@ -1,5 +1,5 @@
-﻿// Service Worker - Escudo Financiero Pro (PWA Offline Support)
-const CACHE_NAME = 'escudo-pro-v5';
+// Service Worker - Escudo Financiero Pro (PWA Offline Support)
+const CACHE_NAME = 'escudo-pro-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -45,16 +45,25 @@ self.addEventListener('message', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
+  // Estrategia Network-First: busca la versión más reciente en la red; si no hay conexión, usa la caché
   e.respondWith(
-    caches.match(e.request).then((res) => {
-      if (res) return res;
-      return fetch(e.request).catch((err) => {
-        // Solo retornar index.html en navegaciones de página, nunca en scripts o estilos
-        if (e.request.mode === 'navigate') {
-          return caches.match('./index.html');
+    fetch(e.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(e.request, responseToCache);
+          });
         }
-        return Promise.reject(err);
-      });
-    })
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(e.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          if (e.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+        });
+      })
   );
 });
